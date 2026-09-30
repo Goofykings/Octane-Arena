@@ -141,6 +141,15 @@ Accounts use the existing `server/data/arena.sqlite` database by default.
 `DATABASE_PATH` can select another database. LAN mode supplies its own same-origin
 client configuration, so no backend URL setup is needed.
 
+The LAN server marks `/config.json` with `lan: true`. Both accounts and parties
+then use the page's exact origin (scheme, hostname and port), overriding any
+deployment URL baked into the build. Live party events use that same API base.
+The shared endpoint resolver derives `ws:` / `wss:` from it for future WebSocket
+transport; the current lobby uses server-sent events, not WebSockets.
+On GitHub Pages or other non-LAN deployments, `VITE_API_URL` still takes precedence
+over `config.json`'s `apiUrl`. Local DNS hostnames are accepted for same-origin
+LAN requests without adding them manually to the API origin list.
+
 If Create Party reports that the party server needs an update, an older backend
 is still running without the party routes. Stop that backend and restart it with
 `npm --prefix server start` (which now builds before starting), or use

@@ -9,6 +9,7 @@ import {
 import type { Garage } from "./inventory";
 import type { Settings, Preferences } from "./settings";
 import { icon } from "../ui/icons";
+import { loadBackendEndpoints } from "./backend";
 
 class ApiError extends Error {
   constructor(
@@ -55,29 +56,7 @@ export class Accounts {
   }
   private async initialize() {
     try {
-      const config: { apiUrl?: string } = await fetch(
-        `${import.meta.env.BASE_URL}config.json`,
-        { cache: "no-store", signal: AbortSignal.timeout(4000) },
-      ).then((r) => (r.ok ? r.json() : {}));
-      const address =
-        import.meta.env.VITE_API_URL ||
-        config.apiUrl ||
-        (import.meta.env.DEV ? "http://127.0.0.1:8787" : "");
-      if (address) {
-        const parsed = new URL(address, location.origin);
-        if (
-          parsed.protocol !== "https:" &&
-          !(
-            parsed.protocol === "http:" &&
-            (parsed.origin === location.origin ||
-              ["localhost", "127.0.0.1"].includes(parsed.hostname))
-          )
-        )
-          throw new Error("Invalid API URL");
-        if (parsed.username || parsed.password || parsed.search || parsed.hash)
-          throw new Error("Invalid API URL");
-        this.url = parsed.href.replace(/\/$/, "");
-      }
+      this.url = (await loadBackendEndpoints()).apiUrl;
       if (this.url) {
         try {
           const { account } = await this.request<{ account: AccountData }>(

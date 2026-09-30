@@ -104,18 +104,19 @@ export async function createApp(config: ServerConfig) {
     if (config.production)
       reply.header("Strict-Transport-Security", "max-age=31536000");
     const origin = req.headers.origin;
-    if (origin && !config.origins.includes(origin))
+    const allowedOrigin =
+      !!origin &&
+      (config.origins.includes(origin) ||
+        (config.allowSameOrigin === true &&
+          origin === `${req.protocol}://${req.headers.host}`));
+    if (origin && !allowedOrigin)
       throw new ApiFault(
         403,
         "ORIGIN_DENIED",
         "This frontend origin is not allowed.",
       );
     if (!["GET", "HEAD", "OPTIONS"].includes(req.method)) {
-      if (
-        !origin ||
-        !config.origins.includes(origin) ||
-        req.headers["x-arena-client"] !== "1"
-      )
+      if (!origin || !allowedOrigin || req.headers["x-arena-client"] !== "1")
         throw new ApiFault(
           403,
           "ORIGIN_DENIED",

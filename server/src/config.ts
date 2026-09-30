@@ -9,6 +9,8 @@ export interface ServerConfig {
   authLimit: number;
   sessionSeconds: number;
   requestLimit?: number;
+  /** Combined LAN hosting may be reached by a local DNS hostname as well as IP. */
+  allowSameOrigin?: boolean;
 }
 export function configuration(
   env: NodeJS.ProcessEnv = process.env,

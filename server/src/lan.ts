@@ -36,8 +36,9 @@ export async function startLan(
     authLimit: 50,
     sessionSeconds: 86400,
     requestLimit: 1800,
+    allowSameOrigin: true,
   });
-  app.get("/config.json", async () => ({ apiUrl: "/" }));
+  app.get("/config.json", async () => ({ lan: true, apiUrl: "/" }));
   app.get("/*", async (req, reply) => {
     const pathname = new URL(req.url, "http://localhost").pathname;
     if (pathname.startsWith("/api/"))

@@ -1,5 +1,6 @@
 import type { Garage } from "./inventory";
 import type { PartyReply, PartyState, PartyActions } from "../../shared/party";
+import { loadBackendEndpoints } from "./backend";
 export class PartyClient {
   state: PartyState | null = null;
   playerId = "local";
@@ -41,30 +42,8 @@ export class PartyClient {
   }
   private async initialize() {
     try {
-      const config: { apiUrl?: string } = await fetch(
-        `${import.meta.env.BASE_URL}config.json`,
-        { signal: AbortSignal.timeout(4000) },
-      ).then((r) => (r.ok ? r.json() : {}));
-      const address =
-        import.meta.env.VITE_API_URL ||
-        config.apiUrl ||
-        (import.meta.env.DEV ? "http://127.0.0.1:8787" : "");
-      if (!address) return;
-      const u = new URL(address, location.origin);
-      if (
-        (u.protocol !== "https:" &&
-          !(
-            u.protocol === "http:" &&
-            (u.origin === location.origin ||
-              ["localhost", "127.0.0.1"].includes(u.hostname))
-          )) ||
-        u.username ||
-        u.password ||
-        u.search ||
-        u.hash
-      )
-        return;
-      this.url = u.href.replace(/\/$/, "");
+      this.url = (await loadBackendEndpoints()).apiUrl;
+      if (!this.url) return;
       await this.connect();
     } catch {
       /* Local menus remain usable when the configured backend is offline. */
