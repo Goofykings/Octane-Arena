@@ -1,0 +1,145 @@
+[
+  {
+    "name": "wall entry speed 0 boost false",
+    "pass": true,
+    "data": {
+      "supported": 133,
+      "lost": 0,
+      "maxHeight": 15.000090599060059
+    }
+  },
+  {
+    "name": "wall entry speed 0 boost true",
+    "pass": true,
+    "data": {
+      "supported": 81,
+      "lost": 0,
+      "maxHeight": 15.115666389465332
+    }
+  },
+  {
+    "name": "wall entry speed 14 boost false",
+    "pass": true,
+    "data": {
+      "supported": 121,
+      "lost": 0,
+      "maxHeight": 15.056427001953125
+    }
+  },
+  {
+    "name": "wall entry speed 14 boost true",
+    "pass": true,
+    "data": {
+      "supported": 70,
+      "lost": 0,
+      "maxHeight": 15.081610679626465
+    }
+  },
+  {
+    "name": "wall entry speed 23 boost false",
+    "pass": true,
+    "data": {
+      "supported": 75,
+      "lost": 0,
+      "maxHeight": 15.095796585083008
+    }
+  },
+  {
+    "name": "wall entry speed 23 boost true",
+    "pass": true,
+    "data": {
+      "supported": 59,
+      "lost": 0,
+      "maxHeight": 15.116203308105469
+    }
+  },
+  {
+    "name": "wall stop slides and jump separates",
+    "pass": true
+  },
+  {
+    "name": "side recovery -1",
+    "pass": true,
+    "data": {
+      "triggered": true,
+      "recovered": true
+    }
+  },
+  {
+    "name": "side recovery 1",
+    "pass": true,
+    "data": {
+      "triggered": true,
+      "recovered": true
+    }
+  },
+  {
+    "name": "flip rigid-body angular calibration",
+    "pass": true,
+    "data": {
+      "peak": 7,
+      "samples": [
+        {
+          "time": 0.1,
+          "angle": 0.6610376408203686
+        },
+        {
+          "time": 0.2,
+          "angle": 1.3610305499988518
+        },
+        {
+          "time": 0.4,
+          "angle": 2.7609492148162746
+        },
+        {
+          "time": 0.65,
+          "angle": 4.498280860277833
+        }
+      ]
+    }
+  },
+  {
+    "name": "supersonic hysteresis",
+    "pass": true
+  },
+  {
+    "name": "valid demolition attacker 0 and 3 second respawn",
+    "pass": true
+  },
+  {
+    "name": "valid demolition attacker 1 and 3 second respawn",
+    "pass": true
+  },
+  {
+    "name": "demo rejects slow, teammate, rear and lateral contacts",
+    "pass": true
+  },
+  {
+    "name": "goal during demolition preserves identity and kickoff restores cars",
+    "pass": true
+  },
+  {
+    "name": "kickoff boosts and bot names survive goal flow",
+    "pass": true
+  },
+  {
+    "name": "goal plane -1 full sphere crossing",
+    "pass": true
+  },
+  {
+    "name": "goal plane 1 full sphere crossing",
+    "pass": true
+  },
+  {
+    "name": "small and large pad exact amounts and respawns",
+    "pass": true
+  },
+  {
+    "name": "skid marks use rear contacts and expire in pooled storage",
+    "pass": true,
+    "data": {
+      "segments": 18,
+      "lifetime": 0.75
+    }
+  }
+]

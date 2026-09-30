@@ -1,0 +1,261 @@
+[
+  {
+    "name": "roof recovery with throttle pressed after touchdown",
+    "pass": true,
+    "data": {
+      "triggers": 1,
+      "recovered": true
+    }
+  },
+  {
+    "name": "roof recovery with throttle held before touchdown",
+    "pass": true,
+    "data": {
+      "triggers": 1,
+      "recovered": true
+    }
+  },
+  {
+    "name": "recovery does not self-right unsupported aerial cars",
+    "pass": true
+  },
+  {
+    "name": "floor first jump starts and expires aerial-action timer",
+    "pass": true,
+    "data": {
+      "age": 1.5916666666666635,
+      "performedFirstJump": true,
+      "available": false
+    }
+  },
+  {
+    "name": "wall first jump starts and expires aerial-action timer",
+    "pass": true,
+    "data": {
+      "age": 1.5916666666666635,
+      "performedFirstJump": true,
+      "available": false
+    }
+  },
+  {
+    "name": "ceiling first jump starts and expires aerial-action timer",
+    "pass": true,
+    "data": {
+      "age": 1.5916666666666635,
+      "performedFirstJump": true,
+      "available": false
+    }
+  },
+  {
+    "name": "wall drive-off retains double jump indefinitely",
+    "pass": true,
+    "data": {
+      "firstJump": false,
+      "usedAerialAction": true,
+      "age": 0,
+      "flipLeft": 0
+    }
+  },
+  {
+    "name": "wall drive-off retains dodge indefinitely",
+    "pass": true,
+    "data": {
+      "firstJump": false,
+      "usedAerialAction": true,
+      "age": 0,
+      "flipLeft": 0.6333333333333334
+    }
+  },
+  {
+    "name": "ceiling drive-off retains double jump indefinitely",
+    "pass": true,
+    "data": {
+      "firstJump": false,
+      "usedAerialAction": true,
+      "age": 0,
+      "flipLeft": 0
+    }
+  },
+  {
+    "name": "ceiling drive-off retains dodge indefinitely",
+    "pass": true,
+    "data": {
+      "firstJump": false,
+      "usedAerialAction": true,
+      "age": 0,
+      "flipLeft": 0.6333333333333334
+    }
+  },
+  {
+    "name": "landing restores an aerial action consumed without a first jump",
+    "pass": true
+  },
+  {
+    "name": "floor contact uses drive forces without aerial pitch",
+    "pass": true,
+    "data": {
+      "supported": 90,
+      "maxPitch": 0,
+      "speed": 8.32531452178955
+    }
+  },
+  {
+    "name": "wall contact uses drive forces without aerial pitch",
+    "pass": true,
+    "data": {
+      "supported": 90,
+      "maxPitch": 0,
+      "speed": 8.32531452178955
+    }
+  },
+  {
+    "name": "ceiling contact uses drive forces without aerial pitch",
+    "pass": true,
+    "data": {
+      "supported": 90,
+      "maxPitch": 0,
+      "speed": 8.32531452178955
+    }
+  },
+  {
+    "name": "single-wheel landing suppresses input pitch but preserves physical rotation",
+    "pass": true,
+    "data": [
+      {
+        "contacts": 1,
+        "air": 0,
+        "omega": {
+          "x": 0.9167265295982361,
+          "y": 0.288750022649765,
+          "z": 0.045124176889657974
+        }
+      },
+      {
+        "contacts": 1,
+        "air": 0,
+        "omega": {
+          "x": 0.9167265295982361,
+          "y": 0.288750022649765,
+          "z": 0.045124176889657974
+        }
+      }
+    ]
+  },
+  {
+    "name": "contact debounce tolerates a lost tick, while jump restores air input promptly",
+    "pass": true
+  },
+  {
+    "name": "landing with forward held stabilizes instead of continuing aerial pitch",
+    "pass": true
+  },
+  {
+    "name": "Free Play disabled opponent cannot collide with the player",
+    "pass": true,
+    "data": {
+      "moved": 0
+    }
+  },
+  {
+    "name": "Free Play celebrates goals without score then resets without countdown",
+    "pass": true
+  },
+  {
+    "name": "ion training placement follows orientation and clears the collider",
+    "pass": true,
+    "data": [
+      2.070343349883097e-7,
+      1.1725001487245093,
+      -0.35400010279820615
+    ]
+  },
+  {
+    "name": "vector training placement follows orientation and clears the collider",
+    "pass": true,
+    "data": [
+      1.4718121443824117e-9,
+      1.3324999722694448,
+      -0.39599999655749796
+    ]
+  },
+  {
+    "name": "launch stacks immediately with a bounded speed and is match-isolated",
+    "pass": true,
+    "data": {
+      "first": 6,
+      "maximum": 30
+    }
+  },
+  {
+    "name": "goal -1 upper mouth has no protrusions, degenerate faces or hard seams",
+    "pass": true,
+    "data": {
+      "vertices": 4740,
+      "triangles": 9254,
+      "minArea": 0.00004098905873072125,
+      "maxAngleDegrees": 12.517003894930674
+    }
+  },
+  {
+    "name": "goal 1 upper mouth has no protrusions, degenerate faces or hard seams",
+    "pass": true,
+    "data": {
+      "vertices": 4740,
+      "triangles": 9254,
+      "minArea": 0.00004098905873072125,
+      "maxAngleDegrees": 12.517003894930674
+    }
+  },
+  {
+    "name": "goal -1 upper -1 curved mouth remains driveable",
+    "pass": true,
+    "data": {
+      "supported": 40,
+      "maxAngular": 1.315207454208199,
+      "final": {
+        "x": -8.230693817138672,
+        "y": 4.759815692901611,
+        "z": -46.56291580200195
+      }
+    }
+  },
+  {
+    "name": "goal -1 upper 1 curved mouth remains driveable",
+    "pass": true,
+    "data": {
+      "supported": 40,
+      "maxAngular": 1.3152016800901432,
+      "final": {
+        "x": 8.23249340057373,
+        "y": 4.75711727142334,
+        "z": -46.56291580200195
+      }
+    }
+  },
+  {
+    "name": "goal 1 upper -1 curved mouth remains driveable",
+    "pass": true,
+    "data": {
+      "supported": 40,
+      "maxAngular": 1.315207454208199,
+      "final": {
+        "x": -8.23249340057373,
+        "y": 4.757118225097656,
+        "z": 46.56291580200195
+      }
+    }
+  },
+  {
+    "name": "goal 1 upper 1 curved mouth remains driveable",
+    "pass": true,
+    "data": {
+      "supported": 40,
+      "maxAngular": 1.3152016800901432,
+      "final": {
+        "x": 8.230691909790039,
+        "y": 4.7598185539245605,
+        "z": 46.56291580200195
+      }
+    }
+  }
+]

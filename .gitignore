@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.tools/
+*.log
+.env
+.env.*
+!.env.example
+server/data/
+server/backups/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+Reference Images/
