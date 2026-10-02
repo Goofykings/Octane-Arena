@@ -5,7 +5,7 @@ export const normalizePartyCode = (code: string) =>
 export const validPartyCode = (code: string) =>
   /^[A-HJKMNP-Z2-9]{5,6}$/.test(code);
 export type PartyMode = "1v1" | "2v2" | "2v2bots";
-export type PartyStage = "home" | "mode" | "teams";
+export type PartyStage = "home" | "mode" | "teams" | "match";
 export const partyModes: { id: PartyMode; label: string }[] = [
   { id: "1v1", label: "1 VS 1" },
   { id: "2v2", label: "2 VS 2" },
@@ -29,6 +29,7 @@ export interface PartyState {
   members: PartyMember[];
   mode: PartyMode;
   stage: PartyStage;
+  matchId?: string;
 }
 export interface PartyReply {
   playerId: string;
@@ -46,4 +47,6 @@ export interface PartyActions {
   mode: { mode: PartyMode };
   stage: { stage: PartyStage };
   disconnect: Record<string, never>;
+  launch: Record<string, never>;
+  return: Record<string, never>;
 }

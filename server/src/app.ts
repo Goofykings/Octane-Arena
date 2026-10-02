@@ -265,7 +265,7 @@ export async function createApp(config: ServerConfig) {
       );
     return { account: store.account(id) };
   });
-  registerParties(app, config, (req) => {
+  const partyMatches = await registerParties(app, config, (req) => {
     try {
       return store.account(authenticated(req.cookies[sessionName]));
     } catch {
@@ -273,5 +273,5 @@ export async function createApp(config: ServerConfig) {
     }
   });
   app.addHook("onClose", async () => store.close());
-  return { app, store, authenticated };
+  return { app, store, authenticated, partyMatches };
 }

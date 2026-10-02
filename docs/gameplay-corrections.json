@@ -112,9 +112,9 @@
     "name": "ceiling contact uses drive forces without aerial pitch",
     "pass": true,
     "data": {
-      "supported": 90,
+      "supported": 25,
       "maxPitch": 0,
-      "speed": 8.32531452178955
+      "speed": -3.216606779842203
     }
   },
   {
@@ -210,12 +210,12 @@
     "name": "goal -1 upper -1 curved mouth remains driveable",
     "pass": true,
     "data": {
-      "supported": 40,
-      "maxAngular": 1.315207454208199,
+      "supported": 34,
+      "maxAngular": 0.9755754674947333,
       "final": {
-        "x": -8.230693817138672,
-        "y": 4.759815692901611,
-        "z": -46.56291580200195
+        "x": -7.442221641540527,
+        "y": 3.728670358657837,
+        "z": -46.53618240356445
       }
     }
   },
@@ -223,12 +223,12 @@
     "name": "goal -1 upper 1 curved mouth remains driveable",
     "pass": true,
     "data": {
-      "supported": 40,
-      "maxAngular": 1.3152016800901432,
+      "supported": 34,
+      "maxAngular": 0.9756460125521564,
       "final": {
-        "x": 8.23249340057373,
-        "y": 4.75711727142334,
-        "z": -46.56291580200195
+        "x": 7.444459915161133,
+        "y": 3.727064371109009,
+        "z": -46.53618240356445
       }
     }
   },
@@ -236,12 +236,12 @@
     "name": "goal 1 upper -1 curved mouth remains driveable",
     "pass": true,
     "data": {
-      "supported": 40,
-      "maxAngular": 1.315207454208199,
+      "supported": 34,
+      "maxAngular": 0.9756390481577616,
       "final": {
-        "x": -8.23249340057373,
-        "y": 4.757118225097656,
-        "z": 46.56291580200195
+        "x": -7.444459915161133,
+        "y": 3.727064371109009,
+        "z": 46.53618240356445
       }
     }
   },
@@ -249,12 +249,12 @@
     "name": "goal 1 upper 1 curved mouth remains driveable",
     "pass": true,
     "data": {
-      "supported": 40,
-      "maxAngular": 1.3152016800901432,
+      "supported": 34,
+      "maxAngular": 0.9755777293805686,
       "final": {
-        "x": 8.230691909790039,
-        "y": 4.7598185539245605,
-        "z": 46.56291580200195
+        "x": 7.442221641540527,
+        "y": 3.728670358657837,
+        "z": 46.53618240356445
       }
     }
   }

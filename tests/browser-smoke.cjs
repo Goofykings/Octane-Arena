@@ -208,12 +208,52 @@ const path = require("node:path");
     await page.locator("#play").click();
     await page.waitForTimeout(300);
     assert(
-      (await page.locator(".mode-card:disabled").count()) === 2,
-      "Only unfinished multiplayer modes are disabled",
+      (await page.locator(".mode-card:disabled").count()) === 1 &&
+        (await page.locator("#friend-mode").isEnabled()),
+      "Friend matches are enabled; only ranked remains disabled",
     );
     await page.screenshot({ path: "docs/modes.png" });
     await page.locator("#bot-mode").click();
     await page.locator("#countdown").getByText("3", { exact: true }).waitFor();
+    const kickoffPose = await page.evaluate(() => {
+      const c = window.__arena.simulation.cars[0];
+      return {
+        position: { ...c.body.translation() },
+        rotation: { ...c.body.rotation() },
+        boost: c.boost,
+      };
+    });
+    await page.keyboard.down("d");
+    await page.keyboard.down("i");
+    await page.keyboard.down("ShiftLeft");
+    await page.keyboard.down("Space");
+    await page.waitForFunction(
+      () =>
+        Math.abs(window.__arena.visuals[0].userData.frontWheels[0].rotation.y) >
+        0.2,
+    );
+    const kickoffAfter = await page.evaluate(() => {
+      const a = window.__arena,
+        c = a.simulation.cars[0];
+      return {
+        position: { ...c.body.translation() },
+        rotation: { ...c.body.rotation() },
+        boost: c.boost,
+        phase: a.match.phase,
+      };
+    });
+    assert(
+      kickoffAfter.phase === "countdown" &&
+        JSON.stringify(kickoffPose) ===
+          JSON.stringify({
+            position: kickoffAfter.position,
+            rotation: kickoffAfter.rotation,
+            boost: kickoffAfter.boost,
+          }),
+      "Kickoff wheels steer while chassis, boost and jump remain locked",
+    );
+    for (const key of ["d", "i", "ShiftLeft", "Space"])
+      await page.keyboard.up(key);
     assert(
       await page.locator(".scoreboard").isVisible(),
       "Match scoreboard remains visible",
@@ -358,7 +398,8 @@ const path = require("node:path");
     await page.keyboard.up("q");
     await page.keyboard.press("Escape");
     await page.locator("#pause-home").click();
-    if (await page.locator("#leave-confirm").evaluate(d => d.open)) await page.locator("#leave-confirm-yes").click();
+    if (await page.locator("#leave-confirm").evaluate((d) => d.open))
+      await page.locator("#leave-confirm-yes").click();
     await page.locator("#settings-open").click();
     await page.locator('[data-tab="gameplay"]').click();
     await page.locator("#infiniteBoost").check();
@@ -470,7 +511,8 @@ const path = require("node:path");
     await page.keyboard.up("ShiftLeft");
     await page.keyboard.press("Escape");
     await page.locator("#pause-home").click();
-    if (await page.locator("#leave-confirm").evaluate(d => d.open)) await page.locator("#leave-confirm-yes").click();
+    if (await page.locator("#leave-confirm").evaluate((d) => d.open))
+      await page.locator("#leave-confirm-yes").click();
     await page.setViewportSize({ width: 900, height: 600 });
     await page.waitForTimeout(300);
     await page.screenshot({ path: "docs/home-small.png" });
@@ -487,4 +529,3 @@ const path = require("node:path");
   console.error(e);
   process.exitCode = 1;
 });
-

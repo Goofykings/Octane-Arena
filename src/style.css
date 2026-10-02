@@ -1451,6 +1451,13 @@ output {
 #party-panel {bottom:1.5%;gap:8px;}
 #party-message:empty {display:none;}
 #party-start {border-color:#8cebf3;background:#235269;}
+#party-launch {border-color:#8cebf3;background:#235269;min-width:150px;}
+#network-status {position:fixed;top:18%;left:50%;transform:translateX(-50%);padding:14px 22px;background:#10263fee;color:#ffdc9c;z-index:70;text-align:center;}
+#network-menu {z-index:65;}
+#network-menu-note {color:#b7d1e4;margin:0 0 18px;text-align:center;}
+#network-labels {position:fixed;inset:0;pointer-events:none;z-index:12;}
+.network-name {position:absolute;transform:translate(-50%,-100%);padding:3px 8px;background:#0b1b2dc9;font-size:14px;border-bottom:2px solid #75e6ff;}
+.network-name[data-team="1"] {border-color:#ffb567;}
 .party-flow-open #menu,.party-flow-open #brand,.party-flow-open #profile,.party-flow-open #party-panel,.party-flow-open #home-shade,.party-flow-open #lobby-labels {visibility:hidden;}
 #party-flow {position:fixed;inset:0;width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;border:0;padding:clamp(24px,5vw,72px);color:#f0faff;background:linear-gradient(120deg,#061321ee,#0c203baa);overflow:auto;}
 #party-flow::backdrop {background:#020a1640;backdrop-filter:blur(1px);}

@@ -1,5 +1,6 @@
 import * as T from "three";
 import { arenaShell, goalShell } from "../arena/geometry";
+import { goalFrame } from "../arena/posts";
 import { P } from "../config/physics";
 import { box, material } from "./models";
 function turfTexture() {
@@ -24,7 +25,10 @@ function turfTexture() {
   return t;
 }
 export function drawArena(scene: T.Scene) {
-  const teamMaterials: { material: T.MeshBasicMaterial | T.LineBasicMaterial; color: number }[] = [];
+  const teamMaterials: {
+    material: T.MeshBasicMaterial | T.LineBasicMaterial;
+    color: number;
+  }[] = [];
   const a = P.arena,
     group = new T.Group();
   scene.add(group);
@@ -165,24 +169,15 @@ export function drawArena(scene: T.Scene) {
     );
     liningMesh.receiveShadow = true;
     goal.add(liningMesh);
-    box(
-      goal,
-      [0.18, a.goalHeight, 0.18],
-      [-a.goalHalf, a.goalHeight / 2, sign * a.halfLength],
-      glow,
-    );
-    box(
-      goal,
-      [0.18, a.goalHeight, 0.18],
-      [a.goalHalf, a.goalHeight / 2, sign * a.halfLength],
-      glow,
-    );
-    box(
-      goal,
-      [a.goalHalf * 2, 0.18, 0.18],
-      [0, a.goalHeight, sign * a.halfLength],
-      glow,
-    );
+    for (const part of goalFrame(sign)) {
+      const post = new T.Mesh(
+        new T.CapsuleGeometry(part.radius, part.length, 8, 16),
+        glow,
+      );
+      post.position.set(...part.position);
+      post.quaternion.copy(part.rotation);
+      goal.add(post);
+    }
     box(
       goal,
       [a.goalHalf * 2, a.goalHeight, 0.1],
@@ -195,7 +190,8 @@ export function drawArena(scene: T.Scene) {
       opacity: 0.23,
     });
     const marking = new T.LineBasicMaterial({ color });
-    for (const material of [glow, net, marking]) teamMaterials.push({ material, color });
+    for (const material of [glow, net, marking])
+      teamMaterials.push({ material, color });
     for (let x = -a.goalHalf; x <= a.goalHalf; x += 0.65)
       line(
         [

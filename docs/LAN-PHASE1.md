@@ -1,5 +1,89 @@
 # LAN Phase 1: lobby foundation
 
+## Current continuation — October 1, 2026
+
+The Phase 1 foundation was already implemented. This continuation preserves it
+and checks the final saved build. The preceding, separately requested playable
+network-match work was also present and has been retained. No additional network
+features or public hosting were added in this continuation.
+
+**Everything below the September 30 heading is a historical Phase 1 record.**
+Its statements that network matches are not implemented describe that earlier
+version, not the current game. See [Network matches](NETWORK-MATCHES.md) for the
+current implementation, launch instructions, and limits.
+
+Inspection checklist:
+
+| Requirement | Status at inspection |
+| --- | --- |
+| 1. Preserve local game, Free Play, bot, physics, garage, settings, accounts | PARTIALLY COMPLETE: final saved-build regression checks pending |
+| 2. Generic PlayerInput | COMPLETE |
+| 3. Independent unique-ID entities | COMPLETE |
+| 4. LAN server foundation | COMPLETE |
+| 5. Short-code Create / Join Party | COMPLETE |
+| 6. 1v1 / 2v2 lobby | COMPLETE |
+| 7. Shared membership, teams, ready, mode, host | COMPLETE; final browser confirmation pending |
+| 8. Shared TypeScript contracts | COMPLETE |
+| 9. Four cars, ID-based ownership/scoring | COMPLETE |
+| 10. Connect/disconnect/leave cleanup | COMPLETE; final browser confirmation pending |
+| 11. npm run lan | COMPLETE; fresh launcher verification pending |
+| 12. Future-authority architecture; no new synchronized physics | Preserved prior authorized match implementation; no expansion in this continuation |
+
+BROKEN / NEEDS CORRECTION at inspection: the server build omitted the `app.js`
+entry imported by account integration tests, allowing a stale artifact or a clean
+build failure; network visual cars did not update their right vector, collapsing
+skid-mark width; documentation linked a missing network guide and described the
+older lobby-only version as current. These were corrected without changing
+simulation forces or local input handling.
+
+NOT STARTED, deliberately excluded: prediction/reconciliation, lag compensation,
+matchmaking, ranked queues, public backend deployment, anti-cheat, voice chat.
+
+Changed in this continuation: `server/build.mjs`, `src/render/network-match.ts`,
+`server/README.md`, `docs/NETWORK-MATCHES.md`, this audit, and generated browser
+verification screenshots. No tests or gameplay forces needed changes.
+
+### Final verification
+
+Requirements **1–11 are COMPLETE**, implemented and checked on the final build.
+For requirement **12**, the architecture is preserved and no further networking
+features were added; previously authorized playable network matches remain in
+the repository. The game is therefore no longer a lobby-only Phase 1 build.
+
+- Frontend production build and server TypeScript/bundle build: PASS.
+- `npm test`: PASS, including contact/physics regressions, four independently
+  controlled entities, actual collision participant IDs, name-independent
+  scoring, and the identical 480-tick array/ID-input physics replay.
+- `npm --prefix server test`: all six tests PASS.
+- `npm run lan`: PASS; fresh server bound to `0.0.0.0:8090`, with frontend and
+  same-origin API available at `http://192.168.1.27:8090` on this network.
+- `tests/browser-smoke.cjs`: PASS; local gameplay, Free Play, bot, garage,
+  settings/bindings, boost, training and no runtime errors.
+- `tests/accounts-browser.cjs`: PASS using the freshly bundled app entry;
+  registration, persistence, independent sessions, save conflicts, logout,
+  restart login, and unavailable-backend Guest play.
+- `tests/lan-browser.cjs`: PASS; separate tabs, codes, four IDs/cars, capacity,
+  responsive lobby, appearance updates, kicks, tab close, local modes,
+  host transfer and offline/reconnect, with no runtime errors.
+- `tests/party-flow-browser.cjs`: PASS; shared modes, Continue/team selection,
+  ready and team events with polling blocked, capacity enforcement, bot slots,
+  and shared back navigation.
+- `tests/network-browser.cjs`: PASS preservation check; shared 1v1, four human
+  controls, server bots, goals/results, pause behavior, reconnect and cleanup.
+  Inspected the generated bot-match screenshot as well.
+
+The initial concurrent browser runs timed out. Running the same suites
+sequentially passed without test relaxation or additional production changes.
+Logs: `.tools/phase1-oct1-{physics,server,lan-launch,smoke,accounts,lobby,flow,network-browser}.log`.
+
+Remaining limits: no second physical computer/router path was tested; party and
+match state are memory-only; the public backend is not deployed, so GitHub Pages
+still needs a separately configured HTTPS backend. The build retains its large
+bundle advisory. Phase 2 should start with real-device latency and disconnect
+testing of the retained match code, followed by performance work and, only when
+requested, prediction/reconciliation. The original networking exclusions were
+not implemented in this continuation.
+
 ## Continuation verification — September 30, 2026
 
 Inspection found the Phase 1 implementation and the newer setup screens already

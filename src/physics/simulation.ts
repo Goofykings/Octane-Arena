@@ -2,7 +2,7 @@ import RAPIER from "@dimforge/rapier3d-compat";
 import { Vector3, Quaternion } from "three";
 import { P } from "../config/physics";
 import { Car } from "../car/car";
-import { createArena } from "../arena/physics";
+import { createArena, insideArena } from "../arena/physics";
 import { Pose } from "./pose";
 import type { Controls } from "../input/types";
 import {
@@ -12,6 +12,8 @@ import {
 } from "../../shared/player";
 import { canDemolish, respawnLocations } from "../game/demolition";
 import { bodies } from "../game/inventory";
+// Initialize the same Rapier module used by the simulation, including in Node.
+export const initializeSimulation = () => RAPIER.init();
 export interface Hit {
   position: Vector3;
   normal: Vector3;
@@ -39,6 +41,8 @@ export class Simulation {
   private velocities: Vector3[] = [];
   private cooldown: number[] = [];
   private relative: Vector3[] = [];
+  arenaCollider?: RAPIER.Collider;
+  containmentRecoveries = 0;
   constructor(
     flat = false,
     players: PlayerEntity[] = [
@@ -56,7 +60,8 @@ export class Simulation {
     this.world = new RAPIER.World({ x: 0, y: -P.gravity, z: 0 });
     this.world.timestep = P.dt;
     this.world.numSolverIterations = 8;
-    createArena(this.world, flat);
+    this.world.maxCcdSubsteps = 4;
+    this.arenaCollider = createArena(this.world, flat);
     this.cars = players.map(() => new Car(this.world));
     this.velocities = players.map(() => new Vector3());
     this.relative = players.map(() => new Vector3());
@@ -240,8 +245,34 @@ export class Simulation {
     this.cars.forEach((c) => {
       c.constrainSurface(true);
       cap(c.body, P.car.maxSpeed, c.angularLimit);
+      if (
+        this.arenaCollider &&
+        c.body.isEnabled() &&
+        !insideArena(this.arenaCollider, c.body.translation())
+      ) {
+        const boost = c.boost;
+        c.reset(
+          (this.cars.indexOf(c) - 1.5) * 4,
+          c.team === 0 ? 26 : -26,
+          c.team === 0 ? 0 : Math.PI,
+        );
+        c.boost = boost;
+        this.containmentRecoveries++;
+      }
       c.pose.after();
     });
+    if (
+      this.arenaCollider &&
+      this.ball.isEnabled() &&
+      !insideArena(this.arenaCollider, this.ball.translation())
+    ) {
+      this.ball.setTranslation({ x: 0, y: P.ball.radius + 0.1, z: 0 }, true);
+      this.ball.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      this.ball.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      this.lastTouchId = null;
+      this.ballPose.snap();
+      this.containmentRecoveries++;
+    }
     this.ballPose.after();
   }
   private strike(i: number) {

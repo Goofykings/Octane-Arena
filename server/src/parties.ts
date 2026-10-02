@@ -18,20 +18,49 @@ import {
 } from "../../shared/party.js";
 import { starter } from "../../shared/catalog.js";
 import type { ServerConfig } from "./config.js";
+import { NetworkMatches } from "./network.js";
+import { initializeMatchPhysics } from "./network-match.js";
 type Player = {
   member: PartyMember;
   code: string | null;
   seen: number;
   notice: string;
 };
-export function registerParties(
+export async function registerParties(
   app: FastifyInstance,
   config: ServerConfig,
   account: (req: FastifyRequest) => AccountData | null,
 ) {
+  await initializeMatchPhysics();
   const players = new Map<string, Player>(),
     parties = new Map<string, PartyState>();
   const cookieName = config.production ? "__Host-oa_party" : "oa_party";
+  const matches = new NetworkMatches(
+    app,
+    config,
+    (token) => {
+      const p = players.get(token);
+      return p
+        ? {
+            id: p.member.id,
+            code: p.code,
+            touch: () => {
+              p.seen = Date.now();
+            },
+          }
+        : null;
+    },
+    (code, reason) => {
+      const party = parties.get(code);
+      if (party) {
+        party.stage = "teams";
+        delete party.matchId;
+      }
+      if (reason)
+        for (const p of players.values())
+          if (p.code === code) p.notice = reason;
+    },
+  );
   const tokenFor = (req: FastifyRequest) =>
     typeof req.headers["x-arena-party"] === "string"
       ? req.headers["x-arena-party"]
@@ -43,6 +72,7 @@ export function registerParties(
     });
   };
   const leave = (p: Player) => {
+    if (p.code) matches.stop(p.code, "PLAYER LEFT — MATCH ENDED");
     const party = p.code ? parties.get(p.code) : null;
     p.code = null;
     p.member.ready = false;
@@ -213,6 +243,7 @@ export function registerParties(
     const party = parties.get(code);
     if (!party) return fail(404, "PARTY NOT FOUND");
     if (p.code === code) return state(p);
+    if (party.stage === "match") return fail(409, "MATCH IN PROGRESS");
     if (party.members.length >= 4) return fail(409, "PARTY FULL");
     if (
       party.stage === "teams" &&
@@ -257,6 +288,7 @@ export function registerParties(
   });
   app.put("/api/party/appearance", async (req) => {
     const p = get(req);
+    if (p.code && parties.get(p.code)?.stage === "match") return state(p);
     refresh(p, req, (req.body as { preset?: unknown })?.preset);
     return state(p);
   });
@@ -265,6 +297,7 @@ export function registerParties(
       party = p.code ? parties.get(p.code) : null,
       team = (req.body as PartyActions["team"])?.team;
     if (!party) return fail(409, "JOIN A PARTY FIRST");
+    if (party.stage === "match") return fail(409, "MATCH IN PROGRESS");
     if (team !== null && team !== 0 && team !== 1)
       return fail(400, "INVALID TEAM");
     if (
@@ -295,7 +328,7 @@ export function registerParties(
       return fail(403, "ONLY THE HOST CAN CHANGE MODE");
     if (!partyModes.some((m) => m.id === mode))
       return fail(400, "INVALID MODE");
-    if (party.stage === "teams")
+    if (party.stage === "teams" || party.stage === "match")
       return fail(409, "RETURN TO MODE SELECTION FIRST");
     party.mode = mode;
     const counts = [0, 0];
@@ -312,6 +345,7 @@ export function registerParties(
     if (!party || party.hostId !== p.member.id)
       return fail(403, "ONLY THE HOST CAN CONTINUE");
     const stage = (req.body as PartyActions["stage"])?.stage;
+    if (party.stage === "match") return fail(409, "MATCH IN PROGRESS");
     if (stage !== "home" && stage !== "mode" && stage !== "teams")
       return fail(400, "INVALID LOBBY STAGE");
     if (stage === "teams" && party.stage !== "mode")
@@ -332,4 +366,40 @@ export function registerParties(
     p.notice = "";
     return state(p);
   });
+  app.post("/api/party/launch", async (req) => {
+    const p = get(req),
+      party = p.code ? parties.get(p.code) : null;
+    if (!party || party.hostId !== p.member.id)
+      return fail(403, "ONLY THE HOST CAN START");
+    if (party.stage !== "teams") return fail(409, "CHOOSE TEAMS FIRST");
+    const blue = party.members.filter((m) => m.team === 0).length,
+      orange = party.members.filter((m) => m.team === 1).length;
+    if (
+      party.members.some((m) => m.team === null) ||
+      blue !== teamCapacity(party.mode, 0) ||
+      orange !== teamCapacity(party.mode, 1)
+    )
+      return fail(409, "FILL BOTH TEAMS BEFORE STARTING");
+    try {
+      const game = matches.start(party);
+      party.stage = "match";
+      party.matchId = game.id;
+      for (const member of players.values())
+        if (member.code === party.code) member.notice = "";
+    } catch {
+      return fail(503, "MATCH COULD NOT START — TRY AGAIN");
+    }
+    return state(p);
+  });
+  app.post("/api/party/return", async (req) => {
+    const p = get(req),
+      party = p.code ? parties.get(p.code) : null;
+    if (!party || party.hostId !== p.member.id)
+      return fail(403, "ONLY THE HOST CAN RETURN EVERYONE");
+    if (matches.matches.get(party.code)?.match.phase !== "finished")
+      return fail(409, "MATCH IS STILL PLAYING");
+    matches.stop(party.code);
+    return state(p);
+  });
+  return matches;
 }

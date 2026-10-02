@@ -36,8 +36,10 @@ export class Match {
     this.remaining = 300;
     this.overtime = false;
     this.kickoff(s);
-    s.cars[1].collider.setCollisionGroups(this.rules.bot ? 0xffffffff : 0);
-    s.cars[1].body.setEnabled(this.rules.bot);
+    if (mode !== "network" && s.cars[1]) {
+      s.cars[1].collider.setCollisionGroups(this.rules.bot ? 0xffffffff : 0);
+      s.cars[1].body.setEnabled(this.rules.bot);
+    }
   }
   kickoff(s: Simulation) {
     s.reset();

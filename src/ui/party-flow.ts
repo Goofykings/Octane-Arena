@@ -9,6 +9,13 @@ export class PartyFlow {
     this.dialog.setAttribute("aria-label", "Party game setup");
     this.dialog.innerHTML = `<section id="party-mode-screen"><header><h2>CHOOSE MODE</h2><span class="party-flow-host"></span></header><div class="party-mode-cards">${partyModes.map((m) => `<button class="party-mode-card" data-mode="${m.id}" aria-pressed="false"><span class="mode-emblem" aria-hidden="true">${m.id === "1v1" ? "Ⅰ : Ⅰ" : m.id === "2v2" ? "Ⅱ : Ⅱ" : "Ⅱ : ▣"}</span><strong>${m.label}</strong></button>`).join("")}</div><footer><button class="back-button" data-stage="home">BACK</button><button id="party-continue" class="party-button" data-stage="teams">CONTINUE →</button></footer></section><section id="party-team-screen" hidden><header><div><span class="arena-caption">LUMEN DISTRICT</span><h2>CHOOSE YOUR SIDE</h2></div><span id="party-match-mode"></span></header><div class="party-team-board">${[0, 1].map((t) => `<section class="party-team-column" data-team="${t}"><header><h3>${t === 0 ? "BLUE" : "ORANGE"}</h3><span class="team-count"></span></header><div class="team-rows"></div><button class="party-button party-team-join" data-team="${t}">JOIN ${t === 0 ? "BLUE" : "ORANGE"}</button></section>`).join("")}</div><div id="party-unassigned"></div><footer><button class="back-button" data-stage="mode">CHANGE MODE</button><button id="party-team-leave" class="back-button">LEAVE PARTY</button><span class="party-network-note">NETWORK MATCHES COMING NEXT</span></footer></section><p id="party-flow-message" role="status" aria-live="polite"></p>`;
     document.getElementById("app")!.append(this.dialog);
+    const launch = document.createElement("button");
+    launch.id = "party-launch";
+    launch.className = "party-button";
+    launch.textContent = "KICK OFF";
+    launch.onclick = () => void party.action("launch");
+    this.dialog.querySelector("#party-team-screen footer")!.append(launch);
+    this.dialog.querySelector(".party-network-note")!.remove();
     const leaveMode = document.createElement("button");
     leaveMode.id = "party-mode-leave";
     leaveMode.className = "back-button";
@@ -51,7 +58,10 @@ export class PartyFlow {
   }
   private syncVisibility() {
     const open =
-      this.visible && !!this.party.state && this.party.state.stage !== "home";
+      this.visible &&
+      !!this.party.state &&
+      this.party.state.stage !== "home" &&
+      this.party.state.stage !== "match";
     if (open && !this.dialog.open) this.dialog.showModal();
     if (!open && this.dialog.open) this.dialog.close();
     document.body.classList.toggle("party-flow-open", open);
@@ -62,6 +72,17 @@ export class PartyFlow {
     this.syncVisibility();
     if (!s) return;
     const host = s.hostId === p.playerId;
+    const launch =
+      this.dialog.querySelector<HTMLButtonElement>("#party-launch")!;
+    launch.hidden = !host;
+    launch.disabled =
+      p.busy ||
+      s.members.some((m) => m.team === null) ||
+      ([0, 1] as const).some(
+        (team) =>
+          s.members.filter((m) => m.team === team).length !==
+          teamCapacity(s.mode, team),
+      );
     this.dialog.querySelector<HTMLButtonElement>("#party-mode-leave")!.hidden =
       host;
     this.dialog.querySelector<HTMLButtonElement>(

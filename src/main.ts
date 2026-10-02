@@ -1,4 +1,6 @@
 import { PartyClient } from "./game/party";
+import { NetworkClient } from "./game/network";
+import { NetworkMatchView } from "./render/network-match";
 import { PartyPanel } from "./ui/party-panel";
 import { HomeLobby } from "./render/home-lobby";
 import RAPIER from "@dimforge/rapier3d-compat";
@@ -200,6 +202,38 @@ async function boot() {
   const party = new PartyClient(garage),
     partyPanel = new PartyPanel(party),
     homeLobby = new HomeLobby(scene);
+  const network = new NetworkClient(party);
+  let networkView: NetworkMatchView | null = null,
+    networkActive = false,
+    networkPaused = false,
+    networkPhase = "",
+    networkBoost = 0;
+  const loadingMatch = new Match();
+  loadingMatch.mode = "network";
+  loadingMatch.phase = "countdown";
+  loadingMatch.countdown = 0;
+  const networkStatus = document.createElement("div");
+  networkStatus.id = "network-status";
+  networkStatus.hidden = true;
+  const networkMenu = document.createElement("section");
+  networkMenu.id = "network-menu";
+  networkMenu.className = "modal";
+  networkMenu.hidden = true;
+  networkMenu.innerHTML =
+    '<div class="modal-card"><h2 id="network-menu-title">MATCH MENU</h2><p id="network-menu-note">THE MATCH CONTINUES</p><button id="network-resume" class="nav-button primary">RESUME</button><button id="network-settings" class="nav-button">SETTINGS</button><button id="network-return" class="nav-button">RETURN TO LOBBY</button><button id="network-leave" class="nav-button">LEAVE MATCH</button></div>';
+  ui.root.append(networkStatus, networkMenu);
+  ui.on("network-resume", () => {
+    networkPaused = false;
+    input.clear();
+  });
+  ui.on("network-settings", () => settingsPanel.open());
+  ui.on("network-leave", () => {
+    network.clearInput();
+    void party.action("leave");
+  });
+  ui.on("network-return", () => {
+    void party.action("return");
+  });
   const leaveDialog = document.createElement("dialog");
   leaveDialog.id = "leave-confirm";
   leaveDialog.setAttribute("aria-labelledby", "leave-title");
@@ -219,7 +253,9 @@ async function boot() {
   leaveDialog.querySelector<HTMLButtonElement>("#leave-confirm-stay")!.onclick =
     stay;
   const loop = new FixedLoop();
-  const start = (mode: "bot" | "freeplay" = match.mode) => {
+  const start = (
+    mode: "bot" | "freeplay" = match.mode === "freeplay" ? "freeplay" : "bot",
+  ) => {
     ui.modes(false);
     resetEffects();
     audio.unlock();
@@ -255,6 +291,10 @@ async function boot() {
   });
   ui.on("bot-mode", () => start("bot"));
   ui.on("freeplay-mode", () => start("freeplay"));
+  ui.on("friend-mode", () => {
+    ui.modes(false);
+    if (!party.state) void party.action("create");
+  });
   ui.on("garage-open", () => {
     ui.screen = "garage";
     garagePanel.customizing = false;
@@ -320,6 +360,111 @@ async function boot() {
     const dt = Math.min((now - previous) / 1000, 0.1);
     previous = now;
     const controls = input.sample();
+    if (party.state?.stage === "match") {
+      if (!networkActive) {
+        home();
+        input.clear();
+        audio.unlock();
+        networkActive = true;
+        networkPaused = false;
+        networkPhase = "";
+        networkBoost = 0;
+        for (const dialog of document.querySelectorAll<HTMLDialogElement>(
+          "dialog[open]",
+        ))
+          dialog.close();
+      }
+      if (input.takeAction("pause") && !document.querySelector("dialog[open]"))
+        networkPaused = !networkPaused;
+      if (network.latest && !networkView)
+        networkView = new NetworkMatchView(
+          scene,
+          camera,
+          network.latest,
+          party.playerId,
+        );
+      if (input.takeAction("camera") && networkView)
+        networkView.camera.ballMode = !networkView.camera.ballMode;
+      network.input(
+        networkPaused ||
+          document.hidden ||
+          !document.hasFocus() ||
+          !!document.querySelector("dialog[open]")
+          ? neutral()
+          : controls,
+      );
+      input.takeAction("jump");
+      cars.forEach((c) => (c.visible = false));
+      ball.visible = false;
+      ballShadow.visible = false;
+      homeLobby.update([], camera, dt, now / 1000, false);
+      partyPanel.host.hidden = true;
+      partyPanel.flow.updateVisibility(false);
+      document.getElementById("bot-tag")!.hidden = true;
+      hitboxes.update(simulation, false);
+      networkView?.update(network, dt, now / 1000, settings.value.camera);
+      const netMatch = networkView?.match ?? loadingMatch,
+        car = networkView?.simulation.cars[0];
+      ui.update(
+        netMatch,
+        car?.boost ?? 0,
+        networkView?.camera.ballMode ?? true,
+        car?.supersonic ?? false,
+      );
+      document.getElementById("result")!.hidden = true;
+      document.getElementById("pause")!.hidden = true;
+      networkStatus.hidden = !network.status;
+      networkStatus.textContent = network.status;
+      const finished = netMatch.phase === "finished";
+      networkMenu.hidden = !networkPaused && !finished;
+      document.getElementById("network-menu-title")!.textContent = finished
+        ? netMatch.message
+        : "MATCH MENU";
+      document.getElementById("network-menu-note")!.textContent = finished
+        ? `${netMatch.score[0]} — ${netMatch.score[1]}`
+        : "THE MATCH CONTINUES";
+      document.getElementById("network-resume")!.hidden = finished;
+      document.getElementById("network-return")!.hidden =
+        !finished || party.state.hostId !== party.playerId;
+      if (network.latest)
+        network.latest.pads.forEach((cooldown, i) => {
+          pads.items[i].cooldown = cooldown;
+          padRecharge[i].update(pads.items[i]);
+          padMeshes[i].children[1].visible = cooldown === 0;
+        });
+      if (car) {
+        audio.update(
+          Math.abs(car.forwardSpeed),
+          car.boosting,
+          car.body.isEnabled() && !finished,
+          controls.throttle,
+          false,
+          car.skidIntensity,
+        );
+        if (car.boost > networkBoost + 5 && netMatch.phase === "playing") {
+          ui.pickup();
+          audio.tone(820, 0.16, 0.035, "sine");
+        }
+        networkBoost = car.boost;
+      }
+      if (networkPhase !== netMatch.phase) {
+        if (netMatch.phase === "goal") audio.tone(100, 1.3, 0.2, "sawtooth");
+        if (netMatch.phase === "playing") audio.tone(760, 0.12, 0.08, "sine");
+        networkPhase = netMatch.phase;
+      }
+      if (networkView) goalPlanes.update(networkView.ball);
+      graphics.render(scene, camera);
+      requestAnimationFrame(frame);
+      return;
+    }
+    if (networkActive) {
+      networkView?.dispose();
+      networkView = null;
+      network.close();
+      networkActive = false;
+      networkMenu.hidden = networkStatus.hidden = true;
+      home();
+    }
     if (input.takeAction("camera"))
       cameraControl.ballMode = !cameraControl.ballMode;
     if (input.takeAction("debug")) debug.enabled = !debug.enabled;
@@ -352,6 +497,7 @@ async function boot() {
         const phase = match.phase;
         const resetSequence = match.resetSequence;
         const countdownNumber = Math.ceil(match.countdown);
+        if (phase === "countdown") simulation.cars[0].steerAtKickoff(controls);
         if (phase === "playing") {
           const wasDemolished = simulation.cars[0].demolitionState !== "active";
           simulation.step([
@@ -557,7 +703,8 @@ async function boot() {
         match.phase === "goal" ? match.goalFocus : null,
       );
     const lobbyVisible = match.phase === "home" && ui.screen === "home";
-    const partySetup = match.phase === "home" && !!party.state && party.state.stage !== "home";
+    const partySetup =
+      match.phase === "home" && !!party.state && party.state.stage !== "home";
     partyPanel.flow.updateVisibility(match.phase === "home");
     partyPanel.host.hidden = !lobbyVisible;
     homeLobby.update(
@@ -661,6 +808,10 @@ async function boot() {
         pads,
         accounts,
         party,
+        network,
+        get networkView() {
+          return networkView;
+        },
         partyPanel,
         homeLobby,
         preview,

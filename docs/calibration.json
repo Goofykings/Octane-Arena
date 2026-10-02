@@ -84,39 +84,39 @@
   },
   {
     "name": "front strike 2 m/s",
-    "value": 1.9222675561904907,
+    "value": 1.706252098083496,
     "pass": true
   },
   {
     "name": "glancing strike 2 m/s",
-    "value": 1.296915042100667,
+    "value": 1.3155404318578163,
     "pass": true
   },
   {
     "name": "front strike 10 m/s",
-    "value": 12.675449380440858,
+    "value": 12.675471104620067,
     "pass": true
   },
   {
     "name": "glancing strike 10 m/s",
-    "value": 8.78579141497462,
+    "value": 8.787276626208195,
     "pass": true
   },
   {
     "name": "front strike 20 m/s",
-    "value": 25.442528029605274,
+    "value": 25.441846534849738,
     "pass": true
   },
   {
     "name": "glancing strike 20 m/s",
-    "value": 17.978377210284272,
+    "value": 17.980112286455316,
     "pass": true
   },
   {
     "name": "floor to vertical wall driving",
     "value": {
-      "maxY": 20.11916732788086,
-      "wallContacts": 182
+      "maxY": 20.066675186157227,
+      "wallContacts": 169
     },
     "pass": true
   },
@@ -279,7 +279,7 @@
   },
   {
     "name": "cars move during celebration",
-    "value": 9.066748171716032,
+    "value": 9.147930461561465,
     "pass": true
   },
   {
@@ -338,8 +338,8 @@
     "name": "head-on opponent collision",
     "value": {
       "collision": true,
-      "opponentZ": -5.320802211761475,
-      "playerZ": -2.305767774581909
+      "opponentZ": -5.321254253387451,
+      "playerZ": -2.305267810821533
     },
     "pass": true
   },
@@ -347,8 +347,8 @@
     "name": "glancing opponent collision",
     "value": {
       "collision": true,
-      "opponentZ": -4.854806900024414,
-      "playerZ": -2.491553783416748
+      "opponentZ": -4.851093769073486,
+      "playerZ": -2.494325876235962
     },
     "pass": true
   }

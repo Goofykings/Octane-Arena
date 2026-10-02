@@ -14,18 +14,21 @@ npm install
 npm run dev
 ```
 
-Open the printed local URL and select **PLAY → AGAINST A BOT**. Ranked and friend
-matches are clearly marked as coming later; no online matchmaking is implemented.
+Open the printed local URL and select **PLAY → AGAINST A BOT**. **AGAINST A FRIEND**
+opens the party flow; ranked and online matchmaking remain unavailable.
 A desktop browser with WebGL 2 and
 a keyboard or standard gamepad is required. Click PLAY to unlock browser audio.
-The game pauses on focus loss. Touch driving is not implemented.
+Local games pause on focus loss. Network matches continue; unfocused clients send
+neutral controls. Touch driving is not implemented.
 
-For a same-Wi-Fi party lobby, install the backend dependencies once with
+For same-Wi-Fi network matches, install the backend dependencies once with
 `npm --prefix server install`, then run **`npm run lan`**. Open
 `http://localhost:8090` on this computer; other computers open the LAN address
-printed in the terminal and join using the party code. This phase synchronizes
-the lobby; multiplayer matches are not implemented yet. See the
-[LAN setup and verified Phase 1 checklist](docs/LAN-PHASE1.md).
+printed in the terminal and join using the party code. The host chooses
+**START GAME → mode → CONTINUE**. Everyone chooses a side, then the host selects
+**KICK OFF**. Supports 1v1, 2v2 and two humans versus two bots. See the
+[network match guide](docs/NETWORK-MATCHES.md) and the historical
+[Phase 1 checklist](docs/LAN-PHASE1.md).
 
 The home screen has Play, Garage and Settings on the left, plus a compact clickable Guest/account
 profile. Garage includes two original starter bodies (Ion and Vector), curated

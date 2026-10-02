@@ -26,7 +26,9 @@ export const P = {
     boostUse: 33.3,
     airThrottle: 66.667 * UU,
     airReverse: 33.334 * UU,
-    maxAngular: 5.5,
+    maxAngular: 6,
+    chassisFriction: 0.05,
+    roofFriction: 0.50, // Extra rigid-body friction only while resting/sliding on the roof.
     contactHeight: 0.31,
     contactReach: 0.5,
     contactSkin: 0.008,
@@ -34,6 +36,10 @@ export const P = {
     rayLength: 0.65,
     grip: 24,
     adhesion: 3.25,
+    wallDriveSpeed: 4,
+    wallIdleGrip: 0.025,
+    ceilingAdhesionEnd: -0.25,
+    normalResponse: 40,
     align: 100,
     alignDamping: 16,
     steeringResponse: 18,
@@ -123,6 +129,7 @@ export const P = {
     goalDepth: 8.8,
     goalCurve: 2.4,
     goalLip: 1.2,
+    postRadius: 0.22,
   },
 } as const;
 export function lookup(

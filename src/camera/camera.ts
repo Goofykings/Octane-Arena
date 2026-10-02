@@ -19,6 +19,7 @@ export class GameCamera {
   private wallClearTime = 0;
   private previousCar = new T.Vector3();
   private modeBlend = 1;
+  private surfaceRotation = new T.Quaternion();
   constructor(public camera: T.PerspectiveCamera) {}
   get baseFov() {
     return this.settings.fov;
@@ -58,7 +59,12 @@ export class GameCamera {
     this.previousCar.copy(car.position);
     const velocity = new T.Vector3().copy(s.cars[0].body.linvel()),
       speed = velocity.length();
-    const nose = new T.Vector3(0, 0, -1).applyQuaternion(car.quaternion);
+    // Only filter the brief surface transition; ordinary flat driving retains
+    // its original response. Never rotate the horizon with individual contacts.
+    if (!this.ready || !s.cars[0].grounded || s.cars[0].normal.y > 0.98)
+      this.surfaceRotation.copy(car.quaternion);
+    else this.surfaceRotation.slerp(car.quaternion, 1 - Math.exp(-dt * 35));
+    const nose = new T.Vector3(0, 0, -1).applyQuaternion(this.surfaceRotation);
     // Airborne heading follows travel, not the flipping/rolling body. At low speed retain the last heading.
     const guide = s.cars[0].grounded
       ? nose.clone().setY(0)

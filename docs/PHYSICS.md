@@ -21,7 +21,10 @@ offsets. Four rays determine support and contact normals. A unilateral velocity
 constraint limits movement into the wheel-clearance plane. After integration,
 bounded normal-only position correction clears wheels and chassis corners without
 adding rebound velocity. Surface-normal adhesion and angular feedback maintain
-driven wall/ceiling contact; there is no pose lock or spring/damper suspension.
+driven wall contact; adhesion fades beyond vertical and gravity releases ceiling
+contact. There is no pose lock or spring/damper suspension. See the focused
+[arena collision audit](ARENA-COLLISION.md) for shell topology, roof/side CCD,
+rounded goal frames, containment and verification coverage.
 The floor/wall/ceiling profile has 20 segments per quarter circle and the planar
 arena corners have 24. The goal opening interrupts the end-wall sweep.
 

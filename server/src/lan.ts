@@ -26,7 +26,7 @@ export async function startLan(
     "http://127.0.0.1:" + port,
     ...addresses.map((ip) => `http://${ip}:${port}`),
   ];
-  const { app } = await createApp({
+  const { app, partyMatches } = await createApp({
     host: "0.0.0.0",
     port,
     database,
@@ -71,7 +71,7 @@ export async function startLan(
       .send(createReadStream(file));
   });
   await app.listen({ host: "0.0.0.0", port });
-  return { app, origins, addresses, port };
+  return { app, origins, addresses, port, partyMatches };
 }
 if (
   process.argv[1] &&
@@ -79,7 +79,7 @@ if (
 ) {
   const { app, addresses, port } = await startLan();
   console.log(
-    `Octane Arena LAN ready on 0.0.0.0:${port}\nThis computer: http://localhost:${port}\nSame Wi-Fi: ${addresses.map((ip) => `http://${ip}:${port}`).join(" or ") || "No LAN IPv4 address detected"}\nOpen the same address on another device, then Create Party / Join Party. Lobby only; network matches arrive in Phase 2.`,
+    `Octane Arena LAN ready on 0.0.0.0:${port}\nThis computer: http://localhost:${port}\nSame Wi-Fi: ${addresses.map((ip) => `http://${ip}:${port}`).join(" or ") || "No LAN IPv4 address detected"}\nCreate Party / Join Party, choose a mode and sides, then the host selects KICK OFF.`,
   );
   for (const signal of ["SIGINT", "SIGTERM"] as const)
     process.on(signal, () => void app.close().then(() => process.exit(0)));

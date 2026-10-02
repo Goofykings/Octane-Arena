@@ -1,5 +1,9 @@
 # Rigid contact replacement — September 29, 2026
 
+> Historical record. The October 2 [arena collision pass](ARENA-COLLISION.md)
+> supersedes the ceiling-driving behavior below: adhesion now fades past
+> vertical. Chassis protection remains active while jumping.
+
 ## Resume audit
 
 Before resuming, spring/damper acceleration and wall rebound damping had been

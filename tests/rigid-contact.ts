@@ -112,7 +112,11 @@ for (const id of ["ion", "vector"] as const) {
       c.pose.render(pose, 1);
       animateWheels(model, c.forwardSpeed, c.steerAngle, P.dt, c, pose);
       if (c.up.y < -0.9 && pose.position.y > P.arena.height - 0.6) ceiling++;
-      if (pose.position.y > 4 && pose.position.y < 15) {
+      if (
+        pose.position.x > P.arena.halfWidth - 1.5 &&
+        pose.position.y > 4 &&
+        pose.position.y < 15
+      ) {
         wall++;
         assert.ok(
           c.contacts >= 2,
@@ -161,10 +165,11 @@ for (const id of ["ion", "vector"] as const) {
                   .add(pose.position),
               ),
             );
-      if (ceiling > 60) break;
+      if (ceiling > 0 && !c.grounded && pose.position.y < P.arena.height - 1)
+        break;
     }
     assert.ok(
-      curve > 0 && wall > 25 && ceiling > 60,
+      curve > 0 && wall > 25 && ceiling > 0 && !c.grounded,
       `path counts ${curve}/${wall}/${ceiling}`,
     );
     assert.ok(
@@ -267,9 +272,7 @@ check("ceiling drive then loss of contact falls freely", () => {
     new Vector3(0, 0, -1),
   );
   step(s, { throttle: 1 }, 120);
-  assert.ok(c.contacts === 4 && c.body.translation().y > P.arena.height - 0.4);
-  c.body.setLinvel({ x: 0, y: -5, z: 0 }, true);
-  step(s, {}, 60);
+  // Current rule: ceiling contact must shed naturally even while throttling.
   assert.ok(!c.grounded && c.body.translation().y < P.arena.height - 2);
   s.dispose();
 });

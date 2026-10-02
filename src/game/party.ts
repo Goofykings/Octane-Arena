@@ -13,6 +13,12 @@ export class PartyClient {
   private token = "";
   private stream: AbortController | null = null;
   connection: "offline" | "connected" = "offline";
+  get matchConnection() {
+    return {
+      url: this.url.replace(/^http/, "ws") + "/api/match/socket",
+      token: this.token,
+    };
+  }
   constructor(
     private garage: Garage,
     public changed = () => {},

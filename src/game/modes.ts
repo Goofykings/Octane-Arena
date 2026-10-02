@@ -1,4 +1,13 @@
 export const modes = {
+  network: {
+    bot: false,
+    scoreboard: true,
+    countdown: 3,
+    clock: true,
+    training: false,
+    infiniteBoost: false,
+    goal: "celebrate",
+  },
   bot: {
     bot: true,
     scoreboard: true,

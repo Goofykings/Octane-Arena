@@ -27,7 +27,13 @@ npm start
 npm test
 ```
 
-`server/dist/server/src/index.js` is the entry point. `server/dist/shared/` contains shared catalog/schema code. Deploy the **whole server/dist directory**, server package files and production dependencies; do not deploy just its `src` subdirectory.
+`server/dist/server/src/index.js` is the entry point. The build bundles the shared
+schemas and existing simulation into each server entry point, including `app.js`
+for integration tests. Deploy the **whole server/dist directory**, server package
+files and production dependencies. Build from the full repository with both root
+and server dependencies installed; old `dist/shared` files are not used by these
+bundles. Rapier, Three.js and WebSocket runtime dependencies are declared in the
+server package so the compiled backend can run independently.
 
 ## Production configuration
 
