@@ -148,17 +148,17 @@ for (const sign of [-1, 1]) {
       db = 6 * u * (1 - u);
     const p = new Vector3(
       side * (a.goalHalf + a.goalLip * u),
-      a.ramp * (1 - Math.cos(t)),
+      a.ramp * blend * (1 - Math.cos(t)),
       sign * (a.halfLength - a.ramp * (1 - Math.sin(t)) * blend),
     );
     const du = new Vector3(
         side * a.goalLip,
-        0,
+        a.ramp * db * (1 - Math.cos(t)),
         -sign * a.ramp * (1 - Math.sin(t)) * db,
       ),
       dt = new Vector3(
         0,
-        a.ramp * Math.sin(t),
+        a.ramp * blend * Math.sin(t),
         sign * a.ramp * Math.cos(t) * blend,
       );
     const normal = new Vector3().crossVectors(du, dt).normalize();
@@ -370,6 +370,88 @@ check("ball impacts at floor/wall, wall/ceiling and mouth patch seams", () => {
 });
 
 check(
+  "former post divots: tapered shoulder impacts and goal entry/exit",
+  () => {
+    let impacts = 0,
+      crossings = 0;
+    for (const sign of [-1, 1])
+      for (const side of [-1, 1]) {
+        for (const u of [0.08, 0.25, 0.75]) {
+          const t = Math.PI / 4,
+            blend = u * u * (3 - 2 * u),
+            db = 6 * u * (1 - u);
+          const p = new Vector3(
+            side * (a.goalHalf + a.goalLip * u),
+            a.ramp * blend * (1 - Math.cos(t)),
+            sign * (a.halfLength - a.ramp * blend * (1 - Math.sin(t))),
+          );
+          const normal = new Vector3()
+            .crossVectors(
+              new Vector3(
+                side * a.goalLip,
+                a.ramp * db * (1 - Math.cos(t)),
+                -sign * a.ramp * db * (1 - Math.sin(t)),
+              ),
+              new Vector3(
+                0,
+                a.ramp * blend * Math.sin(t),
+                sign * a.ramp * blend * Math.cos(t),
+              ),
+            )
+            .normalize();
+          if (normal.y < 0) normal.negate();
+          for (const speed of [2, 60]) {
+            clear();
+            c.body.setEnabled(false);
+            s.ball.setGravityScale(0, true);
+            s.ball.setTranslation(
+              p.clone().addScaledVector(normal, P.ball.radius + 0.2),
+              true,
+            );
+            s.ball.setLinvel(normal.clone().multiplyScalar(-speed), true);
+            s.ball.setAngvel({ x: 1, y: 2, z: 3 }, true);
+            for (let i = 0; i < 100; i++) {
+              s.step([n, n], true);
+              contained(`former divot ${side}/${sign}/${u}/${speed}`);
+              assert.ok(
+                new Vector3().copy(s.ball.linvel()).length() <= speed + 0.5,
+                "shoulder injects bounce energy",
+              );
+            }
+            impacts++;
+          }
+        }
+        for (const direction of [-1, 1]) {
+          clear();
+          s.ball.setEnabled(false);
+          const startZ = sign * (a.halfLength - direction * 3);
+          const forward = new Vector3(0, 0, sign * direction);
+          pose(
+            new Vector3(
+              side * (a.goalHalf - a.goalCurve - 1.2),
+              P.car.contactHeight,
+              startZ,
+            ),
+            new Vector3(0, 1, 0),
+            forward,
+          );
+          c.body.setLinvel(forward.clone().multiplyScalar(10), true);
+          for (let i = 0; i < 85; i++) {
+            s.step([{ ...n, throttle: 1 }, n]);
+            contained(`goal crossing ${side}/${sign}/${direction}`);
+            assert.ok(c.up.y > 0.98, "goal threshold tips chassis");
+          }
+          assert.ok(
+            (c.body.translation().z * sign - a.halfLength) * direction > 1,
+            "did not cross goal mouth",
+          );
+          crossings++;
+        }
+      }
+    return { impacts, crossings };
+  },
+);
+check(
   "volumetric posts/crossbars: centered, glancing, inside/outside, ground and joints",
   () => {
     let cases = 0;
@@ -432,10 +514,18 @@ check(
                 }
               }
               assert.ok(bounced, `no bounce ${kind}/${offset}/${speed}`);
-              if (offset !== 0 && (kind === "bar" || kind === "post"))
+              if (
+                offset !== 0 &&
+                (kind === "post" || (kind === "bar" && offset < 0))
+              )
                 assert.ok(
                   transverse > 0.5,
                   `flat bounce ${kind}/${offset}/${speed}`,
+                );
+              if (kind === "bar" && offset > 0)
+                assert.ok(
+                  transverse < speed * 0.15,
+                  "upper front frame should not launch upward",
                 );
               cases++;
             }

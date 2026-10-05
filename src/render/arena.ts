@@ -1,8 +1,10 @@
 import * as T from "three";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { arenaShell, goalShell } from "../arena/geometry";
 import { goalFrame } from "../arena/posts";
 import { P } from "../config/physics";
 import { box, material } from "./models";
+import { polishMaterial } from "./material-polish";
 function turfTexture() {
   const c = document.createElement("canvas");
   c.width = c.height = 512;
@@ -34,8 +36,12 @@ export function drawArena(scene: T.Scene) {
   scene.add(group);
   const floor = new T.Mesh(
     new T.PlaneGeometry(a.halfWidth * 2, a.halfLength * 2 + 2 * a.goalDepth),
-    new T.MeshStandardMaterial({ map: turfTexture(), roughness: 0.95 }),
+    polishMaterial(
+      new T.MeshStandardMaterial({ map: turfTexture(), roughness: 0.95 }),
+      "ground",
+    ),
   );
+  floor.name = "stadium-turf";
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   group.add(floor);
@@ -84,6 +90,7 @@ export function drawArena(scene: T.Scene) {
       depthWrite: false,
     }),
   ]);
+  (wall.material as T.Material[]).forEach((mat) => polishMaterial(mat, "wall"));
   group.add(wall);
   // Ramp contour bands use the same generated positions as collision geometry.
   const bandPositions: number[] = [];
@@ -147,7 +154,7 @@ export function drawArena(scene: T.Scene) {
   circle(0.3, 0, 0);
   for (const sign of [-1, 1]) {
     const color = sign > 0 ? 0x41d9f2 : 0xffb44f,
-      glow = new T.MeshBasicMaterial({ color }),
+      glow = polishMaterial(new T.MeshBasicMaterial({ color }), "goal"),
       goal = new T.Group();
     group.add(goal);
     const lining = goalShell(sign),
@@ -171,7 +178,9 @@ export function drawArena(scene: T.Scene) {
     goal.add(liningMesh);
     for (const part of goalFrame(sign)) {
       const post = new T.Mesh(
-        new T.CapsuleGeometry(part.radius, part.length, 8, 16),
+        part.kind === "bar"
+          ? new RoundedBoxGeometry(...part.size, 3, part.bevel)
+          : new T.CapsuleGeometry(part.radius, part.length, 8, 16),
         glow,
       );
       post.position.set(...part.position);
@@ -271,7 +280,10 @@ function drawCity(scene: T.Scene) {
   scene.add(city);
   const concrete = material(0x243343, 0.5, 0.7),
     trim = material(0x405469, 0.6, 0.4);
-  const windowMat = new T.MeshBasicMaterial({ color: 0xf2cb8b });
+  const windowMat = polishMaterial(
+    new T.MeshBasicMaterial({ color: 0xf2cb8b }),
+    "light",
+  );
   const windows = new T.InstancedMesh(
     new T.BoxGeometry(0.65, 0.9, 0.08),
     windowMat,

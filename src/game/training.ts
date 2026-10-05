@@ -11,11 +11,13 @@ export function trainingAction(
   match: Match,
   s: Simulation,
 ) {
-  if (!match.rules.training || match.phase !== "playing") return false;
+  if (!match.rules.training) return false;
   if (action === "trainingReset") {
+    if (match.phase !== "playing" && match.phase !== "goal") return false;
     match.kickoff(s);
     return true;
   }
+  if (match.phase !== "playing") return false;
   const c = s.cars[0],
     ball = s.ball;
   if (action === "launch") {

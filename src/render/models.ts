@@ -1,8 +1,9 @@
 import * as T from "three";
 import { P } from "../config/physics";
 import { bodies, type BodyId } from "../game/inventory";
-import { wheelMount, wheelRadius, wheelClearance } from "../car/wheels";
+import { wheelMount, wheelRadius, wheelMountY } from "../car/wheels";
 import type { Car } from "../car/car";
+import { polishMaterial } from "./material-polish";
 export const material = (color: number, metalness = 0.1, roughness = 0.65) =>
   new T.MeshStandardMaterial({ color, metalness, roughness });
 export function box(
@@ -33,6 +34,7 @@ export function carModel(
   const paint = material(color, 0.4, 0.42),
     dark = material(0x101c25, 0.45, 0.4),
     glass = material(0x446778, 0.7, 0.28);
+  [paint, dark, glass].forEach((mat) => polishMaterial(mat, "car"));
   const W = d.halfWidth * 2,
     L = d.halfLength * 2,
     roof = d.hitboxY + d.halfHeight - 0.012;
@@ -179,7 +181,7 @@ export function carModel(
     const pivot = new T.Group(),
       spin = new T.Group();
     pivot.position.copy(wheelMount(bodyId, i));
-    pivot.position.y = -0.12;
+    pivot.position.y = wheelMountY;
     mounts.push(pivot);
     pivot.add(spin);
     g.add(pivot);
@@ -249,27 +251,34 @@ export function animateWheels(
   car?: Car,
   pose?: T.Object3D,
 ) {
+  const spin = (model.userData.wheelSpin ??= {
+    speed: 0,
+    contactSpeed: 0,
+    airborneTime: 0,
+  });
+  if (dt > 0) {
+    if (!car || (car.grounded && car.wheelContact.some(Boolean))) {
+      spin.speed = spin.contactSpeed = speed;
+      spin.airborneTime = 0;
+    } else {
+      spin.airborneTime = Math.min(
+        P.car.wheelSpinCoastTime,
+        spin.airborneTime + dt,
+      );
+      spin.speed =
+        spin.contactSpeed *
+        Math.max(0, 1 - spin.airborneTime / P.car.wheelSpinCoastTime);
+    }
+  }
   for (const wheel of model.userData.wheels as T.Group[])
-    wheel.rotation.x -= (speed * dt) / 0.18;
+    wheel.rotation.x -= (spin.speed * dt) / 0.18;
   for (const pivot of model.userData.frontWheels as T.Group[])
     pivot.rotation.y = T.MathUtils.lerp(
       pivot.rotation.y,
       steer,
       1 - Math.exp(-dt * 20),
     );
-  if (car && pose)
-    (model.userData.wheelMounts as T.Group[]).forEach((pivot, i) => {
-      pivot.position.y = wheelClearance(
-        car.world,
-        pose.position,
-        pose.quaternion,
-        car.bodyId,
-        i,
-        car.collider,
-        car.body,
-        pivot.rotation.y,
-      );
-    });
+  // Mounts are part of the rigid chassis. Probes belong to physics, never art.
 }
 export function disposeModel(model: T.Object3D) {
   model.traverse((o) => {
@@ -356,6 +365,7 @@ export function ballModel() {
     }),
   );
   panels.castShadow = true;
+  polishMaterial(panels.material, "ball");
   g.add(panels);
   g.userData.lamps = lamps;
   g.userData.radius = r;

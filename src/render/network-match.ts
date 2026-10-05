@@ -16,6 +16,8 @@ import { GameCamera } from "../camera/camera";
 import { BallTrails, FlipTrails } from "../effects/motion-trails";
 import { SkidMarks } from "../effects/skid-marks";
 import { DemolitionFlash } from "../effects/demolition-flash";
+import { JumpBurst } from "../effects/jump-burst";
+import { BallHeightIndicator } from "../effects/ball-height";
 import type { CameraSettings } from "../game/settings";
 
 /** Snapshot-only visual world. This never advances client-side match physics. */
@@ -25,10 +27,12 @@ export class NetworkMatchView {
   group = new T.Scene();
   cars: T.Group[];
   ball = ballModel();
+  ballHeight = new BallHeightIndicator(this.group);
   camera: GameCamera;
   private effects: VehicleEffects[];
   private ballTrails: BallTrails;
   private flips: FlipTrails[];
+  private jumps: JumpBurst[];
   private skids: SkidMarks[];
   private demos: DemolitionFlash[];
   private explosion: GoalExplosion;
@@ -67,6 +71,7 @@ export class NetworkMatchView {
     this.explosion = new GoalExplosion(this.group);
     this.ballTrails = new BallTrails(this.group);
     this.flips = players.map(() => new FlipTrails(this.group));
+    this.jumps = players.map(() => new JumpBurst(this.group));
     this.skids = players.map(() => new SkidMarks(this.group));
     this.demos = players.map(() => new DemolitionFlash(this.group));
     this.group.add(this.ball);
@@ -94,12 +99,14 @@ export class NetworkMatchView {
     if (!sample || !client.latest) return;
     const { older, newer, alpha } = sample,
       latest = client.latest;
+    this.match.kickoffFormationId = latest.kickoffFormationId;
     if (this.reset !== latest.reset) {
       this.camera.reset();
       this.explosion.reset();
       this.effects.forEach((e) => e.reset());
       this.ballTrails.reset();
       this.flips.forEach((e) => e.reset());
+      this.jumps.forEach((e) => e.reset());
       this.skids.forEach((e) => e.reset());
       this.demos.forEach((e) => e.reset());
       this.reset = latest.reset;
@@ -147,6 +154,12 @@ export class NetworkMatchView {
       car.normal.copy(b.normal);
       car.wheelContact = [...b.wheels];
       car.jump.flipLeft = b.flipLeft;
+      car.normalJumpSequence = b.normalJump?.sequence ?? 0;
+      car.normalJumpAge = b.normalJump?.age ?? Infinity;
+      if (b.normalJump) {
+        car.normalJumpOrigin.copy(b.normalJump.origin);
+        car.normalJumpNormal.copy(b.normalJump.normal);
+      }
       car.forward.set(0, 0, -1).applyQuaternion(model.quaternion);
       car.right.set(1, 0, 0).applyQuaternion(model.quaternion);
       car.up.set(0, 1, 0).applyQuaternion(model.quaternion);
@@ -172,6 +185,7 @@ export class NetworkMatchView {
         this.camera.camera.position,
       );
       this.skids[i].update(car, dt, b.enabled && latest.phase === "playing");
+      this.jumps[i].update(car, dt, b.enabled, this.camera.camera.position);
       this.demos[i].update(dt);
     });
     this.ball.position.lerpVectors(
@@ -202,6 +216,7 @@ export class NetworkMatchView {
       this.camera.camera.position,
     );
     this.explosion.update(dt);
+    this.ballHeight.update(this.ball, this.simulation);
     Object.assign(this.match, {
       phase: latest.phase,
       score: latest.score,

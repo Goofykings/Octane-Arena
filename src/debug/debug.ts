@@ -1,5 +1,6 @@
 import * as T from "three";
 import type { Simulation } from "../physics/simulation";
+import type { GameCamera } from "../camera/camera";
 export class DebugView {
   enabled = false;
   private group = new T.Group();
@@ -22,7 +23,13 @@ export class DebugView {
     this.group.add(this.lines);
     scene.add(this.group);
   }
-  update(s: Simulation, fps: number, ticks: number) {
+  update(
+    s: Simulation,
+    fps: number,
+    ticks: number,
+    cameraUp?: T.Vector3,
+    rig?: GameCamera,
+  ) {
     this.group.visible = this.enabled;
     this.element.hidden = !this.enabled;
     if (!this.enabled) return;
@@ -39,6 +46,31 @@ export class DebugView {
         ", ",
       )}\nGreen: rays/normal · white: colliders\nYellow: relative velocity · magenta: extra hit impulse`;
     const data = s.world.debugRender();
+    const contact = s.ballContacts[0],
+      tuple = (v: T.Vector3) =>
+        v
+          .toArray()
+          .map((x) => x.toFixed(2))
+          .join(",");
+    this.element.textContent += `\nBall contact ${contact.kind} / closing ${contact.closing.toFixed(2)} m/s\nLocal contact ${tuple(contact.local)}\nContact car linear ${tuple(contact.linear)} / angular ${tuple(contact.angular)}\nPoint velocity ${tuple(contact.pointVelocity)} / relative ${tuple(contact.relative)}\nExtra hit impulse ${tuple(contact.impulse)} N·s / roof support ${tuple(contact.roofImpulse)} N·s\nLast impact ${tuple(contact.lastImpulse)} N·s / age ${contact.impactAge.toFixed(2)} s / count ${contact.impactCount}`;
+    this.element.textContent += `\nFlip time ${c.jump.flipAge.toFixed(3)} / remaining ${c.jump.flipLeft.toFixed(3)} / pitch lock ${c.pitchLocked}\nPitch input ${c.pitchInput.toFixed(2)} / angular ${new T.Vector3().copy(av).dot(c.right).toFixed(2)} rad/s\nFlip pitch acceleration ${c.flipPitchAcceleration.toFixed(2)} / cancel braking ${c.flipCancelAcceleration.toFixed(2)} rad/s²`;
+    this.element.textContent += `\nSupport frame ${c.stableContact ? "stable driving" : c.contacts ? "landing / partial" : "air"} / roll angular ${new T.Vector3().copy(av).dot(c.forward).toFixed(2)} rad/s`;
+    this.element.textContent += `\nAdhesion ${mag(c.adhesionAcceleration)} m/s² / normal correction ${mag(c.normalCorrectionAcceleration)} m/s²\nPosition correction ${mag(c.contactCorrection)} m\nWheel normals ${c.wheelNormals
+      .map((n) =>
+        n
+          .toArray()
+          .map((v) => v.toFixed(2))
+          .join(","),
+      )
+      .join(" / ")}\nCamera up ${
+      cameraUp
+        ?.toArray()
+        .map((v) => v.toFixed(2))
+        .join(",") ?? "world"
+    }`;
+    if (rig) {
+      this.element.textContent += `\nCAMERA ${rig.debug.mode} / blocked ${rig.clearance.blocked} / framing safe ${rig.debug.safe}\nPivot ${tuple(rig.pivot)}\nDesired ${tuple(rig.desiredPosition)} / actual ${tuple(rig.camera.position)}\nSurface reference ${tuple(rig.clearance.surfaceUp)} / horizon up ${tuple(rig.referenceUp)}\nLook ${tuple(rig.lookDirection)} / pole fallback ${rig.debug.singularity}\nCar screen ${tuple(rig.framing.carScreen)} / ball screen ${tuple(rig.framing.ballScreen)}\nFOV ${rig.camera.fov.toFixed(1)} / adjustment ${rig.debug.fovAdjustment.toFixed(1)}`;
+    }
     let offset = Math.min(data.vertices.length, this.positions.length - 300);
     this.positions.set(data.vertices.subarray(0, offset));
     for (let i = 0; i < offset / 3; i++)
@@ -50,14 +82,45 @@ export class DebugView {
       this.colors.set([...col.toArray(), ...col.toArray()], offset);
       offset += 6;
     };
+    if (rig) {
+      segment(rig.pivot, rig.desiredPosition, 0xffa333);
+      segment(rig.pivot, rig.camera.position, 0xbb66ff);
+      segment(
+        rig.camera.position,
+        rig.camera.position.clone().addScaledVector(rig.lookDirection, 2),
+        0xffffff,
+      );
+      segment(
+        rig.pivot,
+        rig.pivot.clone().addScaledVector(rig.clearance.surfaceUp, 2),
+        0x66ffbb,
+      );
+    }
     for (let i = 0; i < 4; i++)
       segment(
         c.wheelOrigins[i],
         c.wheelHits[i],
         c.wheelContact[i] ? 0x00ff66 : 0xff3355,
       );
+    for (let i = 0; i < 4; i++)
+      if (c.wheelNormals[i].lengthSq() > 0)
+        segment(
+          c.wheelHits[i],
+          c.wheelHits[i].clone().add(c.wheelNormals[i]),
+          c.wheelContact[i] ? 0x44ddff : 0xff9933,
+        );
     const p = new T.Vector3().copy(c.body.translation());
     segment(p, p.clone().addScaledVector(c.normal, 2), 0x00ff66);
+    segment(
+      p,
+      p.clone().addScaledVector(c.adhesionAcceleration, 0.15),
+      0x9966ff,
+    );
+    segment(
+      p,
+      p.clone().addScaledVector(new T.Vector3().copy(av), 0.15),
+      0xff66aa,
+    );
     segment(
       p,
       p.clone().addScaledVector(new T.Vector3().copy(v), 0.2),

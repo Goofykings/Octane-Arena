@@ -1,5 +1,5 @@
 import RAPIER from "@dimforge/rapier3d-compat";
-import { Vector3, Quaternion } from "three";
+import { Vector3 } from "three";
 import { P } from "../config/physics";
 import { Car } from "../car/car";
 import { createArena, insideArena } from "../arena/physics";
@@ -12,6 +12,8 @@ import {
 } from "../../shared/player";
 import { canDemolish, respawnLocations } from "../game/demolition";
 import { bodies } from "../game/inventory";
+import { kickoffSpawn, type KickoffFormation } from "../../shared/kickoff";
+import { CarBallContact } from "./car-ball";
 // Initialize the same Rapier module used by the simulation, including in Node.
 export const initializeSimulation = () => RAPIER.init();
 export interface Hit {
@@ -39,7 +41,7 @@ export class Simulation {
   }[] = [];
   lastTouchId: string | null = null;
   private velocities: Vector3[] = [];
-  private cooldown: number[] = [];
+  ballContacts: CarBallContact[];
   private relative: Vector3[] = [];
   arenaCollider?: RAPIER.Collider;
   containmentRecoveries = 0;
@@ -65,7 +67,7 @@ export class Simulation {
     this.cars = players.map(() => new Car(this.world));
     this.velocities = players.map(() => new Vector3());
     this.relative = players.map(() => new Vector3());
-    this.cooldown = players.map(() => 0);
+    this.ballContacts = players.map(() => new CarBallContact());
     this.cars.forEach((c, i) => {
       c.id = players[i].id;
       c.team = players[i].team;
@@ -96,7 +98,7 @@ export class Simulation {
     this.cars.forEach((c) => c.pose.snap());
     this.ballPose.snap();
   }
-  reset() {
+  reset(formation?: KickoffFormation) {
     for (const c of this.cars)
       if (c.demolitionState !== "active") {
         c.body.setEnabled(true);
@@ -109,10 +111,14 @@ export class Simulation {
     for (const c of this.cars) {
       const team = this.cars.filter((p) => p.team === c.team),
         slot = team.indexOf(c);
+      const spawn = formation
+        ? kickoffSpawn(formation.slots[slot], c.team, P.arena)
+        : null;
       c.reset(
-        team.length === 1 ? 0 : (slot - (team.length - 1) / 2) * 12,
-        c.team === 0 ? 26 : -26,
-        c.team === 0 ? 0 : Math.PI,
+        spawn?.x ??
+          (team.length === 1 ? 0 : (slot - (team.length - 1) / 2) * 12),
+        spawn?.z ?? (c.team === 0 ? 26 : -26),
+        spawn?.yaw ?? (c.team === 0 ? 0 : Math.PI),
       );
     }
     this.ball.setTranslation({ x: 0, y: P.ball.radius + 0.02, z: 0 }, true);
@@ -120,7 +126,7 @@ export class Simulation {
     this.ball.setAngvel({ x: 0, y: 0, z: 0 }, true);
     this.ballPose.snap();
     this.hits = [];
-    this.cooldown = this.cars.map(() => 0);
+    this.ballContacts.forEach((contact) => contact.reset());
   }
   /** Physical blast; the match keeps steering, aerial control and boost live. */
   explode(origin: { x: number; y: number; z: number }) {
@@ -187,7 +193,7 @@ export class Simulation {
       c.updateSupersonic(P.dt);
       this.velocities[i].copy(c.body.linvel());
       this.relative[i].copy(c.body.linvel()).sub(this.ball.linvel());
-      this.cooldown[i] = Math.max(0, this.cooldown[i] - P.dt);
+      this.ballContacts[i].sample(c, this.ball);
     });
     this.ballPose.before();
     this.world.step(this.events);
@@ -213,7 +219,6 @@ export class Simulation {
       );
       if (carIndex >= 0) {
         this.lastTouchId = this.cars[carIndex].id;
-        this.strike(carIndex);
       } else {
         const speed = new Vector3()
           .subVectors(
@@ -234,6 +239,36 @@ export class Simulation {
             age: 0,
           });
       }
+    });
+    this.cars.forEach((car, i) => {
+      const response = this.ballContacts[i];
+      let touched = false;
+      if (car.body.isEnabled() && this.ball.isEnabled())
+        this.world.contactPair(
+          car.collider,
+          this.ballCollider,
+          (manifold, flipped) => {
+            if (manifold.numSolverContacts() === 0) return;
+            const normal = new Vector3()
+              .copy(manifold.normal())
+              .multiplyScalar(flipped ? -1 : 1);
+            const point = new Vector3().copy(manifold.solverContactPoint(0));
+            if (touched) return;
+            touched = true;
+            this.lastTouchId = car.id;
+            response.resolve(car, this.ball, point, normal);
+            if (response.impulse.lengthSq() > 0)
+              this.hits.push({
+                position: point,
+                normal,
+                relative: response.relative.clone(),
+                impulse: response.impulse.clone(),
+                strength: response.closing,
+                age: 0,
+              });
+          },
+        );
+      if (!touched) response.separate();
     });
     const cap = (body: RAPIER.RigidBody, speed: number, angular: number) => {
       const v = new Vector3().copy(body.linvel()),
@@ -274,46 +309,6 @@ export class Simulation {
       this.containmentRecoveries++;
     }
     this.ballPose.after();
-  }
-  private strike(i: number) {
-    if (this.cooldown[i] > 0) return;
-    this.cooldown[i] = P.hit.cooldown;
-    const c = this.cars[i],
-      n = new Vector3()
-        .subVectors(this.ball.translation(), c.body.translation())
-        .normalize(),
-      closing = Math.max(0, this.relative[i].dot(n));
-    if (closing < P.hit.minClosing) return;
-    const local = n
-      .clone()
-      .applyQuaternion(new Quaternion().copy(c.body.rotation()).invert());
-    const front = Math.max(0, -local.z),
-      roof = Math.max(0, local.y),
-      underside = Math.max(0, -local.y);
-    const gain =
-      P.hit.sideGain +
-      (P.hit.frontGain - P.hit.sideGain) * front * front +
-      (P.hit.roofGain - P.hit.sideGain) * roof * roof +
-      (P.hit.undersideGain - P.hit.sideGain) * underside * underside;
-    const direction = n
-      .clone()
-      .lerp(c.forward, 0.22 * front)
-      .normalize();
-    const impulse = direction.multiplyScalar(
-      Math.min(P.hit.maxExtra, closing * gain) * P.ball.mass,
-    );
-    const point = new Vector3()
-      .copy(this.ball.translation())
-      .addScaledVector(n, -P.ball.radius);
-    this.ball.applyImpulseAtPoint(impulse, point, true);
-    this.hits.push({
-      position: point,
-      normal: n,
-      relative: this.relative[i].clone(),
-      impulse: impulse.clone(),
-      strength: closing,
-      age: 0,
-    });
   }
   private bump(first: number, second: number) {
     const a = this.cars[first],

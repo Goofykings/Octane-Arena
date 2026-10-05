@@ -104,17 +104,17 @@
     "pass": true,
     "data": {
       "supported": 90,
-      "maxPitch": 0,
-      "speed": 8.32531452178955
+      "maxPitch": 0.010899347786244922,
+      "speed": 8.325314468160695
     }
   },
   {
     "name": "ceiling contact uses drive forces without aerial pitch",
     "pass": true,
     "data": {
-      "supported": 25,
+      "supported": 28,
       "maxPitch": 0,
-      "speed": -3.216606779842203
+      "speed": -2.57491032652224
     }
   },
   {
@@ -125,18 +125,18 @@
         "contacts": 1,
         "air": 0,
         "omega": {
-          "x": 0.9167265295982361,
-          "y": 0.288750022649765,
-          "z": 0.045124176889657974
+          "x": 1,
+          "y": 0.2549999952316284,
+          "z": 0.10000000149011612
         }
       },
       {
         "contacts": 1,
         "air": 0,
         "omega": {
-          "x": 0.9167265295982361,
-          "y": 0.288750022649765,
-          "z": 0.045124176889657974
+          "x": 1,
+          "y": 0.2549999952316284,
+          "z": 0.10000000149011612
         }
       }
     ]
@@ -190,9 +190,9 @@
     "name": "goal -1 upper mouth has no protrusions, degenerate faces or hard seams",
     "pass": true,
     "data": {
-      "vertices": 4740,
-      "triangles": 9254,
-      "minArea": 0.00004098905873072125,
+      "vertices": 4748,
+      "triangles": 9308,
+      "minArea": 0.00002382504624144537,
       "maxAngleDegrees": 12.517003894930674
     }
   },
@@ -200,9 +200,9 @@
     "name": "goal 1 upper mouth has no protrusions, degenerate faces or hard seams",
     "pass": true,
     "data": {
-      "vertices": 4740,
-      "triangles": 9254,
-      "minArea": 0.00004098905873072125,
+      "vertices": 4748,
+      "triangles": 9308,
+      "minArea": 0.00002382504624144537,
       "maxAngleDegrees": 12.517003894930674
     }
   },
@@ -210,12 +210,12 @@
     "name": "goal -1 upper -1 curved mouth remains driveable",
     "pass": true,
     "data": {
-      "supported": 34,
-      "maxAngular": 0.9755754674947333,
+      "supported": 31,
+      "maxAngular": 4.492805176521419,
       "final": {
-        "x": -7.442221641540527,
-        "y": 3.728670358657837,
-        "z": -46.53618240356445
+        "x": -7.52430534362793,
+        "y": 3.7468273639678955,
+        "z": -46.63322830200195
       }
     }
   },
@@ -223,12 +223,12 @@
     "name": "goal -1 upper 1 curved mouth remains driveable",
     "pass": true,
     "data": {
-      "supported": 34,
-      "maxAngular": 0.9756460125521564,
+      "supported": 31,
+      "maxAngular": 4.480560787663183,
       "final": {
-        "x": 7.444459915161133,
-        "y": 3.727064371109009,
-        "z": -46.53618240356445
+        "x": 7.528667449951172,
+        "y": 3.7442407608032227,
+        "z": -46.6330451965332
       }
     }
   },
@@ -236,12 +236,12 @@
     "name": "goal 1 upper -1 curved mouth remains driveable",
     "pass": true,
     "data": {
-      "supported": 34,
-      "maxAngular": 0.9756390481577616,
+      "supported": 31,
+      "maxAngular": 4.480575735489303,
       "final": {
-        "x": -7.444459915161133,
-        "y": 3.727064371109009,
-        "z": 46.53618240356445
+        "x": -7.528667449951172,
+        "y": 3.7442400455474854,
+        "z": 46.6330451965332
       }
     }
   },
@@ -249,12 +249,12 @@
     "name": "goal 1 upper 1 curved mouth remains driveable",
     "pass": true,
     "data": {
-      "supported": 34,
-      "maxAngular": 0.9755777293805686,
+      "supported": 31,
+      "maxAngular": 4.492773074594427,
       "final": {
-        "x": 7.442221641540527,
-        "y": 3.728670358657837,
-        "z": 46.53618240356445
+        "x": 7.52430534362793,
+        "y": 3.7468276023864746,
+        "z": 46.63322830200195
       }
     }
   }

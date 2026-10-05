@@ -1,0 +1,1838 @@
+[
+  {
+    "name": "A normal drive",
+    "fps": 30,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.03272996869249447,
+    "peakExtent": 0.470970980469262,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "B full-speed powerslide around ball",
+    "fps": 30,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 2.000000000000325,
+    "peakExtent": 0.41843226152204377,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 0
+  },
+  {
+    "name": "C low-speed curve",
+    "fps": 30,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.4936710980698541,
+    "peakExtent": 0.8519790938472873,
+    "minimumBoom": 5.95277665953053,
+    "peakFovStep": 0.4873327073579219
+  },
+  {
+    "name": "D full-speed curve",
+    "fps": 30,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 4.091351848625144,
+    "peakExtent": 0.8688568666424665,
+    "minimumBoom": 5.9382288060352,
+    "peakFovStep": 3.1863165859602276
+  },
+  {
+    "name": "E vertical wall",
+    "fps": 30,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.09411839916689298,
+    "peakExtent": 0.8508550408039681,
+    "minimumBoom": 5.254432618138642,
+    "peakFovStep": 0.18634034664613353
+  },
+  {
+    "name": "F directly overhead",
+    "fps": 30,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.038773094384730464,
+    "peakExtent": 0.8502600548286706,
+    "minimumBoom": 7.060460715643241,
+    "peakFovStep": 0.038115179354733186
+  },
+  {
+    "name": "G ceiling overhead",
+    "fps": 30,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.01566068820895996,
+    "peakExtent": 0.8501771077378031,
+    "minimumBoom": 10.673331251301068,
+    "peakFovStep": 0.026360807839623135
+  },
+  {
+    "name": "H ball passes behind",
+    "fps": 30,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.500000000000434,
+    "peakExtent": 0.4208297481443821,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 0
+  },
+  {
+    "name": "I close noisy ball",
+    "fps": 30,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.7592991226253146,
+    "peakExtent": 0.3600892805147876,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "H1 fast close ball crossing behind",
+    "fps": 30,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 4.99999999986074,
+    "peakExtent": 0.8999999999999999,
+    "minimumBoom": 5.727128425310541,
+    "peakFovStep": 12.170217760866237
+  },
+  {
+    "name": "J continuous aerial air-roll",
+    "fps": 30,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.059983037065883316,
+    "peakExtent": 0.6020913099313567,
+    "minimumBoom": 5.727128425310541,
+    "peakFovStep": 0
+  },
+  {
+    "name": "K aerial overhead crossing",
+    "fps": 30,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 4.999990497856605,
+    "peakExtent": 0.8528260358379305,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0.678318670584801
+  },
+  {
+    "name": "L wall to aerial",
+    "fps": 30,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 3.211394744105509,
+    "peakExtent": 0.8499999999999993,
+    "minimumBoom": 5.4187145217492585,
+    "peakFovStep": 1.4135486226816738
+  },
+  {
+    "name": "M wall to floor",
+    "fps": 30,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.4397491521298142,
+    "peakExtent": 0.8570880355914944,
+    "minimumBoom": 5.89872164387374,
+    "peakFovStep": 1.0485595005244193
+  },
+  {
+    "name": "N inverted car",
+    "fps": 30,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.07142469339865026,
+    "peakExtent": 0.42991425591917093,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "O goal celebration",
+    "fps": 30,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.1987241861029593,
+    "peakExtent": 0.35510303167533797,
+    "minimumBoom": 5.727128425310545,
+    "peakFovStep": 0
+  },
+  {
+    "name": "P rapid toggles",
+    "fps": 30,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 1.446226369275569,
+    "peakExtent": 0.5483753605838688,
+    "minimumBoom": 5.727128425310541,
+    "peakFovStep": 0
+  },
+  {
+    "name": "A normal drive",
+    "fps": 30,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.03272996869249447,
+    "peakExtent": 0.470970980469262,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "B full-speed powerslide around ball",
+    "fps": 30,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 2.000000000000325,
+    "peakExtent": 0.41843226152204377,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 0
+  },
+  {
+    "name": "C low-speed curve",
+    "fps": 30,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.4936710980698541,
+    "peakExtent": 0.855761050143191,
+    "minimumBoom": 6.015356788738551,
+    "peakFovStep": 0.8451585466222014
+  },
+  {
+    "name": "D full-speed curve",
+    "fps": 30,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 4.091351848625144,
+    "peakExtent": 0.8688568666424665,
+    "minimumBoom": 6.318365666366261,
+    "peakFovStep": 2.7889190206036716
+  },
+  {
+    "name": "E vertical wall",
+    "fps": 30,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.10948014961877356,
+    "peakExtent": 0.8504144856132515,
+    "minimumBoom": 6.551403706246303,
+    "peakFovStep": 0.06138014997112862
+  },
+  {
+    "name": "F directly overhead",
+    "fps": 30,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.038773094384730464,
+    "peakExtent": 0.8502600548286706,
+    "minimumBoom": 7.060460715643241,
+    "peakFovStep": 0.038115179354733186
+  },
+  {
+    "name": "G ceiling overhead",
+    "fps": 30,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.01566068820895996,
+    "peakExtent": 0.8501771077378031,
+    "minimumBoom": 10.673331251301068,
+    "peakFovStep": 0.026360807839623135
+  },
+  {
+    "name": "H ball passes behind",
+    "fps": 30,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.500000000000434,
+    "peakExtent": 0.4208297481443821,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 0
+  },
+  {
+    "name": "I close noisy ball",
+    "fps": 30,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.7592991226253146,
+    "peakExtent": 0.3600892805147876,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "H1 fast close ball crossing behind",
+    "fps": 30,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 4.999999999200423,
+    "peakExtent": 0.9000000000000005,
+    "minimumBoom": 5.727128425310541,
+    "peakFovStep": 18.084557657064934
+  },
+  {
+    "name": "J continuous aerial air-roll",
+    "fps": 30,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.059983037065883316,
+    "peakExtent": 0.6020913099313567,
+    "minimumBoom": 5.727128425310541,
+    "peakFovStep": 0
+  },
+  {
+    "name": "K aerial overhead crossing",
+    "fps": 30,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 4.999990497856605,
+    "peakExtent": 0.8528260358379305,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0.678318670584801
+  },
+  {
+    "name": "L wall to aerial",
+    "fps": 30,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 3.111612112899934,
+    "peakExtent": 0.8500000000000003,
+    "minimumBoom": 5.799017113430006,
+    "peakFovStep": 1.7762846167547508
+  },
+  {
+    "name": "M wall to floor",
+    "fps": 30,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.4397493017949847,
+    "peakExtent": 0.8570883477278973,
+    "minimumBoom": 5.899235610524325,
+    "peakFovStep": 1.0486053384737772
+  },
+  {
+    "name": "N inverted car",
+    "fps": 30,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.07142469339865026,
+    "peakExtent": 0.42991425591917093,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "O goal celebration",
+    "fps": 30,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.1987241861029593,
+    "peakExtent": 0.35510303167533797,
+    "minimumBoom": 5.727128425310545,
+    "peakFovStep": 0
+  },
+  {
+    "name": "P rapid toggles",
+    "fps": 30,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 1.446226369275569,
+    "peakExtent": 0.5483753605838688,
+    "minimumBoom": 5.727128425310541,
+    "peakFovStep": 0
+  },
+  {
+    "name": "A normal drive",
+    "fps": 30,
+    "aspect": 0.5625,
+    "peakTurn": 0.03252667329375652,
+    "peakExtent": 0.34836574411368343,
+    "minimumBoom": 7.336968795838723,
+    "peakFovStep": 0
+  },
+  {
+    "name": "B full-speed powerslide around ball",
+    "fps": 30,
+    "aspect": 0.5625,
+    "peakTurn": 2.000000000000525,
+    "peakExtent": 0.433925487832881,
+    "minimumBoom": 7.336968795838723,
+    "peakFovStep": 0
+  },
+  {
+    "name": "C low-speed curve",
+    "fps": 30,
+    "aspect": 0.5625,
+    "peakTurn": 0.6067135562184296,
+    "peakExtent": 0.8688416036213725,
+    "minimumBoom": 7.726535649937779,
+    "peakFovStep": 2.771842574183651
+  },
+  {
+    "name": "D full-speed curve",
+    "fps": 30,
+    "aspect": 0.5625,
+    "peakTurn": 8.883865224345143,
+    "peakExtent": 0.9000000000000008,
+    "minimumBoom": 7.726535649937779,
+    "peakFovStep": 11.906558630046462
+  },
+  {
+    "name": "E vertical wall",
+    "fps": 30,
+    "aspect": 0.5625,
+    "peakTurn": 0.07821837178330332,
+    "peakExtent": 0.8502833832355418,
+    "minimumBoom": 20.07042282441299,
+    "peakFovStep": 0.0917505145617099
+  },
+  {
+    "name": "F directly overhead",
+    "fps": 30,
+    "aspect": 0.5625,
+    "peakTurn": 0.03990249150508225,
+    "peakExtent": 0.8507750377145736,
+    "minimumBoom": 7.336982679291518,
+    "peakFovStep": 0.11333387805160555
+  },
+  {
+    "name": "G ceiling overhead",
+    "fps": 30,
+    "aspect": 0.5625,
+    "peakTurn": 0.014612178773948556,
+    "peakExtent": 0.8501560606961537,
+    "minimumBoom": 12.318636297767501,
+    "peakFovStep": 0.022993063291792737
+  },
+  {
+    "name": "H ball passes behind",
+    "fps": 30,
+    "aspect": 0.5625,
+    "peakTurn": 0.5000000000020327,
+    "peakExtent": 0.30565270810401207,
+    "minimumBoom": 7.33696879583872,
+    "peakFovStep": 0
+  },
+  {
+    "name": "I close noisy ball",
+    "fps": 30,
+    "aspect": 0.5625,
+    "peakTurn": 0.5497193485134111,
+    "peakExtent": 0.4573319083304073,
+    "minimumBoom": 7.336968795838723,
+    "peakFovStep": 0
+  },
+  {
+    "name": "H1 fast close ball crossing behind",
+    "fps": 30,
+    "aspect": 0.5625,
+    "peakTurn": 8.888749736915509,
+    "peakExtent": 0.9000000000000007,
+    "minimumBoom": 7.336968795838722,
+    "peakFovStep": 19.03001217369946
+  },
+  {
+    "name": "J continuous aerial air-roll",
+    "fps": 30,
+    "aspect": 0.5625,
+    "peakTurn": 0.05580427751187561,
+    "peakExtent": 0.4670859067826076,
+    "minimumBoom": 7.336968795838723,
+    "peakFovStep": 0
+  },
+  {
+    "name": "K aerial overhead crossing",
+    "fps": 30,
+    "aspect": 0.5625,
+    "peakTurn": 5.582233723887621,
+    "peakExtent": 0.8829037895706826,
+    "minimumBoom": 7.336968795838723,
+    "peakFovStep": 4.803039904035515
+  },
+  {
+    "name": "L wall to aerial",
+    "fps": 30,
+    "aspect": 0.5625,
+    "peakTurn": 3.002385634452577,
+    "peakExtent": 0.8499999999943677,
+    "minimumBoom": 7.436677810475059,
+    "peakFovStep": 3.286022016931298
+  },
+  {
+    "name": "M wall to floor",
+    "fps": 30,
+    "aspect": 0.5625,
+    "peakTurn": 0.605872805378251,
+    "peakExtent": 0.8540771521494802,
+    "minimumBoom": 7.726535763830945,
+    "peakFovStep": 1.2771305356371272
+  },
+  {
+    "name": "N inverted car",
+    "fps": 30,
+    "aspect": 0.5625,
+    "peakTurn": 0.07142466016501305,
+    "peakExtent": 0.31301971378251614,
+    "minimumBoom": 7.336968795838723,
+    "peakFovStep": 0
+  },
+  {
+    "name": "O goal celebration",
+    "fps": 30,
+    "aspect": 0.5625,
+    "peakTurn": 0.19869912643259363,
+    "peakExtent": 0.28299944864571586,
+    "minimumBoom": 7.336968795838726,
+    "peakFovStep": 0
+  },
+  {
+    "name": "P rapid toggles",
+    "fps": 30,
+    "aspect": 0.5625,
+    "peakTurn": 1.4424297905518193,
+    "peakExtent": 0.5660709485472937,
+    "minimumBoom": 7.33696879583872,
+    "peakFovStep": 0
+  },
+  {
+    "name": "A normal drive",
+    "fps": 30,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.03272996869249447,
+    "peakExtent": 0.470970980469262,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "B full-speed powerslide around ball",
+    "fps": 30,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 2.000000000000325,
+    "peakExtent": 0.41843226152204377,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 0
+  },
+  {
+    "name": "C low-speed curve",
+    "fps": 30,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.4936710980698541,
+    "peakExtent": 0.8519790938472873,
+    "minimumBoom": 5.95277665953053,
+    "peakFovStep": 0.4873327073579219
+  },
+  {
+    "name": "D full-speed curve",
+    "fps": 30,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 4.091351848625144,
+    "peakExtent": 0.8688568666424665,
+    "minimumBoom": 5.9382288060352,
+    "peakFovStep": 3.1863165859602276
+  },
+  {
+    "name": "E vertical wall",
+    "fps": 30,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.09411839916689298,
+    "peakExtent": 0.7490136302543985,
+    "minimumBoom": 5.254432618138642,
+    "peakFovStep": 0
+  },
+  {
+    "name": "F directly overhead",
+    "fps": 30,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.038773094384730464,
+    "peakExtent": 0.8502600548286706,
+    "minimumBoom": 7.060460715643241,
+    "peakFovStep": 0.038115179354733186
+  },
+  {
+    "name": "G ceiling overhead",
+    "fps": 30,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.01566068820895996,
+    "peakExtent": 0.8501771077378031,
+    "minimumBoom": 10.673331251301068,
+    "peakFovStep": 0.026360807839623135
+  },
+  {
+    "name": "H ball passes behind",
+    "fps": 30,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.500000000000434,
+    "peakExtent": 0.4208297481443821,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 0
+  },
+  {
+    "name": "I close noisy ball",
+    "fps": 30,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.7592991226253146,
+    "peakExtent": 0.3600892805147876,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "H1 fast close ball crossing behind",
+    "fps": 30,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 4.999999998906797,
+    "peakExtent": 0.8844795217566538,
+    "minimumBoom": 5.727128425310541,
+    "peakFovStep": 4.978840705814889
+  },
+  {
+    "name": "J continuous aerial air-roll",
+    "fps": 30,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.059983037065883316,
+    "peakExtent": 0.6020913099313567,
+    "minimumBoom": 5.727128425310541,
+    "peakFovStep": 0
+  },
+  {
+    "name": "K aerial overhead crossing",
+    "fps": 30,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 4.999990497856605,
+    "peakExtent": 0.8528260358379305,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0.678318670584801
+  },
+  {
+    "name": "L wall to aerial",
+    "fps": 30,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 3.2215416718374037,
+    "peakExtent": 0.849461064497538,
+    "minimumBoom": 5.254387784172397,
+    "peakFovStep": 0
+  },
+  {
+    "name": "M wall to floor",
+    "fps": 30,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.4397491521298142,
+    "peakExtent": 0.8570880355914944,
+    "minimumBoom": 5.89872164387374,
+    "peakFovStep": 1.0485595005244193
+  },
+  {
+    "name": "N inverted car",
+    "fps": 30,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.07142469339865026,
+    "peakExtent": 0.42991425591917093,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "O goal celebration",
+    "fps": 30,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.1987241861029593,
+    "peakExtent": 0.35510303167533797,
+    "minimumBoom": 5.727128425310545,
+    "peakFovStep": 0
+  },
+  {
+    "name": "P rapid toggles",
+    "fps": 30,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 1.446226369275569,
+    "peakExtent": 0.5483753605838688,
+    "minimumBoom": 5.727128425310541,
+    "peakFovStep": 0
+  },
+  {
+    "name": "A normal drive",
+    "fps": 60,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.03283809329013426,
+    "peakExtent": 0.470970980469262,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "B full-speed powerslide around ball",
+    "fps": 60,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 2.0000000000023994,
+    "peakExtent": 0.41843226152204377,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 0
+  },
+  {
+    "name": "C low-speed curve",
+    "fps": 60,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.4915866314312937,
+    "peakExtent": 0.8529600992413642,
+    "minimumBoom": 5.953198917206254,
+    "peakFovStep": 0.25075060096575896
+  },
+  {
+    "name": "D full-speed curve",
+    "fps": 60,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 4.141963997101898,
+    "peakExtent": 0.8794492573991033,
+    "minimumBoom": 5.9382288060352,
+    "peakFovStep": 1.6159679588221252
+  },
+  {
+    "name": "E vertical wall",
+    "fps": 60,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.09390735628793374,
+    "peakExtent": 0.8511993959747929,
+    "minimumBoom": 5.254432618138642,
+    "peakFovStep": 0.09330836523051289
+  },
+  {
+    "name": "F directly overhead",
+    "fps": 60,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.03914368096983001,
+    "peakExtent": 0.8503794940214503,
+    "minimumBoom": 7.061348912033501,
+    "peakFovStep": 0.019919041674597793
+  },
+  {
+    "name": "G ceiling overhead",
+    "fps": 60,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.015662049062503194,
+    "peakExtent": 0.8502475044681682,
+    "minimumBoom": 10.673331251301068,
+    "peakFovStep": 0.013193801542698225
+  },
+  {
+    "name": "H ball passes behind",
+    "fps": 60,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.5000000000085595,
+    "peakExtent": 0.42081961441949334,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 0
+  },
+  {
+    "name": "I close noisy ball",
+    "fps": 60,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.7594998543475563,
+    "peakExtent": 0.36174575715211227,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "H1 fast close ball crossing behind",
+    "fps": 60,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 4.999999997913515,
+    "peakExtent": 0.9000000000000007,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 9.405629274764095
+  },
+  {
+    "name": "J continuous aerial air-roll",
+    "fps": 60,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.05997977683484831,
+    "peakExtent": 0.6020844162641553,
+    "minimumBoom": 5.727128425310541,
+    "peakFovStep": 0
+  },
+  {
+    "name": "K aerial overhead crossing",
+    "fps": 60,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 4.999998989534289,
+    "peakExtent": 0.8540519904413448,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0.38036005295533926
+  },
+  {
+    "name": "L wall to aerial",
+    "fps": 60,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 3.2117437238164466,
+    "peakExtent": 0.8499999999999999,
+    "minimumBoom": 5.426067830093178,
+    "peakFovStep": 0.6834053465856726
+  },
+  {
+    "name": "M wall to floor",
+    "fps": 60,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.4503263539859578,
+    "peakExtent": 0.8609826419507697,
+    "minimumBoom": 5.885477187395792,
+    "peakFovStep": 0.5809095277183758
+  },
+  {
+    "name": "N inverted car",
+    "fps": 60,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.07142448440404381,
+    "peakExtent": 0.42991425591917093,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "O goal celebration",
+    "fps": 60,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.19867212715261753,
+    "peakExtent": 0.35510303167533797,
+    "minimumBoom": 5.727128425310545,
+    "peakFovStep": 0
+  },
+  {
+    "name": "P rapid toggles",
+    "fps": 60,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 1.4442938924621447,
+    "peakExtent": 0.5515252044102309,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 0
+  },
+  {
+    "name": "A normal drive",
+    "fps": 60,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.03283809329013426,
+    "peakExtent": 0.470970980469262,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "B full-speed powerslide around ball",
+    "fps": 60,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 2.0000000000023994,
+    "peakExtent": 0.41843226152204377,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 0
+  },
+  {
+    "name": "C low-speed curve",
+    "fps": 60,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.4915866314312937,
+    "peakExtent": 0.8577851350306905,
+    "minimumBoom": 6.019677095987157,
+    "peakFovStep": 0.4057160379926472
+  },
+  {
+    "name": "D full-speed curve",
+    "fps": 60,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 4.141963997101898,
+    "peakExtent": 0.8794492573991033,
+    "minimumBoom": 6.318365666351525,
+    "peakFovStep": 1.5423418387234449
+  },
+  {
+    "name": "E vertical wall",
+    "fps": 60,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.1090392039078568,
+    "peakExtent": 0.8506230078608102,
+    "minimumBoom": 6.551342654384023,
+    "peakFovStep": 0.03303948719988625
+  },
+  {
+    "name": "F directly overhead",
+    "fps": 60,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.03914368096983001,
+    "peakExtent": 0.8503794940214503,
+    "minimumBoom": 7.061348912033501,
+    "peakFovStep": 0.019919041674597793
+  },
+  {
+    "name": "G ceiling overhead",
+    "fps": 60,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.015662049062503194,
+    "peakExtent": 0.8502475044681682,
+    "minimumBoom": 10.673331251301068,
+    "peakFovStep": 0.013193801542698225
+  },
+  {
+    "name": "H ball passes behind",
+    "fps": 60,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.5000000000085595,
+    "peakExtent": 0.42081961441949334,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 0
+  },
+  {
+    "name": "I close noisy ball",
+    "fps": 60,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.7594998543475563,
+    "peakExtent": 0.36174575715211227,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "H1 fast close ball crossing behind",
+    "fps": 60,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 4.999999998821211,
+    "peakExtent": 0.9000000000000006,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 11.798496932472958
+  },
+  {
+    "name": "J continuous aerial air-roll",
+    "fps": 60,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.05997977683484831,
+    "peakExtent": 0.6020844162641553,
+    "minimumBoom": 5.727128425310541,
+    "peakFovStep": 0
+  },
+  {
+    "name": "K aerial overhead crossing",
+    "fps": 60,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 4.999998989534289,
+    "peakExtent": 0.8540519904413448,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0.38036005295533926
+  },
+  {
+    "name": "L wall to aerial",
+    "fps": 60,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 3.117294652761355,
+    "peakExtent": 0.8500000000000003,
+    "minimumBoom": 5.799016940304871,
+    "peakFovStep": 0.8443757028922789
+  },
+  {
+    "name": "M wall to floor",
+    "fps": 60,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.4503265298531223,
+    "peakExtent": 0.8609828835750958,
+    "minimumBoom": 5.886062560403554,
+    "peakFovStep": 0.5809221575894412
+  },
+  {
+    "name": "N inverted car",
+    "fps": 60,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.07142448440404381,
+    "peakExtent": 0.42991425591917093,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "O goal celebration",
+    "fps": 60,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.19867212715261753,
+    "peakExtent": 0.35510303167533797,
+    "minimumBoom": 5.727128425310545,
+    "peakFovStep": 0
+  },
+  {
+    "name": "P rapid toggles",
+    "fps": 60,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 1.4442938924621447,
+    "peakExtent": 0.5515252044102309,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 0
+  },
+  {
+    "name": "A normal drive",
+    "fps": 60,
+    "aspect": 0.5625,
+    "peakTurn": 0.03262559374494167,
+    "peakExtent": 0.34836574411368343,
+    "minimumBoom": 7.336968795838723,
+    "peakFovStep": 0
+  },
+  {
+    "name": "B full-speed powerslide around ball",
+    "fps": 60,
+    "aspect": 0.5625,
+    "peakTurn": 2.0000000000016,
+    "peakExtent": 0.4874701310196911,
+    "minimumBoom": 7.336968795838723,
+    "peakFovStep": 0
+  },
+  {
+    "name": "C low-speed curve",
+    "fps": 60,
+    "aspect": 0.5625,
+    "peakTurn": 0.597375996378872,
+    "peakExtent": 0.875474928274376,
+    "minimumBoom": 7.726535624613076,
+    "peakFovStep": 1.3372744519437987
+  },
+  {
+    "name": "D full-speed curve",
+    "fps": 60,
+    "aspect": 0.5625,
+    "peakTurn": 8.888308066433721,
+    "peakExtent": 0.9000000000000019,
+    "minimumBoom": 7.726535624613076,
+    "peakFovStep": 9.131838960228478
+  },
+  {
+    "name": "E vertical wall",
+    "fps": 60,
+    "aspect": 0.5625,
+    "peakTurn": 0.07790446433062802,
+    "peakExtent": 0.8503981075893597,
+    "minimumBoom": 20.07042282441299,
+    "peakFovStep": 0.04593461479515781
+  },
+  {
+    "name": "F directly overhead",
+    "fps": 60,
+    "aspect": 0.5625,
+    "peakTurn": 0.04045245331287679,
+    "peakExtent": 0.8510939222092856,
+    "minimumBoom": 7.336983798608688,
+    "peakFovStep": 0.05728777269679597
+  },
+  {
+    "name": "G ceiling overhead",
+    "fps": 60,
+    "aspect": 0.5625,
+    "peakTurn": 0.014609959438929504,
+    "peakExtent": 0.8502263839953583,
+    "minimumBoom": 12.318978413165677,
+    "peakFovStep": 0.011945949467559558
+  },
+  {
+    "name": "H ball passes behind",
+    "fps": 60,
+    "aspect": 0.5625,
+    "peakTurn": 0.500000000005362,
+    "peakExtent": 0.30564821304104683,
+    "minimumBoom": 7.336968795838721,
+    "peakFovStep": 0
+  },
+  {
+    "name": "I close noisy ball",
+    "fps": 60,
+    "aspect": 0.5625,
+    "peakTurn": 0.5497917675511557,
+    "peakExtent": 0.4648850675617346,
+    "minimumBoom": 7.336968795838723,
+    "peakFovStep": 0
+  },
+  {
+    "name": "H1 fast close ball crossing behind",
+    "fps": 60,
+    "aspect": 0.5625,
+    "peakTurn": 8.888858513053801,
+    "peakExtent": 0.9000000000000008,
+    "minimumBoom": 7.336968795838722,
+    "peakFovStep": 10.866636207426808
+  },
+  {
+    "name": "J continuous aerial air-roll",
+    "fps": 60,
+    "aspect": 0.5625,
+    "peakTurn": 0.05579737689290854,
+    "peakExtent": 0.4670790512862967,
+    "minimumBoom": 7.336968795838723,
+    "peakFovStep": 0
+  },
+  {
+    "name": "K aerial overhead crossing",
+    "fps": 60,
+    "aspect": 0.5625,
+    "peakTurn": 5.594163900414611,
+    "peakExtent": 0.8999999999999997,
+    "minimumBoom": 7.336968795838723,
+    "peakFovStep": 3.094885828427053
+  },
+  {
+    "name": "L wall to aerial",
+    "fps": 60,
+    "aspect": 0.5625,
+    "peakTurn": 2.982315501284851,
+    "peakExtent": 0.8499999999674219,
+    "minimumBoom": 7.436677570477737,
+    "peakFovStep": 1.6220184484752735
+  },
+  {
+    "name": "M wall to floor",
+    "fps": 60,
+    "aspect": 0.5625,
+    "peakTurn": 0.6413184858054761,
+    "peakExtent": 0.8556891407855465,
+    "minimumBoom": 7.726535762916034,
+    "peakFovStep": 0.6515811706408954
+  },
+  {
+    "name": "N inverted car",
+    "fps": 60,
+    "aspect": 0.5625,
+    "peakTurn": 0.07142444308431563,
+    "peakExtent": 0.31301971378251614,
+    "minimumBoom": 7.336968795838723,
+    "peakFovStep": 0
+  },
+  {
+    "name": "O goal celebration",
+    "fps": 60,
+    "aspect": 0.5625,
+    "peakTurn": 0.19865014337962,
+    "peakExtent": 0.2845999607308777,
+    "minimumBoom": 7.336968795838726,
+    "peakFovStep": 0
+  },
+  {
+    "name": "P rapid toggles",
+    "fps": 60,
+    "aspect": 0.5625,
+    "peakTurn": 1.4401431854547662,
+    "peakExtent": 0.5928474588448016,
+    "minimumBoom": 7.336968795838721,
+    "peakFovStep": 0
+  },
+  {
+    "name": "A normal drive",
+    "fps": 60,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.03283809329013426,
+    "peakExtent": 0.470970980469262,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "B full-speed powerslide around ball",
+    "fps": 60,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 2.0000000000023994,
+    "peakExtent": 0.41843226152204377,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 0
+  },
+  {
+    "name": "C low-speed curve",
+    "fps": 60,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.4915866314312937,
+    "peakExtent": 0.8529600992413642,
+    "minimumBoom": 5.953198917206254,
+    "peakFovStep": 0.25075060096575896
+  },
+  {
+    "name": "D full-speed curve",
+    "fps": 60,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 4.141963997101898,
+    "peakExtent": 0.8794492573991033,
+    "minimumBoom": 5.9382288060352,
+    "peakFovStep": 1.6159679588221252
+  },
+  {
+    "name": "E vertical wall",
+    "fps": 60,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.09390735628793374,
+    "peakExtent": 0.7490136302543985,
+    "minimumBoom": 5.254432618138642,
+    "peakFovStep": 0
+  },
+  {
+    "name": "F directly overhead",
+    "fps": 60,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.03914368096983001,
+    "peakExtent": 0.8503794940214503,
+    "minimumBoom": 7.061348912033501,
+    "peakFovStep": 0.019919041674597793
+  },
+  {
+    "name": "G ceiling overhead",
+    "fps": 60,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.015662049062503194,
+    "peakExtent": 0.8502475044681682,
+    "minimumBoom": 10.673331251301068,
+    "peakFovStep": 0.013193801542698225
+  },
+  {
+    "name": "H ball passes behind",
+    "fps": 60,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.5000000000085595,
+    "peakExtent": 0.42081961441949334,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 0
+  },
+  {
+    "name": "I close noisy ball",
+    "fps": 60,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.7594998543475563,
+    "peakExtent": 0.36174575715211227,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "H1 fast close ball crossing behind",
+    "fps": 60,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 4.999999998932515,
+    "peakExtent": 0.9000000000000004,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 5.777653111901415
+  },
+  {
+    "name": "J continuous aerial air-roll",
+    "fps": 60,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.05997977683484831,
+    "peakExtent": 0.6020844162641553,
+    "minimumBoom": 5.727128425310541,
+    "peakFovStep": 0
+  },
+  {
+    "name": "K aerial overhead crossing",
+    "fps": 60,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 4.999998989534289,
+    "peakExtent": 0.8540519904413448,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0.38036005295533926
+  },
+  {
+    "name": "L wall to aerial",
+    "fps": 60,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 3.22272682374885,
+    "peakExtent": 0.849461064497538,
+    "minimumBoom": 5.254387784172397,
+    "peakFovStep": 0
+  },
+  {
+    "name": "M wall to floor",
+    "fps": 60,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.4503263539859578,
+    "peakExtent": 0.8609826419507697,
+    "minimumBoom": 5.885477187395792,
+    "peakFovStep": 0.5809095277183758
+  },
+  {
+    "name": "N inverted car",
+    "fps": 60,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.07142448440404381,
+    "peakExtent": 0.42991425591917093,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "O goal celebration",
+    "fps": 60,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.19867212715261753,
+    "peakExtent": 0.35510303167533797,
+    "minimumBoom": 5.727128425310545,
+    "peakFovStep": 0
+  },
+  {
+    "name": "P rapid toggles",
+    "fps": 60,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 1.4442938924621447,
+    "peakExtent": 0.5515252044102309,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 0
+  },
+  {
+    "name": "A normal drive",
+    "fps": 144,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.03289254644817798,
+    "peakExtent": 0.470970980469262,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "B full-speed powerslide around ball",
+    "fps": 144,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 2.0000000000117377,
+    "peakExtent": 0.41843226152204377,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 0
+  },
+  {
+    "name": "C low-speed curve",
+    "fps": 144,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.4854540057723872,
+    "peakExtent": 0.8537075973157855,
+    "minimumBoom": 5.953594533080037,
+    "peakFovStep": 0.10475118313729581
+  },
+  {
+    "name": "D full-speed curve",
+    "fps": 144,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 4.1836024757941335,
+    "peakExtent": 0.8868345606765462,
+    "minimumBoom": 5.938228806035203,
+    "peakFovStep": 0.675941117520722
+  },
+  {
+    "name": "E vertical wall",
+    "fps": 144,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.09379282610899296,
+    "peakExtent": 0.8514421396343982,
+    "minimumBoom": 5.254432618138642,
+    "peakFovStep": 0.03892107082667451
+  },
+  {
+    "name": "F directly overhead",
+    "fps": 144,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.03937923074638104,
+    "peakExtent": 0.8504668230266528,
+    "minimumBoom": 7.061781148247038,
+    "peakFovStep": 0.008511197656403624
+  },
+  {
+    "name": "G ceiling overhead",
+    "fps": 144,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.015661908285635167,
+    "peakExtent": 0.8502962258854428,
+    "minimumBoom": 10.673331251301068,
+    "peakFovStep": 0.005485583603217492
+  },
+  {
+    "name": "H ball passes behind",
+    "fps": 144,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.500000000029817,
+    "peakExtent": 0.42081961441949334,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 0
+  },
+  {
+    "name": "I close noisy ball",
+    "fps": 144,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.7595029525446362,
+    "peakExtent": 0.3627842534113653,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "H1 fast close ball crossing behind",
+    "fps": 144,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 4.99999999999663,
+    "peakExtent": 0.9000000000000007,
+    "minimumBoom": 5.727128425310541,
+    "peakFovStep": 4.704271153639269
+  },
+  {
+    "name": "J continuous aerial air-roll",
+    "fps": 144,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.05997689045476015,
+    "peakExtent": 0.6020826832012359,
+    "minimumBoom": 5.727128425310541,
+    "peakFovStep": 0
+  },
+  {
+    "name": "K aerial overhead crossing",
+    "fps": 144,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 4.999999823205918,
+    "peakExtent": 0.8557434842839488,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0.16918257333367137
+  },
+  {
+    "name": "L wall to aerial",
+    "fps": 144,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 3.215260813067681,
+    "peakExtent": 0.8500000000000008,
+    "minimumBoom": 5.432638887046704,
+    "peakFovStep": 0.2973729675953791
+  },
+  {
+    "name": "M wall to floor",
+    "fps": 144,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.43736193743671825,
+    "peakExtent": 0.8637162089728238,
+    "minimumBoom": 5.874948726436208,
+    "peakFovStep": 0.25155063829939195
+  },
+  {
+    "name": "N inverted car",
+    "fps": 144,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.07142432747122064,
+    "peakExtent": 0.42991425591917093,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "O goal celebration",
+    "fps": 144,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 0.19863574734448333,
+    "peakExtent": 0.35510303167533797,
+    "minimumBoom": 5.727128425310545,
+    "peakFovStep": 0
+  },
+  {
+    "name": "P rapid toggles",
+    "fps": 144,
+    "aspect": 1.7777777777777777,
+    "peakTurn": 1.4429727215473878,
+    "peakExtent": 0.5518496606472502,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 0
+  },
+  {
+    "name": "A normal drive",
+    "fps": 144,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.03289254644817798,
+    "peakExtent": 0.470970980469262,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "B full-speed powerslide around ball",
+    "fps": 144,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 2.0000000000117377,
+    "peakExtent": 0.41843226152204377,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 0
+  },
+  {
+    "name": "C low-speed curve",
+    "fps": 144,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.4854540057723872,
+    "peakExtent": 0.8595342110014598,
+    "minimumBoom": 6.021685134456323,
+    "peakFovStep": 0.17228601073094296
+  },
+  {
+    "name": "D full-speed curve",
+    "fps": 144,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 4.1836024757941335,
+    "peakExtent": 0.8868345606765462,
+    "minimumBoom": 6.318365666344347,
+    "peakFovStep": 0.6674246567390156
+  },
+  {
+    "name": "E vertical wall",
+    "fps": 144,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.10877593807510726,
+    "peakExtent": 0.8507808084266534,
+    "minimumBoom": 6.551423611647513,
+    "peakFovStep": 0.014384470494832158
+  },
+  {
+    "name": "F directly overhead",
+    "fps": 144,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.03937923074638104,
+    "peakExtent": 0.8504668230266528,
+    "minimumBoom": 7.061781148247038,
+    "peakFovStep": 0.008511197656403624
+  },
+  {
+    "name": "G ceiling overhead",
+    "fps": 144,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.015661908285635167,
+    "peakExtent": 0.8502962258854428,
+    "minimumBoom": 10.673331251301068,
+    "peakFovStep": 0.005485583603217492
+  },
+  {
+    "name": "H ball passes behind",
+    "fps": 144,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.500000000029817,
+    "peakExtent": 0.42081961441949334,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 0
+  },
+  {
+    "name": "I close noisy ball",
+    "fps": 144,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.7595029525446362,
+    "peakExtent": 0.3627842534113653,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "H1 fast close ball crossing behind",
+    "fps": 144,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 4.9999999999984714,
+    "peakExtent": 0.9000000000000008,
+    "minimumBoom": 5.727128425310541,
+    "peakFovStep": 5.311365907974434
+  },
+  {
+    "name": "J continuous aerial air-roll",
+    "fps": 144,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.05997689045476015,
+    "peakExtent": 0.6020826832012359,
+    "minimumBoom": 5.727128425310541,
+    "peakFovStep": 0
+  },
+  {
+    "name": "K aerial overhead crossing",
+    "fps": 144,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 4.999999823205918,
+    "peakExtent": 0.8557434842839488,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0.16918257333367137
+  },
+  {
+    "name": "L wall to aerial",
+    "fps": 144,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 3.1225413923876366,
+    "peakExtent": 0.850000000000001,
+    "minimumBoom": 5.799016877251499,
+    "peakFovStep": 0.35888910163386356
+  },
+  {
+    "name": "M wall to floor",
+    "fps": 144,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.43736210290760497,
+    "peakExtent": 0.8637166108834988,
+    "minimumBoom": 5.875518831135045,
+    "peakFovStep": 0.25155791298551833
+  },
+  {
+    "name": "N inverted car",
+    "fps": 144,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.07142432747122064,
+    "peakExtent": 0.42991425591917093,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "O goal celebration",
+    "fps": 144,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 0.19863574734448333,
+    "peakExtent": 0.35510303167533797,
+    "minimumBoom": 5.727128425310545,
+    "peakFovStep": 0
+  },
+  {
+    "name": "P rapid toggles",
+    "fps": 144,
+    "aspect": 1.3333333333333333,
+    "peakTurn": 1.4429727215473878,
+    "peakExtent": 0.5518496606472502,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 0
+  },
+  {
+    "name": "A normal drive",
+    "fps": 144,
+    "aspect": 0.5625,
+    "peakTurn": 0.032674313141423744,
+    "peakExtent": 0.34836574411368343,
+    "minimumBoom": 7.336968795838723,
+    "peakFovStep": 0
+  },
+  {
+    "name": "B full-speed powerslide around ball",
+    "fps": 144,
+    "aspect": 0.5625,
+    "peakTurn": 2.0000000000117377,
+    "peakExtent": 0.5217266895410931,
+    "minimumBoom": 7.336968795838723,
+    "peakFovStep": 0
+  },
+  {
+    "name": "C low-speed curve",
+    "fps": 144,
+    "aspect": 0.5625,
+    "peakTurn": 0.5954294335503216,
+    "peakExtent": 0.8805344648630228,
+    "minimumBoom": 7.72653556771662,
+    "peakFovStep": 0.5551940352734306
+  },
+  {
+    "name": "D full-speed curve",
+    "fps": 144,
+    "aspect": 0.5625,
+    "peakTurn": 8.888776001263459,
+    "peakExtent": 0.9000000000000019,
+    "minimumBoom": 7.72653556771662,
+    "peakFovStep": 4.521654513953578
+  },
+  {
+    "name": "E vertical wall",
+    "fps": 144,
+    "aspect": 0.5625,
+    "peakTurn": 0.07770284877467698,
+    "peakExtent": 0.8504785809392621,
+    "minimumBoom": 20.07042282441299,
+    "peakFovStep": 0.01914222051934189
+  },
+  {
+    "name": "F directly overhead",
+    "fps": 144,
+    "aspect": 0.5625,
+    "peakTurn": 0.04078076603987649,
+    "peakExtent": 0.8513189621600671,
+    "minimumBoom": 7.336984084121324,
+    "peakFovStep": 0.023992596238414876
+  },
+  {
+    "name": "G ceiling overhead",
+    "fps": 144,
+    "aspect": 0.5625,
+    "peakTurn": 0.014608153725106758,
+    "peakExtent": 0.8502767442071982,
+    "minimumBoom": 12.319129689112202,
+    "peakFovStep": 0.00507300376393971
+  },
+  {
+    "name": "H ball passes behind",
+    "fps": 144,
+    "aspect": 0.5625,
+    "peakTurn": 0.5000000000482344,
+    "peakExtent": 0.30564821304104683,
+    "minimumBoom": 7.336968795838721,
+    "peakFovStep": 0
+  },
+  {
+    "name": "I close noisy ball",
+    "fps": 144,
+    "aspect": 0.5625,
+    "peakTurn": 0.5498055033772824,
+    "peakExtent": 0.4699088310747444,
+    "minimumBoom": 7.336968795838723,
+    "peakFovStep": 0
+  },
+  {
+    "name": "H1 fast close ball crossing behind",
+    "fps": 144,
+    "aspect": 0.5625,
+    "peakTurn": 8.888885289740962,
+    "peakExtent": 0.9000000000000008,
+    "minimumBoom": 7.336968795838721,
+    "peakFovStep": 4.721340616909515
+  },
+  {
+    "name": "J continuous aerial air-roll",
+    "fps": 144,
+    "aspect": 0.5625,
+    "peakTurn": 0.055794348061906404,
+    "peakExtent": 0.4670785969760568,
+    "minimumBoom": 7.336968795838723,
+    "peakFovStep": 0
+  },
+  {
+    "name": "K aerial overhead crossing",
+    "fps": 144,
+    "aspect": 0.5625,
+    "peakTurn": 5.601672323941724,
+    "peakExtent": 0.9000000000000004,
+    "minimumBoom": 7.336968795838723,
+    "peakFovStep": 1.7186398396332407
+  },
+  {
+    "name": "L wall to aerial",
+    "fps": 144,
+    "aspect": 0.5625,
+    "peakTurn": 3.0263417172423375,
+    "peakExtent": 0.8499999998202343,
+    "minimumBoom": 7.436677483067421,
+    "peakFovStep": 0.6671547550297277
+  },
+  {
+    "name": "M wall to floor",
+    "fps": 144,
+    "aspect": 0.5625,
+    "peakTurn": 0.6230029246413928,
+    "peakExtent": 0.8566593037903556,
+    "minimumBoom": 7.726535761977629,
+    "peakFovStep": 0.26742314620882723
+  },
+  {
+    "name": "N inverted car",
+    "fps": 144,
+    "aspect": 0.5625,
+    "peakTurn": 0.07142430619800909,
+    "peakExtent": 0.31301971378251614,
+    "minimumBoom": 7.336968795838723,
+    "peakFovStep": 0
+  },
+  {
+    "name": "O goal celebration",
+    "fps": 144,
+    "aspect": 0.5625,
+    "peakTurn": 0.19861470480968724,
+    "peakExtent": 0.28564913593864505,
+    "minimumBoom": 7.336968795838726,
+    "peakFovStep": 0
+  },
+  {
+    "name": "P rapid toggles",
+    "fps": 144,
+    "aspect": 0.5625,
+    "peakTurn": 1.439022087437547,
+    "peakExtent": 0.5831558511551679,
+    "minimumBoom": 7.336968795838721,
+    "peakFovStep": 0
+  },
+  {
+    "name": "A normal drive",
+    "fps": 144,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.03289254644817798,
+    "peakExtent": 0.470970980469262,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "B full-speed powerslide around ball",
+    "fps": 144,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 2.0000000000117377,
+    "peakExtent": 0.41843226152204377,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 0
+  },
+  {
+    "name": "C low-speed curve",
+    "fps": 144,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.4854540057723872,
+    "peakExtent": 0.8537075973157855,
+    "minimumBoom": 5.953594533080037,
+    "peakFovStep": 0.10475118313729581
+  },
+  {
+    "name": "D full-speed curve",
+    "fps": 144,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 4.1836024757941335,
+    "peakExtent": 0.8868345606765462,
+    "minimumBoom": 5.938228806035203,
+    "peakFovStep": 0.675941117520722
+  },
+  {
+    "name": "E vertical wall",
+    "fps": 144,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.09379282610899296,
+    "peakExtent": 0.7490136302543985,
+    "minimumBoom": 5.254432618138642,
+    "peakFovStep": 0
+  },
+  {
+    "name": "F directly overhead",
+    "fps": 144,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.03937923074638104,
+    "peakExtent": 0.8504668230266528,
+    "minimumBoom": 7.061781148247038,
+    "peakFovStep": 0.008511197656403624
+  },
+  {
+    "name": "G ceiling overhead",
+    "fps": 144,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.015661908285635167,
+    "peakExtent": 0.8502962258854428,
+    "minimumBoom": 10.673331251301068,
+    "peakFovStep": 0.005485583603217492
+  },
+  {
+    "name": "H ball passes behind",
+    "fps": 144,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.500000000029817,
+    "peakExtent": 0.42081961441949334,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 0
+  },
+  {
+    "name": "I close noisy ball",
+    "fps": 144,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.7595029525446362,
+    "peakExtent": 0.3627842534113653,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "H1 fast close ball crossing behind",
+    "fps": 144,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 4.999999999989263,
+    "peakExtent": 0.9000000000000008,
+    "minimumBoom": 5.727128425310541,
+    "peakFovStep": 3.607889198052874
+  },
+  {
+    "name": "J continuous aerial air-roll",
+    "fps": 144,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.05997689045476015,
+    "peakExtent": 0.6020826832012359,
+    "minimumBoom": 5.727128425310541,
+    "peakFovStep": 0
+  },
+  {
+    "name": "K aerial overhead crossing",
+    "fps": 144,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 4.999999823205918,
+    "peakExtent": 0.8557434842839488,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0.16918257333367137
+  },
+  {
+    "name": "L wall to aerial",
+    "fps": 144,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 3.226358663593971,
+    "peakExtent": 0.849461064497538,
+    "minimumBoom": 5.254387784172397,
+    "peakFovStep": 0
+  },
+  {
+    "name": "M wall to floor",
+    "fps": 144,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.43736193743671825,
+    "peakExtent": 0.8637162089728238,
+    "minimumBoom": 5.874948726436208,
+    "peakFovStep": 0.25155063829939195
+  },
+  {
+    "name": "N inverted car",
+    "fps": 144,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.07142432747122064,
+    "peakExtent": 0.42991425591917093,
+    "minimumBoom": 5.727128425310542,
+    "peakFovStep": 0
+  },
+  {
+    "name": "O goal celebration",
+    "fps": 144,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 0.19863574734448333,
+    "peakExtent": 0.35510303167533797,
+    "minimumBoom": 5.727128425310545,
+    "peakFovStep": 0
+  },
+  {
+    "name": "P rapid toggles",
+    "fps": 144,
+    "aspect": 2.3333333333333335,
+    "peakTurn": 1.4429727215473878,
+    "peakExtent": 0.5518496606472502,
+    "minimumBoom": 5.72712842531054,
+    "peakFovStep": 0
+  }
+]

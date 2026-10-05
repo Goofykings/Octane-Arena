@@ -93,7 +93,7 @@ export class NetworkMatch {
       if (m.phase === "countdown") car.steerAtKickoff(input);
     }
     if (m.phase === "playing" || m.phase === "goal") s.step(inputs);
-    if (m.phase === "playing") this.pads.tick(s.cars);
+    if (m.phase === "playing" || m.phase === "goal") this.pads.tick(s.cars);
     m.tick(s);
     if (m.resetSequence !== reset) this.pads.reset();
     this.tick++;
@@ -107,6 +107,7 @@ export class NetworkMatch {
       tick: this.tick,
       time: this.tick * P.dt,
       reset: m.resetSequence,
+      kickoffFormationId: m.kickoffFormationId,
       players: this.players,
       cars: s.cars.map((c) => ({
         id: c.id,
@@ -124,6 +125,12 @@ export class NetworkMatch {
         wheels: [...c.wheelContact],
         wheelHits: c.wheelHits.map((p) => ({ x: p.x, y: p.y, z: p.z })),
         flipLeft: c.jump.flipLeft,
+        normalJump: {
+          sequence: c.normalJumpSequence,
+          age: Number.isFinite(c.normalJumpAge) ? c.normalJumpAge : 1000,
+          origin: { ...c.normalJumpOrigin },
+          normal: { ...c.normalJumpNormal },
+        },
         enabled: c.body.isEnabled(),
       })),
       ball: {

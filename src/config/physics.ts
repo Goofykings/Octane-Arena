@@ -28,7 +28,11 @@ export const P = {
     airReverse: 33.334 * UU,
     maxAngular: 6,
     chassisFriction: 0.05,
-    roofFriction: 0.50, // Extra rigid-body friction only while resting/sliding on the roof.
+    wheelSpinCoastTime: 45, // Seconds for airborne wheels to coast to zero.
+    roofFriction: 0.5, // Extra rigid-body friction only while resting/sliding on the roof.
+    roofSteeringFriction: 0.2, // Less resistance while actively turning on the roof.
+    roofYawSpeed: 1.5, // Weaker steering while sliding on real roof contacts (rad/s).
+    roofYawResponse: 12,
     contactHeight: 0.31,
     contactReach: 0.5,
     contactSkin: 0.008,
@@ -42,6 +46,8 @@ export const P = {
     normalResponse: 40,
     align: 100,
     alignDamping: 16,
+    curveAlignmentScale: 6, // Responsive normal support only while the surface frame is turning.
+    curveDampingScale: 3,
     steeringResponse: 18,
     airPitch: 12.1,
     airYaw: 8.9,
@@ -88,7 +94,7 @@ export const P = {
     verticalDampStart: 0.15,
     verticalDampEnd: 0.21,
     verticalDamp120: 0.35,
-    cancelDamping: 12,
+    cancelDamping: 4, // Pitch-only braking rate (1/s), preserving existing momentum.
   },
   ball: {
     radius: 91.25 * UU,
@@ -102,13 +108,14 @@ export const P = {
     maxAngular: 6,
   },
   hit: {
-    minClosing: 0.5,
-    frontGain: 0.3,
-    sideGain: 0.12,
-    roofGain: 0.2,
-    undersideGain: 0.08,
-    maxExtra: 6,
-    cooldown: 0.1,
+    minClosing: 1,
+    rearmClosing: 0.35,
+    impactRamp: 2,
+    maxRelative: 46,
+    verticalScale: 0.55,
+    forwardScale: 0.65,
+    roofTilt: 0.2,
+    cooldown: 0.025,
   },
   bump: { minClosing: 2, gain: 0.22, maxExtra: 4.5, recovery: 0.28 },
   match: {
@@ -130,6 +137,7 @@ export const P = {
     goalCurve: 2.4,
     goalLip: 1.2,
     postRadius: 0.22,
+    crossbarBevel: 0.04, // Small rounded edges; the field-facing beam remains flat.
   },
 } as const;
 export function lookup(

@@ -20,6 +20,11 @@ test("server-owned physics, pads, goals, reset, clock and bots", async () => {
   try {
     assert.equal(game.snapshot().cars.length, 4);
     assert.equal(game.match.phase, "countdown");
+    assert.equal(
+      game.snapshot().kickoffFormationId,
+      game.match.kickoffFormationId,
+    );
+    assert.ok(game.snapshot().kickoffFormationId);
     const kickoffCar = game.simulation.cars[0],
       kickoffPosition = { ...kickoffCar.body.translation() },
       kickoffRotation = { ...kickoffCar.body.rotation() };
@@ -60,7 +65,8 @@ test("server-owned physics, pads, goals, reset, clock and bots", async () => {
       false,
       "humans cannot drive bot IDs",
     );
-    const z = game.simulation.cars[0].body.translation().z;
+    const z = game.simulation.cars[0].body.translation().z,
+      botStart = { ...game.simulation.cars[2].body.translation() };
     for (let i = 0; i < 120; i++) {
       game.accept(
         "p0",
@@ -72,7 +78,23 @@ test("server-owned physics, pads, goals, reset, clock and bots", async () => {
     }
     assert.ok(game.simulation.cars[0].body.translation().z < z - 5);
     assert.ok(game.simulation.cars[0].boost < 33);
-    assert.ok(game.simulation.cars[2].forwardSpeed > 1, "bot moves on server");
+    const bot = game.simulation.cars[2],
+      botPosition = bot.body.translation(),
+      botVelocity = bot.body.linvel();
+    // A moving flip can point the nose opposite travel. Measure world motion
+    // and actual displacement instead of signed local forward speed at one tick.
+    assert.ok(
+      Math.hypot(
+        botPosition.x - botStart.x,
+        botPosition.y - botStart.y,
+        botPosition.z - botStart.z,
+      ) > 1,
+      "bot travels on server",
+    );
+    assert.ok(
+      Math.hypot(botVelocity.x, botVelocity.y, botVelocity.z) > 1,
+      "bot moves on server during flips",
+    );
     assert.ok(game.match.remaining < 300);
     game.step(1000);
     assert.equal(
@@ -103,6 +125,39 @@ test("server-owned physics, pads, goals, reset, clock and bots", async () => {
     game.simulation.ball.setTranslation({ x: 0, y: 0.93, z: 0 }, true);
     game.match.tick(game.simulation);
     assert.equal(game.match.phase, "finished");
+  } finally {
+    game.dispose();
+  }
+});
+
+test("snapshots publish each real normal-jump visual event and clear it at kickoff", async () => {
+  await initializeMatchPhysics();
+  const game = new NetworkMatch([
+    {
+      id: "jump-driver",
+      name: "Driver",
+      team: 0,
+      controller: "remote",
+      preset: starter(),
+    },
+  ]);
+  try {
+    const car = game.simulation.cars[0],
+      neutral = neutralInput();
+    car.reset(0, 15, 0);
+    for (let i = 0; i < 60; i++) game.simulation.step([neutral]);
+    game.simulation.step([{ ...neutral, jump: true }]);
+    const event = JSON.parse(JSON.stringify(game.snapshot())).cars[0]
+      .normalJump;
+    assert.equal(event.sequence, 1);
+    assert.ok(event.age < 0.02);
+    assert.ok(event.normal.y > 0.99);
+    assert.ok(event.origin.y < car.body.translation().y);
+    for (let i = 0; i < 12; i++) game.simulation.step([neutral]);
+    assert.equal(game.snapshot().cars[0].normalJump?.sequence, 1);
+    game.match.kickoff(game.simulation);
+    assert.equal(game.snapshot().cars[0].normalJump?.sequence, 0);
+    assert.ok(Number.isFinite(game.snapshot().cars[0].normalJump?.age));
   } finally {
     game.dispose();
   }
@@ -182,6 +237,7 @@ test("authenticated sockets share a match, isolate inputs, and return on party l
       other = replies[1].find((s) => s.tick === tick);
     assert.ok(other);
     assert.deepEqual(replies[0][0], other);
+    assert.ok(other.kickoffFormationId);
     assert.equal((await send(0, "team", { team: 1 })).statusCode, 409);
     assert.equal((await send(0, "return")).statusCode, 409);
     await send(1, "leave");

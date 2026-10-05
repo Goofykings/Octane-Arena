@@ -60,6 +60,14 @@ const path = require("node:path");
     await page.waitForFunction(() => !!window.__arena);
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(350);
+    await page.evaluate(() =>
+      Promise.all(
+        document
+          .getAnimations()
+          .filter((a) => Number.isFinite(a.effect?.getTiming().iterations))
+          .map((a) => a.finished.catch(() => {})),
+      ),
+    );
     const sizes = await page.evaluate(() =>
       ["play", "garage-open", "settings-open"].map((id) => {
         const e = document.getElementById(id),
@@ -396,6 +404,46 @@ const path = require("node:path");
     await page.screenshot({ path: "docs/goal-explosion.png" });
     await page.keyboard.up("ShiftLeft");
     await page.keyboard.up("q");
+    for (const large of [false, true]) {
+      await page.evaluate((large) => {
+        const a = window.__arena,
+          pad = a.pads.items.find((p) => p.large === large);
+        // Keep time available for deterministic UI/effect inspection.
+        a.match.freeze = 2;
+        pad.cooldown = 0;
+        a.simulation.cars[0].reset(pad.x, pad.z, 0);
+        a.simulation.cars[0].boost = 20;
+      }, large);
+      await page.waitForFunction(
+        (large) =>
+          window.__arena.simulation.cars[0].boost === (large ? 100 : 32),
+        large,
+      );
+      assert(
+        await page.evaluate((large) => {
+          const a = window.__arena,
+            p = a.pads.items.find((p) => p.large === large);
+          return (
+            a.match.phase === "goal" &&
+            p.cooldown > 0 &&
+            p.pulse > 0 &&
+            document.querySelector(".boost-hud").getAnimations().length > 0
+          );
+        }, large),
+        `Post-goal ${large ? "large" : "small"} pad refills boost, animates, and starts cooldown`,
+      );
+    }
+    await page.waitForFunction(
+      () => window.__arena.match.phase === "countdown",
+    );
+    assert(
+      await page.evaluate(
+        () =>
+          window.__arena.simulation.cars[0].boost === 33 &&
+          window.__arena.pads.items.every((p) => p.cooldown === 0),
+      ),
+      "Post-goal pickups preserve normal kickoff boost/pad reset",
+    );
     await page.keyboard.press("Escape");
     await page.locator("#pause-home").click();
     if (await page.locator("#leave-confirm").evaluate((d) => d.open))

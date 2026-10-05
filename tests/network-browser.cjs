@@ -61,6 +61,20 @@ const { resolve } = require("node:path"),
     );
     const local = await host.evaluate(() => window.__arena.party.playerId),
       remote = await guest.evaluate(() => window.__arena.party.playerId);
+    for (const p of [host, guest]) {
+      assert.equal(
+        await p.evaluate(
+          () => window.__arena.network.latest.kickoffFormationId,
+        ),
+        game.match.kickoffFormationId,
+      );
+      assert.equal(
+        await p.evaluate(
+          () => window.__arena.networkView.match.kickoffFormationId,
+        ),
+        game.match.kickoffFormationId,
+      );
+    }
     assert.equal(
       await guest.evaluate(
         () => window.__arena.networkView.simulation.cars[0].id,
@@ -82,13 +96,34 @@ const { resolve } = require("node:path"),
         before - 2,
     );
     await guest.waitForFunction(
-      (id) =>
+      ({ id, before }) =>
         window.__arena.network.latest.cars.find((c) => c.id === id).position.z <
-        24,
-      local,
+        before - 2,
+      { id: local, before },
     );
     console.log(
       "PASS two clients share server physics, independent IDs, camera and boost input",
+    );
+    for (const p of [host, guest]) {
+      await p.waitForFunction(() => {
+        const rig = window.__arena.networkView.camera;
+        return (
+          rig.debug.safe &&
+          Math.abs(rig.camera.rotation.z) < 1e-8 &&
+          Math.abs(rig.framing.carScreen.x) < 0.9 &&
+          Math.abs(rig.framing.ballScreen.x) < 0.9 &&
+          rig.framing.carScreen.z > 0 &&
+          rig.framing.ballScreen.z > 0
+        );
+      });
+    }
+    await host.keyboard.press("F3");
+    await host.waitForFunction(() =>
+      document.getElementById("debug").textContent.includes("CAMERA Ball Cam"),
+    );
+    await host.keyboard.press("F3");
+    console.log(
+      "PASS snapshot-rendered network rig frames both subjects with a level horizon and camera diagnostics",
     );
     await host.keyboard.press("Escape");
     const clock = game.match.remaining;
@@ -107,6 +142,47 @@ const { resolve } = require("node:path"),
           window.__arena.networkView.match.phase === "goal",
       );
     await host.screenshot({ path: "docs/network-goal.png" });
+    for (const large of [false, true]) {
+      game.match.freeze = 2;
+      const index = game.pads.items.findIndex((p) => p.large === large),
+        pad = game.pads.items[index];
+      // First let both clients receive the available pad state.
+      pad.cooldown = 0;
+      await host.waitForFunction(
+        (index) => window.__arena.pads.items[index].cooldown === 0,
+        index,
+      );
+      const car = game.simulation.cars.find((c) => c.id === local);
+      car.reset(pad.x, pad.z, 0);
+      car.boost = 20;
+      await host.waitForFunction(
+        ({ index, large }) => {
+          const a = window.__arena,
+            pad = a.pads.items[index];
+          return (
+            a.networkView.match.phase === "goal" &&
+            a.networkView.simulation.cars[0].boost === (large ? 100 : 32) &&
+            pad.cooldown > 0 &&
+            pad.pulse > 0
+          );
+        },
+        { index, large },
+      );
+      await guest.waitForFunction(
+        ({ index, local, large }) => {
+          const a = window.__arena;
+          return (
+            a.network.latest.pads[index] > 0 &&
+            a.network.latest.cars.find((c) => c.id === local).boost ===
+              (large ? 100 : 32)
+          );
+        },
+        { index, local, large },
+      );
+      console.log(
+        `PASS network post-goal ${large ? "large" : "small"} pickup and pulse synchronize in both browsers`,
+      );
+    }
     await host.waitForFunction(
       () => window.__arena.networkView.match.phase === "countdown",
     );

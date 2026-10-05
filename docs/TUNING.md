@@ -1,6 +1,12 @@
 # Gameplay feel tuning
 
 Start in **src/config/physics.ts**. Most gameplay values live in its `P` object.
+`car.wheelSpinCoastTime` controls airborne wheel spin: wheels retain their last
+surface speed and direction, then slow to a complete stop after 45 seconds.
+`car.curveAlignmentScale` (6) and `curveDampingScale` (3) control angular
+support while the contact frame turns through a curve. They leave flat-surface
+alignment and tire grip unchanged; `car.normalResponse` controls the brief
+surface-frame filter. Re-run `tests/ramp-quality.ts` after adjusting them.
 While `npm run dev` is running, save your edits, reload the browser, and enter
 Free Play for a clean comparison. Change one value at a time. F3 displays physics
 telemetry. Run `npm test` and `npm run build` when you settle on a change.
@@ -41,7 +47,8 @@ review measured results when deliberately changing their targets.
 | Goal frame               | `arena.postRadius` = 0.22                                               | Solid rounded posts/bar; shared by collision and rendering. Inner tangents retain the mouth dimensions.                                                                     |
 | Recovery                 | `car.stuckTime`, `recoveryCooldown`                                     | Side-stuck detection delay and recovery cooldown.                                                                                                                           |
 | Ball feel                | `ball.mass`, `restitution`, `drag`, `maxSpeed`                          | Impact response, bounciness, slowing and ball speed cap.                                                                                                                    |
-| Ball hits                | `hit.frontGain`, `sideGain`, `roofGain`, `maxExtra`                     | Extra gameplay impulse applied to ball hits.                                                                                                                                |
+| Ball impacts             | `hit.minClosing`, `impactRamp`, `maxRelative`, `verticalScale`, `forwardScale`, `cooldown` | Extra impulse from actual contact-point approach velocity; no boost for resting dribbles. The speed/gain curve is in `src/physics/car-ball.ts`. |
+| Roof dribbles            | `hit.roofTilt` = 0.20 | Maximum outward support tilt; cubic local offset keeps the centre flat while edges roll outward. Actual box dimensions stay unchanged. |
 | Gravity                  | `gravity` = 6.5                                                         | Affects ball, jumps, aerials and wall forces together.                                                                                                                      |
 | Supersonic               | `supersonic.start`, `maintain`, `grace`                                 | Entry speed, maintenance speed and hysteresis duration.                                                                                                                     |
 | Demolitions              | `demolition.respawn`, `boost`, `minClosing`, `frontDot`                 | Respawn delay/boost and collision eligibility.                                                                                                                              |

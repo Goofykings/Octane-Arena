@@ -84,39 +84,39 @@
   },
   {
     "name": "front strike 2 m/s",
-    "value": 1.706252098083496,
+    "value": 1.7600629329681396,
     "pass": true
   },
   {
     "name": "glancing strike 2 m/s",
-    "value": 1.3155404318578163,
+    "value": 1.251167455377068,
     "pass": true
   },
   {
     "name": "front strike 10 m/s",
-    "value": 12.675471104620067,
+    "value": 15.596012939557527,
     "pass": true
   },
   {
     "name": "glancing strike 10 m/s",
-    "value": 8.787276626208195,
+    "value": 11.131268837584331,
     "pass": true
   },
   {
     "name": "front strike 20 m/s",
-    "value": 25.441846534849738,
+    "value": 30.351105228974703,
     "pass": true
   },
   {
     "name": "glancing strike 20 m/s",
-    "value": 17.980112286455316,
+    "value": 22.19575991069401,
     "pass": true
   },
   {
     "name": "floor to vertical wall driving",
     "value": {
-      "maxY": 20.066675186157227,
-      "wallContacts": 169
+      "maxY": 20.099990844726562,
+      "wallContacts": 171
     },
     "pass": true
   },
@@ -274,12 +274,12 @@
   },
   {
     "name": "goal blast launches cars",
-    "value": 9.557107134197599,
+    "value": 9.141033789778886,
     "pass": true
   },
   {
     "name": "cars move during celebration",
-    "value": 9.147930461561465,
+    "value": 8.750374702154595,
     "pass": true
   },
   {
@@ -317,17 +317,17 @@
     "name": "opposite pitch cancels forward flip",
     "value": [
       -7,
-      -0.2105731964111328
+      -0.7773855328559875
     ],
     "pass": true
   },
   {
     "name": "complete 5-minute live simulation",
     "value": {
-      "seconds": 613.425,
+      "seconds": 346.46666666666664,
       "score": [
         0,
-        50
+        7
       ],
       "phase": "finished",
       "escaped": false
@@ -347,8 +347,8 @@
     "name": "glancing opponent collision",
     "value": {
       "collision": true,
-      "opponentZ": -4.851093769073486,
-      "playerZ": -2.494325876235962
+      "opponentZ": -4.831594944000244,
+      "playerZ": -2.4782819747924805
     },
     "pass": true
   }

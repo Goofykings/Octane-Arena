@@ -1,6 +1,7 @@
 import * as T from "three";
 import type { Car } from "../car/car";
 import { P } from "../config/physics";
+import { polishMaterial } from "../render/material-polish";
 
 /** Continuous exhaust geometry plus world-space ribbons from the rear wheels. */
 export class VehicleEffects {
@@ -31,6 +32,7 @@ export class VehicleEffects {
         }),
       );
       outer.rotation.x = Math.PI / 2;
+      polishMaterial(outer.material, "boost");
       outer.position.set(x, 0, 1.4);
       this.flames.add(outer);
       const inner = new T.Mesh(
@@ -44,6 +46,7 @@ export class VehicleEffects {
         }),
       );
       inner.rotation.x = Math.PI / 2;
+      polishMaterial(inner.material, "core");
       inner.position.set(x, 0, 1.15);
       this.flames.add(inner);
     }

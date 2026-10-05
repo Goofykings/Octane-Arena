@@ -1,6 +1,6 @@
 import * as T from "three";
 import { P } from "../config/physics";
-import { bodies } from "../../shared/catalog";
+import { wheelMount } from "../car/wheels";
 import type { Car } from "../car/car";
 
 /** Short world-space histories; one fixed buffer per effect, never new meshes per tick. */
@@ -146,20 +146,9 @@ export class FlipTrails extends MotionTrails {
     active: boolean,
     camera?: T.Vector3,
   ) {
-    const d = bodies[car.bodyId];
-    const points = [
-      [-1, -1],
-      [1, -1],
-      [-1, 1],
-      [1, 1],
-    ].map(([x, z]) =>
-      // Start just beyond the wheel/body silhouette so the car cannot hide
-      // its own short rotation streaks throughout a forward flip.
-      new T.Vector3(
-        x * (d.halfWidth + 0.12),
-        d.hitboxY,
-        z * (d.halfLength + 0.06),
-      )
+    const mounts = pose.userData.wheelMounts as T.Object3D[] | undefined;
+    const points = Array.from({ length: 4 }, (_, i) =>
+      (mounts?.[i]?.position.clone() ?? wheelMount(car.bodyId, i).setY(-0.12))
         .applyQuaternion(pose.quaternion)
         .add(pose.position),
     );

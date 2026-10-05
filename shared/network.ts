@@ -19,6 +19,7 @@ export interface CarSnapshot {
   wheels: boolean[];
   wheelHits: Vec[];
   flipLeft: number;
+  normalJump?: { sequence: number; age: number; origin: Vec; normal: Vec };
   enabled: boolean;
 }
 export interface MatchSnapshot {
@@ -27,6 +28,7 @@ export interface MatchSnapshot {
   tick: number;
   time: number;
   reset: number;
+  kickoffFormationId: string | null;
   players: NetPlayer[];
   cars: CarSnapshot[];
   ball: { position: Vec; rotation: Rotation; enabled: boolean };

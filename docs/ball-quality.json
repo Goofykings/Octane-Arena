@@ -1,0 +1,325 @@
+[
+  {
+    "kind": "dribble",
+    "id": "ion",
+    "x": 0,
+    "final": {
+      "x": 0,
+      "y": 1.449376106262207,
+      "z": 0
+    },
+    "impulses": 0
+  },
+  {
+    "kind": "dribble",
+    "id": "ion",
+    "x": 0.2,
+    "final": {
+      "x": 1.2922574281692505,
+      "y": 0.9330746531486511,
+      "z": 0.00254766340367496
+    },
+    "impulses": 0
+  },
+  {
+    "kind": "dribble",
+    "id": "ion",
+    "x": 0.38,
+    "final": {
+      "x": 2.3007729053497314,
+      "y": 0.9113129377365112,
+      "z": 0.005454048980027437
+    },
+    "impulses": 0
+  },
+  {
+    "kind": "dribble",
+    "id": "vector",
+    "x": 0,
+    "final": {
+      "x": 0,
+      "y": 1.6093759536743164,
+      "z": 0
+    },
+    "impulses": 0
+  },
+  {
+    "kind": "dribble",
+    "id": "vector",
+    "x": 0.2,
+    "final": {
+      "x": 1.2452751398086548,
+      "y": 1.1251856088638306,
+      "z": 0.0005365171236917377
+    },
+    "impulses": 0
+  },
+  {
+    "kind": "dribble",
+    "id": "vector",
+    "x": 0.38,
+    "final": {
+      "x": 2.2852325439453125,
+      "y": 0.9113156199455261,
+      "z": 0.0035247609484940767
+    },
+    "impulses": 0
+  },
+  {
+    "kind": "legacy flick",
+    "id": "ion",
+    "name": "front",
+    "maxSpeed": 12.564341462317442,
+    "maxAngular": 7,
+    "extra": 0,
+    "angularContact": 0
+  },
+  {
+    "kind": "legacy flick",
+    "id": "ion",
+    "name": "back",
+    "maxSpeed": 8.934740083993596,
+    "maxAngular": 7,
+    "extra": 0,
+    "angularContact": 0
+  },
+  {
+    "kind": "legacy flick",
+    "id": "ion",
+    "name": "side",
+    "maxSpeed": 10.08550530241401,
+    "maxAngular": 7.00000016349369,
+    "extra": 0,
+    "angularContact": 0
+  },
+  {
+    "kind": "legacy flick",
+    "id": "ion",
+    "name": "diagonal",
+    "maxSpeed": 12.354174424886452,
+    "maxAngular": 7.000000216294647,
+    "extra": 0,
+    "angularContact": 0
+  },
+  {
+    "kind": "legacy flick",
+    "id": "vector",
+    "name": "front",
+    "maxSpeed": 12.879543205254784,
+    "maxAngular": 7,
+    "extra": 0,
+    "angularContact": 0
+  },
+  {
+    "kind": "legacy flick",
+    "id": "vector",
+    "name": "back",
+    "maxSpeed": 9.022672821044052,
+    "maxAngular": 7,
+    "extra": 0,
+    "angularContact": 0
+  },
+  {
+    "kind": "legacy flick",
+    "id": "vector",
+    "name": "side",
+    "maxSpeed": 10.060195179692201,
+    "maxAngular": 7.000000194435227,
+    "extra": 0,
+    "angularContact": 0
+  },
+  {
+    "kind": "legacy flick",
+    "id": "vector",
+    "name": "diagonal",
+    "maxSpeed": 12.321357039012478,
+    "maxAngular": 7.0000002866591755,
+    "extra": 0,
+    "angularContact": 0
+  },
+  {
+    "kind": "flick",
+    "id": "ion",
+    "name": "front",
+    "maxSpeed": 16.26500633923675,
+    "maxAngular": 7,
+    "extra": 5.709222882343765,
+    "angularContact": 4.365611857590898
+  },
+  {
+    "kind": "flick",
+    "id": "ion",
+    "name": "back",
+    "maxSpeed": 11.834433808989234,
+    "maxAngular": 7,
+    "extra": 5.928715046767114,
+    "angularContact": 4.042880339923664
+  },
+  {
+    "kind": "flick",
+    "id": "ion",
+    "name": "side",
+    "maxSpeed": 12.266346035355419,
+    "maxAngular": 7.000000219655885,
+    "extra": 4.639049027594212,
+    "angularContact": 3.4769232371970884
+  },
+  {
+    "kind": "flick",
+    "id": "ion",
+    "name": "diagonal",
+    "maxSpeed": 15.979916842158387,
+    "maxAngular": 7.000000295271534,
+    "extra": 6.0023453211580495,
+    "angularContact": 4.099282264558654
+  },
+  {
+    "kind": "flick",
+    "id": "vector",
+    "name": "front",
+    "maxSpeed": 16.35564750031517,
+    "maxAngular": 7,
+    "extra": 5.802038055908877,
+    "angularContact": 4.682210442819925
+  },
+  {
+    "kind": "flick",
+    "id": "vector",
+    "name": "back",
+    "maxSpeed": 11.864660841317436,
+    "maxAngular": 7,
+    "extra": 5.992778576220418,
+    "angularContact": 4.372109113739851
+  },
+  {
+    "kind": "flick",
+    "id": "vector",
+    "name": "side",
+    "maxSpeed": 12.110925013381987,
+    "maxAngular": 7.0000002310271086,
+    "extra": 4.553318348401706,
+    "angularContact": 3.747214069282072
+  },
+  {
+    "kind": "flick",
+    "id": "vector",
+    "name": "diagonal",
+    "maxSpeed": 14.719959964357864,
+    "maxAngular": 7.000000275921075,
+    "extra": 5.49170418426902,
+    "angularContact": 3.8218349073666054
+  },
+  {
+    "kind": "moving dribble",
+    "id": "ion",
+    "action": "accelerate",
+    "local": [
+      -0.000044233450137602365,
+      1.1381674547752636,
+      0.4370020514816594
+    ]
+  },
+  {
+    "kind": "moving dribble",
+    "id": "ion",
+    "action": "brake",
+    "local": [
+      -0.0006324291930365378,
+      0.9995907597318303,
+      -2.188102921633546
+    ]
+  },
+  {
+    "kind": "moving dribble",
+    "id": "ion",
+    "action": "steer",
+    "local": [
+      -0.5219193443783514,
+      1.12910555322354,
+      0.7884153663584972
+    ]
+  },
+  {
+    "kind": "moving dribble",
+    "id": "ion",
+    "action": "powerslide",
+    "local": [
+      -0.09551893526837874,
+      1.137436293916032,
+      0.4407148118180139
+    ]
+  },
+  {
+    "kind": "moving dribble",
+    "id": "vector",
+    "action": "accelerate",
+    "local": [
+      0.0003074424116891578,
+      1.2978793957844093,
+      0.43428770171319764
+    ]
+  },
+  {
+    "kind": "moving dribble",
+    "id": "vector",
+    "action": "brake",
+    "local": [
+      0.00021757905788866665,
+      1.1714928820666621,
+      -2.1862980333770876
+    ]
+  },
+  {
+    "kind": "moving dribble",
+    "id": "vector",
+    "action": "steer",
+    "local": [
+      -0.519198503398817,
+      1.2922959747599911,
+      0.7839194934054433
+    ]
+  },
+  {
+    "kind": "moving dribble",
+    "id": "vector",
+    "action": "powerslide",
+    "local": [
+      -0.10878547436857966,
+      1.2974622896604096,
+      0.4288917568904684
+    ]
+  },
+  {
+    "kind": "shot",
+    "name": "slow",
+    "speed": 1,
+    "maxSpeed": 1.0943199806280133
+  },
+  {
+    "kind": "shot",
+    "name": "front",
+    "speed": 23,
+    "maxSpeed": 33.733993552833354
+  },
+  {
+    "kind": "shot",
+    "name": "diagonal",
+    "speed": 18,
+    "maxSpeed": 23.939433206760878
+  },
+  {
+    "kind": "shot",
+    "name": "aerial",
+    "speed": 18,
+    "maxSpeed": 28.26506303085118
+  },
+  {
+    "kind": "height indicator",
+    "radii": [
+      0.8999999967246147,
+      0.4886986891396636,
+      0.24462942889640998,
+      0.09000000000000004
+    ]
+  }
+]

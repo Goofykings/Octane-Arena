@@ -1,12 +1,13 @@
-import { Quaternion, Vector3 } from "three";
+import { Quaternion } from "three";
 import { P } from "../config/physics";
-/** Rounded solid frame; inside tangents preserve the existing mouth dimensions.
- * End spheres meet in the solid fascia, leaving no exposed thin joint. */
+/** Solid posts and a flat-front beam. The beam sits behind the fascia;
+ * its rounded underside preserves the existing goal opening. */
 export function goalFrame(sign: number) {
   const a = P.arena,
     r = a.postRadius;
   return [
     ...[-1, 1].map((side) => ({
+      kind: "post" as const,
       radius: r,
       length: a.goalHeight,
       position: [
@@ -17,17 +18,21 @@ export function goalFrame(sign: number) {
       rotation: new Quaternion(),
     })),
     {
+      kind: "bar" as const,
       radius: r,
       length: 2 * (a.goalHalf + r),
-      position: [0, a.goalHeight + r, sign * a.halfLength] as [
+      size: [2 * (a.goalHalf + 2 * r), 2 * r, 2 * r] as [
         number,
         number,
         number,
       ],
-      rotation: new Quaternion().setFromAxisAngle(
-        new Vector3(0, 0, 1),
-        Math.PI / 2,
-      ),
+      bevel: a.crossbarBevel,
+      position: [
+        0,
+        a.goalHeight + r,
+        sign * (a.halfLength + r + a.crossbarBevel),
+      ] as [number, number, number],
+      rotation: new Quaternion(),
     },
   ];
 }

@@ -47,6 +47,11 @@ export class Effects {
       this.colors.set([c.r, c.g, c.b], k);
     }
   }
+  reset() {
+    this.life.fill(0);
+    this.positions.fill(10000);
+    this.geo.attributes.position.needsUpdate = true;
+  }
   burst(p: T.Vector3, color: number) {
     if (!this.enabled) return;
     for (let j = 0; j < 260 * this.density; j++) {

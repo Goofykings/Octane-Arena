@@ -104,9 +104,17 @@ export class GameAudio {
     g.connect(this.buses[channel]!);
     o.start();
     o.stop(c.currentTime + duration);
+    let ended = false;
     o.onended = () => {
+      ended = true;
       o.disconnect();
       g.disconnect();
+    };
+    return () => {
+      if (ended) return;
+      g.gain.cancelScheduledValues(c.currentTime);
+      g.gain.setValueAtTime(0, c.currentTime);
+      o.stop(c.currentTime);
     };
   }
   update(

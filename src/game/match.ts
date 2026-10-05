@@ -2,6 +2,7 @@ import { P } from "../config/physics";
 import type { Simulation } from "../physics/simulation";
 import { modes, type Mode } from "./modes";
 import { scoringTeam } from "./goals";
+import { KickoffBag, freeplayKickoffs } from "../../shared/kickoff";
 export type Phase =
   | "home"
   | "countdown"
@@ -10,6 +11,9 @@ export type Phase =
   | "paused"
   | "finished";
 export class Match {
+  kickoffFormationId: string | null = null;
+  private kickoffBag = new KickoffBag();
+  private practiceKickoff = 0;
   mode: Mode = "bot";
   get rules() {
     return modes[this.mode];
@@ -31,6 +35,7 @@ export class Match {
   }
   start(s: Simulation, mode: Mode = this.mode) {
     this.mode = mode;
+    this.practiceKickoff = 0;
     // Explicit collision participation also removes already-registered broadphase pairs.
     this.score = [0, 0];
     this.remaining = 300;
@@ -42,7 +47,17 @@ export class Match {
     }
   }
   kickoff(s: Simulation) {
-    s.reset();
+    const formation = this.rules.training
+      ? freeplayKickoffs[this.practiceKickoff++ % freeplayKickoffs.length]
+      : this.kickoffBag.next(
+          Math.max(
+            ...[0, 1].map(
+              (team) => s.cars.filter((c) => c.team === team).length,
+            ),
+          ),
+        );
+    this.kickoffFormationId = formation?.id ?? null;
+    s.reset(formation);
     if (!this.rules.training)
       s.cars.forEach((c) => (c.boost = P.match.kickoffBoost));
     this.lastGoal = null;

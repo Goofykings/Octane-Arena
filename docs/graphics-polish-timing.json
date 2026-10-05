@@ -1,0 +1,35 @@
+{
+  "environment": "Headless Chrome / software SwiftShader; not a hardware GPU benchmark",
+  "samples": [
+    {
+      "quality": "low",
+      "median": 16.699999999999818,
+      "p95": 16.899999999999636
+    },
+    {
+      "quality": "medium",
+      "median": 16.699999999999818,
+      "p95": 16.799999999999272
+    },
+    {
+      "quality": "high",
+      "median": 16.699999999999818,
+      "p95": 16.800000000000182
+    },
+    {
+      "quality": "ultra",
+      "median": 16.700000000000728,
+      "p95": 16.800000000000182
+    },
+    {
+      "quality": "low",
+      "median": 16.699999999999818,
+      "p95": 16.80000000000109
+    },
+    {
+      "quality": "high",
+      "median": 16.700000000000728,
+      "p95": 16.80000000000109
+    }
+  ]
+}

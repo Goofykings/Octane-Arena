@@ -85,8 +85,10 @@ Goal explosions apply distance-dependent 8–19 m/s velocity changes to both car
 Player rotation, air roll, throttle and boost remain live during the 3.2 s goal
 celebration. The scored ball is disabled until reset. A fixed-tick 3 s countdown
 holds both bodies and clock before every point, including overtime.
-These are bot-match rules. Free Play starts instantly and immediately resets on
-a goal, without a scoreboard, clock or celebration.
+These are bot-match rules. Free Play starts instantly without a scoreboard,
+clock or countdown. Goals have a gray explosion; the Free Play Reset command
+can interrupt any part of the celebration and advance to the next canonical
+kickoff position immediately.
 
 The [gameplay correction report](GAMEPLAY-CORRECTIONS.md) documents current
 surface/transition/air control states, held recovery, jump availability and the

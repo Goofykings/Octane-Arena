@@ -27,6 +27,9 @@ export class Opponent {
   private local = new Vector3();
   private inverse = new Quaternion();
   private nextJump = 0;
+  private flipStarted = -Infinity;
+  private flipSteer = 0;
+  private lastSample = 0;
   sample(
     car: Car,
     ball: { x: number; y: number; z: number },
@@ -34,6 +37,11 @@ export class Opponent {
   ): Controls {
     const c = neutral(),
       p = car.body.translation();
+    if (time < this.lastSample) {
+      this.nextJump = 0;
+      this.flipStarted = -Infinity;
+    }
+    this.lastSample = time;
     // Orange attacks +Z. Approach from behind the ball; retreat if it is behind us.
     this.target.set(ball.x, 0, ball.z - 4);
     if (p.z > ball.z + 2)
@@ -48,10 +56,52 @@ export class Opponent {
     c.steer = Math.max(-1, Math.min(1, angle * 2));
     c.throttle = 1;
     c.slide = Math.abs(angle) > 1 && Math.abs(car.forwardSpeed) > 4;
-    c.boost = Math.abs(angle) < 0.18 && distance > 9 && car.boost > 15;
+    c.boost =
+      Math.abs(angle) < 0.32 &&
+      distance > 6 &&
+      car.boost > 8 &&
+      car.forwardSpeed < 22;
     if (Math.abs(angle) > 2.4 && distance < 9) {
       c.throttle = -1;
       c.steer = -c.steer;
+    }
+    const ballLocal = new Vector3()
+        .copy(ball)
+        .sub(p)
+        .applyQuaternion(this.inverse),
+      ballDistance = Math.hypot(ballLocal.x, ballLocal.z),
+      ballAngle = Math.atan2(ballLocal.x, -ballLocal.z);
+    const challenge =
+      ball.y < 1.8 &&
+      ballDistance > 2.8 &&
+      ballDistance < 7 &&
+      Math.abs(ballAngle) < 0.28;
+    const travel =
+      distance > 13 && Math.abs(angle) < 0.22 && car.forwardSpeed < 18;
+    if (
+      car.grounded &&
+      car.normal.y > 0.9 &&
+      car.forwardSpeed > 5 &&
+      time > this.nextJump &&
+      (challenge || travel)
+    ) {
+      this.flipStarted = time;
+      this.flipSteer = Math.max(
+        -0.35,
+        Math.min(0.35, Math.sin(challenge ? ballAngle : angle)),
+      );
+      this.nextJump = time + (challenge ? 2.4 : 3);
+    }
+    const flipAge = time - this.flipStarted;
+    if (flipAge < 0.95) {
+      // A real first jump, release, then directional second press. Leave time
+      // for the flip and landing before another decision; never spam jumps.
+      c.jump = flipAge < 0.05 || (flipAge >= 0.12 && flipAge < 0.17);
+      c.dodgeX = this.flipSteer;
+      c.dodgeY = 1;
+      c.pitch = c.roll = 0;
+      c.boost &&= flipAge < 0.17;
+      return c;
     }
     if (
       ball.y > 1.4 &&

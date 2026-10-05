@@ -1,4 +1,5 @@
 import * as T from "three";
+import { polishMaterial } from "../render/material-polish";
 export class GoalExplosion {
   private group = new T.Group();
   private age = 10;
@@ -19,6 +20,7 @@ export class GoalExplosion {
       }),
     );
     this.group.add(this.flash, this.light);
+    polishMaterial(this.flash.material, "burst");
     for (let i = 0; i < 3; i++) {
       const ring = new T.Mesh(
         new T.TorusGeometry(1, 0.035, 6, 80),
@@ -30,6 +32,7 @@ export class GoalExplosion {
         }),
       );
       ring.rotation.set(i * 0.7, i * 0.4, 0);
+      polishMaterial(ring.material, "burst");
       this.group.add(ring);
       this.rings.push(ring);
     }

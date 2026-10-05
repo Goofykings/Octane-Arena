@@ -194,26 +194,21 @@ export function goalShell(sign: number): ArenaMesh {
     [W + l, H + l, L],
   ]);
   for (const side of [-1, 1]) {
-    face([
-      [side * W, a.ramp, L],
-      [side * (W + l), a.ramp, L],
-      [side * W, H, L],
-      [side * (W + l), H, L],
-    ]);
-    // Local shoulder loft: the old vertical end cap created a sharp collision
-    // edge against the arena ramp. Ease its inset to zero at the goal post;
-    // both endpoint tangents match their neighbours, without rounding the mouth.
+    // Taper the entire floor fillet to zero at the post, not just its depth.
+    // The old constant-height loft left a vertical pocket beside each post.
+    // This joins a flat mouth floor to the surrounding ramp without a divot.
     const at = v.length / 3,
       columns = 25;
     for (let row = 0; row <= 20; row++)
       for (let col = 0; col < columns; col++) {
         const t = ((row / 20) * Math.PI) / 2,
           u = col / (columns - 1),
-          blend = u * u * (3 - 2 * u);
+          blend = u * u * (3 - 2 * u),
+          radius = a.ramp * blend;
         v.push(
           side * (W + l * u),
-          a.ramp * (1 - Math.cos(t)),
-          sign * (L - a.ramp * (1 - Math.sin(t)) * blend),
+          radius * (1 - Math.cos(t)),
+          sign * (L - radius * (1 - Math.sin(t))),
         );
       }
     for (let row = 0; row < 20; row++)
@@ -221,6 +216,29 @@ export function goalShell(sign: number): ArenaMesh {
         const k = at + row * columns + col;
         quad(k, k + 1, k + columns, k + columns + 1);
       }
+    const wall = v.length / 3;
+    for (let col = 0; col < columns; col++) {
+      const u = col / (columns - 1),
+        radius = a.ramp * u * u * (3 - 2 * u);
+      v.push(
+        side * (W + l * u),
+        radius,
+        sign * L,
+        side * (W + l * u),
+        a.ramp,
+        sign * L,
+      );
+    }
+    for (let col = 0; col < columns - 1; col++) {
+      const k = wall + col * 2;
+      quad(k, k + 2, k + 1, k + 3);
+    }
+    face([
+      [side * W, a.ramp, L],
+      [side * (W + l), a.ramp, L],
+      [side * W, H, L],
+      [side * (W + l), H, L],
+    ]);
   }
   if (sign < 0)
     for (let i = 0; i < indices.length; i += 3)

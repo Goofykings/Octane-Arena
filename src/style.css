@@ -1419,9 +1419,10 @@ output {
 #party-join {animation:party-expand .2s ease-out;}
 #party-input {width:125px;min-height:36px;border:1px solid #7cebf2;background:#071b2c;color:white;padding:6px 10px;letter-spacing:.15em;text-transform:uppercase;}
 @keyframes party-expand {from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-#leave-confirm {width:min(440px,92vw);padding:32px;background:#102335f5;border:1px solid #52748b;color:white;box-shadow:0 20px 90px #0009;}
+#leave-confirm {width:min(440px,92vw);height:fit-content;min-height:0;max-height:85dvh;padding:24px;background:#102335f5;border:1px solid #52748b;color:white;box-shadow:0 20px 90px #0009;}
 #leave-confirm::backdrop {background:#020812a8;}
-#leave-confirm p {margin:12px 0 24px;color:#bdcddb;}
+#leave-confirm h2 {margin:0;font-size:28px;line-height:1.2;}
+#leave-confirm p {margin:12px 0 24px;font-size:16px;line-height:1.4;color:#bdcddb;}
 #leave-confirm>div {display:flex;gap:12px;}
 #leave-confirm .nav-button {width:auto;flex:1;font-size:18px;min-height:46px;padding:10px;}
 @media(max-width:759px){

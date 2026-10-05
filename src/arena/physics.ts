@@ -36,7 +36,15 @@ export function createArena(world: RAPIER.World, flat = false) {
   for (const s of [-1, 1])
     for (const part of goalFrame(s)) {
       world.createCollider(
-        RAPIER.ColliderDesc.capsule(part.length / 2, part.radius)
+        (part.kind === "bar"
+          ? RAPIER.ColliderDesc.roundCuboid(
+              part.size[0] / 2 - part.bevel,
+              part.size[1] / 2 - part.bevel,
+              part.size[2] / 2 - part.bevel,
+              part.bevel,
+            )
+          : RAPIER.ColliderDesc.capsule(part.length / 2, part.radius)
+        )
           .setTranslation(...part.position)
           .setRotation(part.rotation)
           .setFriction(0.3)

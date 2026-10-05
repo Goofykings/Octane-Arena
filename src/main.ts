@@ -36,6 +36,8 @@ import { Graphics } from "./render/graphics";
 import { Hitboxes } from "./debug/hitboxes";
 import { VehicleEffects } from "./effects/vehicle-effects";
 import { GoalExplosion } from "./effects/goal-explosion";
+import { JumpBurst } from "./effects/jump-burst";
+import { BallHeightIndicator } from "./effects/ball-height";
 import { Accounts } from "./game/accounts";
 import { trainingActions } from "./input/bindings";
 import { trainingAction } from "./game/training";
@@ -106,19 +108,10 @@ async function boot() {
   const goalPlanes = new GoalPlanes(scene, ball);
   const ballTrails = new BallTrails(scene);
   const flipTrails = cars.map(() => new FlipTrails(scene));
+  const jumpBursts = cars.map(() => new JumpBurst(scene));
   const skidMarks = cars.map(() => new SkidMarks(scene));
   const demoFlashes = cars.map(() => new DemolitionFlash(scene));
-  const ballShadow = new T.Mesh(
-    new T.RingGeometry(0.95, 1.07, 48),
-    new T.MeshBasicMaterial({
-      color: 0xc2f9ec,
-      transparent: true,
-      opacity: 0.4,
-      side: T.DoubleSide,
-    }),
-  );
-  ballShadow.rotation.x = -Math.PI / 2;
-  scene.add(ballShadow);
+  const ballHeight = new BallHeightIndicator(scene);
   const padMeshes = pads.items.map((p) => {
     const group = new T.Group(),
       ring = new T.Mesh(
@@ -177,13 +170,18 @@ async function boot() {
     input.clear();
   });
   updatePreset();
+  let goalSounds: (() => void)[] = [];
   const resetEffects = () => {
+    goalSounds.forEach((stop) => stop());
+    goalSounds = [];
+    effects.reset();
     vehicleEffects.forEach((e) => e.reset());
     skidMarks.forEach((e) => e.reset());
     demoFlashes.forEach((e) => e.reset());
     explosion.reset();
     ballTrails.reset();
     flipTrails.forEach((e) => e.reset());
+    jumpBursts.forEach((e) => e.reset());
   };
   const applySettings = () => {
     audio.settings = settings.value.audio;
@@ -356,6 +354,23 @@ async function boot() {
     tickCount = 0,
     statsTime = 0,
     ticksPerSecond = 0;
+  function updatePadVisuals(dt: number) {
+    pads.items.forEach((p, i) => {
+      padRecharge[i].update(p);
+      const pulse = (p.pulse ?? 0) / 0.28;
+      padMeshes[i].children[1].visible = p.cooldown === 0 || pulse > 0;
+      padMeshes[i].children[1].scale.setScalar(p.cooldown ? pulse : 1);
+      padMeshes[i].children[0].scale.setScalar(1 + (1 - pulse) * pulse * 2);
+      padMeshes[i].children[1].rotation.y += dt;
+      const mat = (
+        padMeshes[i].children[0] as T.Mesh<
+          T.BufferGeometry,
+          T.MeshBasicMaterial
+        >
+      ).material;
+      mat.color.setHex(pulse > 0 ? 0xffefad : p.cooldown ? 0x354b42 : 0xfeb84f);
+    });
+  }
   function frame(now: number) {
     const dt = Math.min((now - previous) / 1000, 0.1);
     previous = now;
@@ -396,13 +411,22 @@ async function boot() {
       input.takeAction("jump");
       cars.forEach((c) => (c.visible = false));
       ball.visible = false;
-      ballShadow.visible = false;
+      ballHeight.group.visible = false;
       homeLobby.update([], camera, dt, now / 1000, false);
       partyPanel.host.hidden = true;
       partyPanel.flow.updateVisibility(false);
       document.getElementById("bot-tag")!.hidden = true;
       hitboxes.update(simulation, false);
       networkView?.update(network, dt, now / 1000, settings.value.camera);
+      if (input.takeAction("debug")) debug.enabled = !debug.enabled;
+      if (networkView)
+        debug.update(
+          networkView.simulation,
+          fps,
+          ticksPerSecond,
+          networkView.camera.referenceUp,
+          networkView.camera,
+        );
       const netMatch = networkView?.match ?? loadingMatch,
         car = networkView?.simulation.cars[0];
       ui.update(
@@ -428,10 +452,25 @@ async function boot() {
         !finished || party.state.hostId !== party.playerId;
       if (network.latest)
         network.latest.pads.forEach((cooldown, i) => {
-          pads.items[i].cooldown = cooldown;
-          padRecharge[i].update(pads.items[i]);
-          padMeshes[i].children[1].visible = cooldown === 0;
+          const pad = pads.items[i];
+          if (
+            pad.cooldown === 0 &&
+            cooldown > 0 &&
+            (netMatch.phase === "playing" || netMatch.phase === "goal")
+          ) {
+            pad.pulse = 0.28;
+            effects.emit(
+              new T.Vector3(pad.x, 0.3, pad.z),
+              new T.Vector3(0, 2, 0),
+              0xffcf70,
+              18,
+            );
+          }
+          pad.cooldown = cooldown;
+          pad.pulse = Math.max(0, (pad.pulse ?? 0) - dt);
         });
+      updatePadVisuals(dt);
+      effects.update(dt);
       if (car) {
         audio.update(
           Math.abs(car.forwardSpeed),
@@ -441,7 +480,10 @@ async function boot() {
           false,
           car.skidIntensity,
         );
-        if (car.boost > networkBoost + 5 && netMatch.phase === "playing") {
+        if (
+          car.boost > networkBoost + 5 &&
+          (netMatch.phase === "playing" || netMatch.phase === "goal")
+        ) {
           ui.pickup();
           audio.tone(820, 0.16, 0.035, "sine");
         }
@@ -528,12 +570,6 @@ async function boot() {
             }
           if (match.rules.infiniteBoost && settings.value.infiniteBoost)
             simulation.cars[0].boost = 100;
-          for (const pickup of pads.tick(simulation.cars)) {
-            const pos = new T.Vector3().copy(pickup.car.body.translation());
-            effects.emit(pos, new T.Vector3(0, 2, 0), 0xffcf70, 18);
-            audio.tone(820, 0.16, 0.035, "sine");
-            if (pickup.car === simulation.cars[0]) ui.pickup();
-          }
           for (const c of simulation.cars)
             if (c.lastJump) audio.tone(340, 0.13, 0.04, "triangle");
           for (const h of simulation.hits)
@@ -557,6 +593,14 @@ async function boot() {
           if (match.rules.infiniteBoost && settings.value.infiniteBoost)
             simulation.cars[0].boost = 100;
         }
+        if (phase === "playing" || phase === "goal") {
+          for (const pickup of pads.tick(simulation.cars)) {
+            const pos = new T.Vector3().copy(pickup.car.body.translation());
+            effects.emit(pos, new T.Vector3(0, 2, 0), 0xffcf70, 18);
+            audio.tone(820, 0.16, 0.035, "sine");
+            if (pickup.car === simulation.cars[0]) ui.pickup();
+          }
+        }
         match.tick(simulation);
         if (match.resetSequence !== resetSequence && match.rules.training) {
           resetEffects();
@@ -569,8 +613,10 @@ async function boot() {
         )
           audio.tone(match.phase === "playing" ? 760 : 420, 0.12, 0.08, "sine");
         if (phase === "playing" && match.phase === "goal") {
-          audio.tone(100, 1.3, 0.2, "sawtooth");
-          audio.tone(660, 0.9, 0.1, "triangle");
+          goalSounds = [
+            audio.tone(100, 1.3, 0.2, "sawtooth"),
+            audio.tone(660, 0.9, 0.1, "triangle"),
+          ].filter((stop): stop is () => void => !!stop);
           const origin = new T.Vector3().copy(simulation.ball.translation()),
             color = match.rules.training
               ? 0xa8a8a8
@@ -608,28 +654,12 @@ async function boot() {
     animateBall(ball, now / 1000);
     ball.visible = simulation.ball.isEnabled();
     goalPlanes.update(ball);
-    ballShadow.visible = ball.visible;
+    ballHeight.update(ball, simulation);
     if (match.phase === "home") {
       cars[0].position.set(6, 0.32, 14);
       cars[0].rotation.set(0, -0.55, 0);
     }
-    ballShadow.position.set(ball.position.x, 0.03, ball.position.z);
-    ballShadow.scale.setScalar(1 + ball.position.y * 0.03);
-    pads.items.forEach((p, i) => {
-      padRecharge[i].update(p);
-      const pulse = (p.pulse ?? 0) / 0.28;
-      padMeshes[i].children[1].visible = p.cooldown === 0 || pulse > 0;
-      padMeshes[i].children[1].scale.setScalar(p.cooldown ? pulse : 1);
-      padMeshes[i].children[0].scale.setScalar(1 + (1 - pulse) * pulse * 2);
-      padMeshes[i].children[1].rotation.y += dt;
-      const mat = (
-        padMeshes[i].children[0] as T.Mesh<
-          T.BufferGeometry,
-          T.MeshBasicMaterial
-        >
-      ).material;
-      mat.color.setHex(pulse > 0 ? 0xffefad : p.cooldown ? 0x354b42 : 0xfeb84f);
-    });
+    updatePadVisuals(dt);
     if (match.phase === "playing" || match.phase === "goal")
       simulation.cars.forEach((c, i) => {
         if (c.boosting) {
@@ -677,6 +707,14 @@ async function boot() {
       ),
     );
     effects.update(effectDt);
+    simulation.cars.forEach((c, i) =>
+      jumpBursts[i].update(
+        c,
+        effectDt,
+        match.active && c.body.isEnabled(),
+        camera.position,
+      ),
+    );
     explosion.update(effectDt);
     demoFlashes.forEach((e) => e.update(effectDt));
     simulation.cars.forEach((c, i) =>
@@ -771,7 +809,13 @@ async function boot() {
       tickCount = 0;
       statsTime = 0;
     }
-    debug.update(simulation, fps, ticksPerSecond);
+    debug.update(
+      simulation,
+      fps,
+      ticksPerSecond,
+      cameraControl.referenceUp,
+      cameraControl,
+    );
     ui.update(
       match,
       simulation.cars[0].boost,
@@ -820,8 +864,11 @@ async function boot() {
         goalPlanes,
         arena,
         explosion,
+        effects,
         ballTrails,
         flipTrails,
+        jumpBursts,
+        ballHeight,
         padRecharge,
       },
     });
