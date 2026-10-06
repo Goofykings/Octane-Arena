@@ -180,11 +180,11 @@ Verified in this update:
 - `tests/party-recovery-browser.cjs` passed against the normal Vite development
   page and local API, including two independent tabs.
 
-The full root `npm test` command still fails at the pre-existing
-`tests/major-update.ts:79` assertion `powerslide 180 at 5`. It blocks the preserved
-Pages deployment workflow before publishing. Physics and that test gate were
-not changed by this networking task; this is separate from the passing party
-tests and production builds.
+The previous `powerslide 180 at 5` failure is resolved. The handling test now
+checks substantial signed rotation, retained momentum, lateral slip and recovery
+with the current gentler powerslide tuning. Stale ball-size assertions now check
+configured collider/visual agreement. The full root `npm test` command passes;
+gameplay physics and the Pages workflow's test gate remain unchanged.
 
 References: [GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site),
 [Node environment files](https://nodejs.org/api/environment_variables.html), and

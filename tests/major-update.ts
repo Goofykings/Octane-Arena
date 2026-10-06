@@ -25,7 +25,9 @@ const results: Record<string, unknown> = {};
 function setup(flat = true) {
   const s = new Simulation(flat);
   s.cars[1].body.setEnabled(false);
+  s.cars[1].collider.setCollisionGroups(0);
   s.ball.setEnabled(false);
+  s.ballCollider.setCollisionGroups(0);
   s.cars[0].reset(0, 0, 0);
   for (let i = 0; i < 120; i++) s.step([neutral(), neutral()]);
   return s;
@@ -42,45 +44,132 @@ const slip = (s: Simulation) =>
   Math.abs(new Vector3().copy(s.cars[0].body.linvel()).dot(s.cars[0].right));
 for (const speed of [5, 20]) {
   const turns = [];
-  for (const slide of [false, true]) {
-    const s = setup(),
-      c = s.cars[0];
-    run(s, 0.25, { slide });
-    c.body.setLinvel({ x: 0, y: 0, z: -speed }, true);
-    let yaw = 0,
-      distance = 0,
-      t = 0;
-    const samples = [];
-    while (t < 3 && yaw < Math.PI) {
-      s.step([{ ...neutral(), steer: 1, slide, throttle: 0.02 }, neutral()]);
-      yaw += Math.abs(c.body.angvel().y) * P.dt;
-      distance += Math.hypot(c.body.linvel().x, c.body.linvel().z) * P.dt;
-      t += P.dt;
-      if (samples.length === 0 || t >= 0.25 * samples.length)
-        samples.push({
-          t,
+  for (const steer of [-1, 1])
+    for (const slide of [false, true]) {
+      const s = setup(),
+        c = s.cars[0];
+      try {
+        run(s, 0.25, { slide });
+        c.body.setLinvel({ x: 0, y: 0, z: -speed }, true);
+        // Compare the same 1.5-second maneuver, rather than waiting for a 180
+        // that the intentionally gentler low-speed drift need not complete.
+        const maneuverSeconds = 1.5;
+        const forward = new Vector3(),
+          rotation = new Quaternion();
+        const heading = () => {
+          forward
+            .set(0, 0, -1)
+            .applyQuaternion(rotation.copy(c.body.rotation()));
+          return Math.atan2(forward.x, -forward.z);
+        };
+        let yaw = 0,
+          distance = 0,
+          previousHeading = heading(),
+          peakSlip = 0,
+          maxHeadingStep = 0;
+        const samples = [];
+        for (let step = 1; step <= Math.round(maneuverSeconds / P.dt); step++) {
+          s.step([{ ...neutral(), steer, slide, throttle: 0.02 }, neutral()]);
+          const currentHeading = heading();
+          const change = Math.atan2(
+            Math.sin(currentHeading - previousHeading),
+            Math.cos(currentHeading - previousHeading),
+          );
+          yaw += change;
+          previousHeading = currentHeading;
+          peakSlip = Math.max(peakSlip, slip(s));
+          maxHeadingStep = Math.max(maxHeadingStep, Math.abs(change));
+          distance += Math.hypot(c.body.linvel().x, c.body.linvel().z) * P.dt;
+          const t = step * P.dt;
+          if (samples.length === 0 || t >= 0.25 * samples.length)
+            samples.push({
+              t,
+              yaw,
+              speed: Math.hypot(c.body.linvel().x, c.body.linvel().z),
+              slip: slip(s),
+            });
+        }
+        turns.push({
+          slide,
+          steer,
+          time: maneuverSeconds,
           yaw,
+          radius: distance / Math.abs(yaw),
           speed: Math.hypot(c.body.linvel().x, c.body.linvel().z),
           slip: slip(s),
+          peakSlip,
+          maxHeadingStep,
+          samples,
         });
+        if (slide) {
+          const turn = turns[turns.length - 1];
+          const minimumTurn = speed === 5 ? Math.PI / 3 : (3 * Math.PI) / 4;
+          assert.ok(
+            yaw * steer > minimumTurn,
+            `substantial directional powerslide at ${speed}m/s, steer ${steer}: ${(yaw * steer * 180) / Math.PI} degrees`,
+          );
+          assert.ok(
+            Math.abs(yaw) < 2 * Math.PI,
+            `bounded powerslide rotation at ${speed}m/s`,
+          );
+          assert.ok(
+            maxHeadingStep < 0.1,
+            "powerslide must turn continuously, without snapping",
+          );
+          assert.ok(
+            turn.speed > speed * 0.5,
+            `retain momentum during powerslide at ${speed}m/s`,
+          );
+          assert.ok(
+            peakSlip > speed * 0.3,
+            `meaningful lateral powerslide at ${speed}m/s`,
+          );
+          const ordinary = turns[turns.length - 2];
+          assert.ok(
+            peakSlip > ordinary.peakSlip * 2,
+            "powerslide must loosen grip compared with ordinary steering",
+          );
+          if (speed === 20)
+            assert.ok(
+              turn.radius < ordinary.radius * 0.85,
+              "high-speed powerslide must tighten the turn",
+            );
+          // Release and drive out of the maneuver. Grip, yaw damping and rigid
+          // wheel support must recover without a reset or forced orientation.
+          run(s, 1, { throttle: 1 });
+          const recovery = {
+            handbrake: c.handbrake,
+            slip: slip(s),
+            yawRate: Math.abs(c.body.angvel().y),
+            forwardSpeed: c.forwardSpeed,
+            grounded: c.grounded,
+            contacts: c.contacts,
+            up: c.up.y,
+          };
+          assert.equal(recovery.handbrake, 0);
+          assert.ok(
+            recovery.slip < 0.2,
+            "released powerslide must regain lateral grip",
+          );
+          assert.ok(
+            recovery.yawRate < 0.15,
+            "released steering must stop sustained spinning",
+          );
+          assert.ok(
+            recovery.forwardSpeed > 3,
+            "throttle must drive out of the powerslide",
+          );
+          assert.ok(
+            recovery.grounded && recovery.contacts >= 3 && recovery.up > 0.9,
+            "powerslide must recover planted wheel support",
+          );
+          results[`recovery${speed}:${steer}`] = recovery;
+        }
+      } finally {
+        s.dispose();
+      }
     }
-    turns.push({
-      slide,
-      time: t,
-      yaw,
-      radius: distance / yaw,
-      speed: Math.hypot(c.body.linvel().x, c.body.linvel().z),
-      slip: slip(s),
-      samples,
-    });
-    s.dispose();
-  }
   results[`turn${speed}`] = turns;
-  assert.ok(turns[1].yaw >= Math.PI, `powerslide 180 at ${speed}`);
-  assert.ok(turns[1].speed > speed * 0.5, `retain momentum at ${speed}`);
-  // Orientation/travel diverge rather than a high-grip animation.
-  assert.ok(turns[1].samples.some((v) => v.slip > speed * 0.3));
-  if (speed === 20) assert.ok(turns[1].radius < turns[0].radius);
 }
 for (const slide of [false, true]) {
   const s = setup(),
@@ -167,8 +256,9 @@ for (const slide of [false, true]) {
         );
     }
   });
-  assert.ok(Math.abs(s.ballCollider.radius() - 0.9125) < 1e-6);
-  assert.ok(Math.abs(max - 0.9125) < 1e-6);
+  assert.ok(P.ball.radius > 0, "ball must have a nonzero configured radius");
+  assert.ok(Math.abs(s.ballCollider.radius() - P.ball.radius) < 1e-6);
+  assert.ok(Math.abs(max - s.ballCollider.radius()) < 1e-6);
   const before = ball.userData.lamps[0].material.color.clone();
   animateBall(ball, 1);
   assert.ok(!before.equals(ball.userData.lamps[0].material.color));

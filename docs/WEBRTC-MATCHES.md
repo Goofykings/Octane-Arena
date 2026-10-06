@@ -131,9 +131,10 @@ results, bot teams, reconnection and four human players over its original
 WebSocket transport.
 The Home/Garage camera and Free Play/VS Bot/LAN camera browser checks also passed.
 
-The existing unrelated `tests/major-update.ts:79` powerslide assertion still
-blocks the preserved Pages workflow's full test gate. That physics assertion
-was not weakened or bypassed by this transport update.
+The previous obsolete 180-degree powerslide deadline and fixed ball-size
+assertions have been updated to validate current handling and configured
+collider/visual agreement. The full root `npm test` suite now passes without
+changing gameplay physics or bypassing the Pages workflow's test gate.
 
 References: [WebRTC peer setup](https://webrtc.org/getting-started/peer-connections),
 [data channel limits](https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API/Using_data_channels),

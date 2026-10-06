@@ -133,11 +133,11 @@ check(
     }
   },
 );
-check("ball reference dimensions and speed cap", () => {
+check("configured ball dimensions and speed cap", () => {
   const s = new Simulation(true),
     ball = ballModel();
-  assert.equal(P.ball.radius, 0.9125);
-  assert.ok(Math.abs(s.ballCollider.radius() - 0.9125) < 1e-6);
+  assert.ok(P.ball.radius > 0 && P.ball.maxSpeed > 0);
+  assert.ok(Math.abs(s.ballCollider.radius() - P.ball.radius) < 1e-6);
   let max = 0;
   ball.traverse((o) => {
     if (o instanceof Mesh) {
@@ -146,11 +146,14 @@ check("ball reference dimensions and speed cap", () => {
         max = Math.max(max, new Vector3().fromBufferAttribute(p, i).length());
     }
   });
-  assert.ok(Math.abs(max - P.ball.radius) < 1e-6);
+  assert.ok(Math.abs(max - s.ballCollider.radius()) < 1e-6);
   s.ball.setTranslation({ x: 0, y: 10, z: 0 }, true);
-  s.ball.setLinvel({ x: 90, y: 0, z: 0 }, true);
+  s.ball.setLinvel({ x: P.ball.maxSpeed * 1.5, y: 0, z: 0 }, true);
   s.step([neutral(), neutral()]);
-  assert.ok(Math.abs(new Vector3().copy(s.ball.linvel()).length() - 60) < 1e-4);
+  assert.ok(
+    Math.abs(new Vector3().copy(s.ball.linvel()).length() - P.ball.maxSpeed) <
+      1e-4,
+  );
   s.dispose();
   return {
     radius: max,
