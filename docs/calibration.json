@@ -274,12 +274,12 @@
   },
   {
     "name": "goal blast launches cars",
-    "value": 9.141034707764884,
+    "value": 8.942558817673559,
     "pass": true
   },
   {
     "name": "cars move during celebration",
-    "value": 8.790318436344581,
+    "value": 8.517281355357897,
     "pass": true
   },
   {
@@ -324,10 +324,10 @@
   {
     "name": "complete 5-minute live simulation",
     "value": {
-      "seconds": 1088.1833333333334,
+      "seconds": 1073.6416666666667,
       "score": [
         0,
-        54
+        53
       ],
       "phase": "finished",
       "escaped": false

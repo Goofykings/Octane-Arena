@@ -22,11 +22,11 @@ jobs:
       - run: npm ci
       - run: npm ci --prefix server
       - run: npm test
-      - run: npm run build --prefix server
-      - run: npm test --prefix server
       - run: npm run build
         env:
           VITE_API_URL: ${{ vars.VITE_API_URL }}
+      - run: npm run build --prefix server
+      - run: npm test --prefix server
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
