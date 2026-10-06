@@ -63,6 +63,12 @@ const tick = (input = n) => {
 c.reset(0, 0, 0);
 for (let i = 0; i < 60; i++) tick();
 tick({ ...n, jump: true });
+assert.equal(burst.triggers, 0);
+assert.equal(burst.ring.visible, false);
+for (let i = 0; i < 30; i++) tick({ ...n, jump: true });
+assert.equal(burst.triggers, 0);
+tick();
+tick({ ...n, jump: true });
 assert.equal(burst.triggers, 1);
 assert.ok(burst.ring.visible);
 assert.ok(burst.ring.position.y < c.body.translation().y);
@@ -72,6 +78,17 @@ assert.equal(burst.ring.visible, false);
 tick();
 tick({ ...n, jump: true, dodgeY: 1 });
 assert.equal(burst.triggers, 1);
+c.reset(0, 0, 0);
+burst.reset();
+for (let i = 0; i < 60; i++) tick();
+tick({ ...n, jump: true });
+tick();
+tick({ ...n, jump: true, dodgeY: 1 });
+assert.equal(
+  burst.triggers,
+  1,
+  "directional dodge must not trigger double-jump ring",
+);
 c.reset(0, 0, 0, 8);
 burst.reset();
 for (let i = 0; i < 20; i++) tick({ ...n, roll: 1, pitch: 1 });
@@ -94,6 +111,9 @@ burst.reset();
 for (let i = 0; i < 8; i++) tick({ ...n, throttle: 1 });
 assert.ok(c.grounded);
 tick({ ...n, jump: true, throttle: 1 });
+assert.equal(burst.triggers, 1);
+tick();
+tick({ ...n, jump: true });
 assert.equal(burst.triggers, 2);
 const effectNormal = new Vector3(0, 0, 1).applyQuaternion(
   burst.ring.quaternion,
@@ -123,7 +143,7 @@ assert.equal(
   "leaving/falling off a wall triggers jump visual",
 );
 console.log(
-  "PASS one burst per actual normal jump; no fall/air rotation/flip false trigger; wall burst points away from wall",
+  "PASS one burst per actual double jump; no first-jump/fall/air rotation/flip false trigger; wall double-jump burst points away from car",
 );
 for (const id of ["ion", "vector"] as const)
   for (const [x, y] of [

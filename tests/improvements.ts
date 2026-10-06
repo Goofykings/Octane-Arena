@@ -44,8 +44,12 @@ for (const id of ["ion", "vector"] as const) {
   });
   check(
     `${id} collider dimensions`,
-    Math.abs(c.collider.halfExtents()!.z - d.halfLength) < 1e-6,
-    c.collider.halfExtents(),
+    Math.abs(
+      Math.max(
+        ...Array.from(c.collider.vertices()).filter((_, i) => i % 3 === 2),
+      ) - d.halfLength,
+    ) < 1e-6,
+    c.collider.vertices(),
   );
   s.step([{ ...neutral(), jump: true }, neutral()]);
   let landed = false;

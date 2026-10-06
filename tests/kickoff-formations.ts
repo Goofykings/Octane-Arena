@@ -164,6 +164,8 @@ try {
   m.tick(solo);
   assert.equal(m.phase, "goal");
   while (m.phase === "goal") m.tick(solo);
+  assert.equal(m.phase, "replay");
+  assert.ok(m.skipReplay(solo.cars[0].id, m.replay!.clip.goal.id, solo));
   assert.notEqual(m.kickoffFormationId, first);
   assert.equal(m.phase, "countdown");
   assert.deepEqual(m.score, [1, 0]);

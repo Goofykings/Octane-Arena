@@ -46,7 +46,9 @@ const fs = require("node:fs"),
       }),
       errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
-    page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
+    page.on("console", (m) => {
+      if (m.type() === "error") errors.push(m.text());
+    });
     const check = (ok, message) => {
       assert.ok(ok, message);
       console.log("PASS " + message);
@@ -171,7 +173,7 @@ const fs = require("node:fs"),
       await page.evaluate(
         () =>
           !window.__arena.preview.dragging &&
-          window.__arena.preview.pointer === null,
+          window.__arena.cameraDrag.pointer === null,
       ),
       "release outside preview clears capture",
     );
@@ -196,8 +198,8 @@ const fs = require("node:fs"),
     await page.mouse.move(1000, 350);
     await page.mouse.down();
     await page.evaluate(() => {
-      const p = window.__arena.preview;
-      document.querySelector("#garage-screen").releasePointerCapture(p.pointer);
+      const p = window.__arena.cameraDrag;
+      document.querySelector("#app").releasePointerCapture(p.pointer);
     });
     await page.waitForTimeout(80);
     await page.mouse.up();
@@ -336,9 +338,11 @@ const fs = require("node:fs"),
     check(true, "opponent respawns and re-enters gameplay");
     await page.keyboard.press("Escape");
     await page.locator("#pause-home").click();
-    if (await page.locator("#leave-confirm").evaluate(d => d.open)) await page.locator("#leave-confirm-yes").click();
+    if (await page.locator("#leave-confirm").evaluate((d) => d.open))
+      await page.locator("#leave-confirm-yes").click();
     await page.locator("#play").click();
     await page.locator("#freeplay-mode").click();
+    await page.locator("#freeplay-launch").click();
     await page.evaluate(() => {
       const c = window.__arena.simulation.cars[0];
       c.reset(0, 10, 0);
@@ -435,4 +439,3 @@ const fs = require("node:fs"),
   console.error(e);
   process.exitCode = 1;
 });
-

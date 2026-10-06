@@ -3,14 +3,48 @@ import type { Simulation } from "../physics/simulation";
 import { modes, type Mode } from "./modes";
 import { scoringTeam } from "./goals";
 import { KickoffBag, freeplayKickoffs } from "../../shared/kickoff";
+import { ReplayRecorder } from "../replay/recorder";
+import {
+  ReplayClock,
+  type ReplayClip,
+  type ReplayState,
+} from "../../shared/replay";
+import type { Pads } from "./pads";
 export type Phase =
   | "home"
   | "countdown"
   | "playing"
   | "goal"
+  | "replay"
   | "paused"
   | "finished";
 export class Match {
+  readonly recorder = new ReplayRecorder();
+  replay: {
+    clip: ReplayClip;
+    clock: ReplayClock;
+    eligible: Set<string>;
+    votes: Set<string>;
+  } | null = null;
+  private goalSequence = 0;
+  get replayActive() {
+    return (
+      this.phase === "replay" ||
+      (this.phase === "paused" && this.resumePhase === "replay")
+    );
+  }
+  get replayState(): ReplayState | null {
+    const r = this.replay;
+    return r
+      ? {
+          id: r.clip.goal.id,
+          time: r.clock.time,
+          speed: r.clock.speed,
+          eligible: [...r.eligible],
+          votes: [...r.votes],
+        }
+      : null;
+  }
   kickoffFormationId: string | null = null;
   private kickoffBag = new KickoffBag();
   private practiceKickoff = 0;
@@ -31,7 +65,7 @@ export class Match {
   goalFocus: { x: number; y: number; z: number } | null = null;
   private resumePhase: Phase = "playing";
   get active() {
-    return ["countdown", "playing", "goal"].includes(this.phase);
+    return ["countdown", "playing", "goal", "replay"].includes(this.phase);
   }
   start(s: Simulation, mode: Mode = this.mode) {
     this.mode = mode;
@@ -61,6 +95,8 @@ export class Match {
     if (!this.rules.training)
       s.cars.forEach((c) => (c.boost = P.match.kickoffBoost));
     this.lastGoal = null;
+    this.replay = null;
+    this.recorder.reset();
     this.goalFocus = null;
     this.countdown = this.rules.countdown;
     this.phase = this.countdown ? "countdown" : "playing";
@@ -76,7 +112,12 @@ export class Match {
       this.phase = "paused";
     }
   }
-  tick(s: Simulation) {
+  tick(s: Simulation, pads?: Pads) {
+    if (this.phase === "replay") {
+      this.replay!.clock.advance(P.dt);
+      if (this.replay!.clock.done) this.endReplay(s);
+      return;
+    }
     if (this.phase === "countdown") {
       this.countdown = Math.max(0, this.countdown - P.dt);
       if (this.countdown < 1e-8) {
@@ -89,16 +130,14 @@ export class Match {
     if (this.phase === "goal") {
       this.freeze -= P.dt;
       if (this.freeze <= 0) {
-        if (
-          (this.remaining <= 0 || this.overtime) &&
-          this.score[0] !== this.score[1]
-        )
-          this.finish();
-        else this.kickoff(s);
+        if (this.replay) this.phase = "replay";
+        else this.endReplay(s);
       }
       return;
     }
     if (this.phase !== "playing") return;
+    if (!this.rules.training)
+      this.recorder.capture(s, this.resetSequence, pads);
     this.goTime = Math.max(0, this.goTime - P.dt);
     if (this.rules.clock) this.remaining = Math.max(0, this.remaining - P.dt);
     const p = s.ball.translation(),
@@ -128,6 +167,35 @@ export class Match {
         team,
         ownGoal: !!touch && touch.team !== team,
       };
+      const goal = {
+        id: `${this.resetSequence}:${++this.goalSequence}`,
+        time: s.clock,
+        scorerId: scorer.id,
+        team,
+        ownGoal: this.lastGoal.ownGoal,
+        lastTouchId: s.lastTouchId,
+        touchTime:
+          touch?.id === scorer.id && Number.isFinite(s.lastTouchTime)
+            ? s.lastTouchTime
+            : null,
+        ballSpeed: Math.hypot(
+          s.ball.linvel().x,
+          s.ball.linvel().y,
+          s.ball.linvel().z,
+        ),
+        focus: { ...this.goalFocus },
+      };
+      const clip = this.recorder.clip(goal);
+      this.replay = {
+        clip,
+        clock: new ReplayClock(clip),
+        eligible: new Set(
+          s.cars
+            .filter((_, i) => s.players[i].controller !== "bot")
+            .map((c) => c.id),
+        ),
+        votes: new Set(),
+      };
       this.message = `${scorer.displayName.toUpperCase()} SCORED`;
       this.phase = "goal";
       this.freeze = P.match.celebration;
@@ -151,5 +219,37 @@ export class Match {
         : this.score[0] < this.score[1]
           ? "AMBER WINS"
           : "DRAW";
+  }
+  skipReplay(id: string, replayId: string, s: Simulation) {
+    const r = this.replay;
+    if (
+      this.phase !== "replay" ||
+      !r ||
+      r.clip.goal.id !== replayId ||
+      !r.eligible.has(id) ||
+      r.votes.has(id)
+    )
+      return false;
+    r.votes.add(id);
+    if ([...r.eligible].every((p) => r.votes.has(p))) this.endReplay(s);
+    return true;
+  }
+  replayDisconnected(id: string, s: Simulation) {
+    this.replay?.eligible.delete(id);
+    if (
+      this.phase === "replay" &&
+      this.replay &&
+      [...this.replay.eligible].every((p) => this.replay!.votes.has(p))
+    )
+      this.endReplay(s);
+  }
+  private endReplay(s: Simulation) {
+    if (
+      (this.remaining <= 0 || this.overtime) &&
+      this.score[0] !== this.score[1]
+    ) {
+      this.replay = null;
+      this.finish();
+    } else this.kickoff(s);
   }
 }

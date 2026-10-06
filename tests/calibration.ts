@@ -353,6 +353,8 @@ for (const dir of [
     previousPosition.distanceTo(s.cars[0].body.translation()) > 3,
   );
   for (let i = 0; i < 266; i++) m.tick(s);
+  if (m.phase === "replay" && m.replay)
+    m.skipReplay(s.cars[0].id, m.replay.clip.goal.id, s);
   record(
     "goal resets kickoff",
     { phase: m.phase, z: s.ball.translation().z },
@@ -377,6 +379,8 @@ for (const dir of [
   s.ball.setTranslation({ x: 0, y: 1, z: P.arena.halfLength + 1 }, true);
   m.tick(s);
   for (let i = 0; i < 386; i++) m.tick(s);
+  if (m.phase === "replay" && m.replay)
+    m.skipReplay(s.cars[0].id, m.replay.clip.goal.id, s);
   record(
     "overtime goal ends match",
     m.phase,

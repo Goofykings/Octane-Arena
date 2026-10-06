@@ -87,15 +87,15 @@ for (const id of ["ion", "vector"] as const)
         ),
         true,
       );
-      // Exercise the actual-contact fallback rather than the old center-only probe.
-      const ray = s.world.castRayAndGetNormal.bind(s.world);
-      s.world.castRayAndGetNormal = ((r, ...args) =>
-        Math.abs(r.dir.y) > 0.9 && Math.abs(r.dir.x) < 0.1
-          ? null
-          : ray(r, ...args)) as typeof s.world.castRayAndGetNormal;
+      // Real wheel-shoulder probes and point forces replace the timed side flip.
       let recovered = false;
       for (let i = 0; i < 480; i++) {
         s.step([{ ...neutral(), throttle: -1 }, neutral()]);
+        assert.equal(
+          c.recovering,
+          false,
+          "side contact must not trigger a recovery flip",
+        );
         recovered ||= c.grounded && c.up.y > 0.8;
       }
       s.dispose();

@@ -7,7 +7,7 @@ use extracted models, textures, audio, or proprietary game code.
 
 ## Run
 
-Install Node.js 24.14+ (also required by the optional account backend), then:
+Install Node.js 24.14+ (also required by the optional LAN server), then:
 
 ```sh
 npm install
@@ -45,12 +45,7 @@ tabs. Keyboard bindings, camera tuning, quality, audio and presets save locally.
 Quick chat is only a saved future preference. Click any slider value to type a
 number; Enter or blur applies it, Escape cancels, and values clamp to the range.
 
-Optional persistent accounts use a separate TypeScript API and SQLite database.
-The game remains fully playable as Guest. Configure the backend using
-[server/README.md](server/README.md); the production addresses are intentionally
-unset until hosting is chosen. Accounts synchronize presets, cosmetics, settings,
-avatars and titles. XP/level and future rating fields are server-owned foundations;
-match rewards and ranked multiplayer are not implemented.
+Customize Account edits your browser-local name. Click its profile picture to choose an icon and icon color; these choices save immediately. Player tags have been removed. Profile identity, completed-match stats and play time are stored in `octane-arena-profile`; garage and settings keep their existing local saves. There is no online login or cloud sync. Clearing site data can erase your profile. LAN parties still use the optional server described in [server/README.md](server/README.md).
 
 The arena's original **Lumen District** theme includes a twilight skyline,
 illuminated buildings and skybridges. Lower wall curves are opaque and marked
@@ -87,7 +82,7 @@ and goal driving while preserving powerslide and jump behavior.
 | Ctrl                       | Powerslide; hold with A/D for air roll                                |
 | Q / E                      | Air roll                                                              |
 | C                          | Ball / car camera                                                     |
-| 1 / 2 / 3 / 4             | Free Play: reset / take possession / start dribble / launch ball      |
+| 1 / 2 / 3 / 4              | Free Play: reset / take possession / start dribble / launch ball      |
 | Escape                     | Pause / resume                                                        |
 | F3                         | Physics telemetry and collision graphics                              |
 
@@ -111,13 +106,20 @@ remains live until it lands. A tied match enters sudden-death overtime.
 3. Push to `main`, or run the included Deploy workflow manually.
 4. The deploy job reports your Pages URL.
 
-`vite.config.ts` uses `base: './'`, so the same `dist/` runs under a repository
-subdirectory. Rapier's compat package embeds its WASM payload; there is no
+`vite.config.ts` uses `base: '/Octane-Arena/'` for this repository's Pages URL.
+The LAN launcher also serves that built asset prefix. Rapier's compat package embeds its WASM payload; there is no
 absolute WASM URL or external asset service. All visual/audio assets are created
 locally, apart from the bundled open-license font. Serve `dist/` over HTTP; do not open it with `file://`.
 
 The workflow is supplied; this workspace is not connected to a GitHub repository
 and no public deployment has been performed.
+
+GitHub Pages cannot run the party server. To enable public Create/Join Party,
+deploy the existing Node backend separately and set the repository Actions
+variable `VITE_API_URL` to its HTTPS base address before rebuilding Pages.
+See [public party deployment and local setup](docs/PUBLIC-PARTIES.md).
+Public shared matches now support browser-hosted WebRTC for 1v1, 2v2 and
+two players against bots. See [WebRTC setup and verification](docs/WEBRTC-MATCHES.md).
 
 ## Architecture and tuning
 
@@ -127,8 +129,8 @@ and no public deployment has been performed.
 - `src/arena/`: shared original rounded shell geometry for rendering and collision.
 - `src/input/`, `src/ai/`: device state and bot decisions produce the same controls.
 - `src/game/`: scoring, clock, overtime, pause, boost pads and account/save coordination.
-- `server/`: independent Fastify API, Argon2id authentication, SQLite persistence and backups.
-- `shared/`: validated account payloads, catalog and preference/control types shared by client and server.
+- `server/`: Fastify party/match server with anonymous session IDs; online account routes are removed.
+- `shared/`: validated local identity, catalog, preferences and network types shared by client and server.
 - `src/render/`, `src/camera/`, `src/effects/`, `src/audio/`, `src/ui/`: presentation independent of physics.
 - `src/debug/`: F3 telemetry, collider wireframes, wheel rays, normals and hit impulses.
 - `tests/calibration.ts`: measurements saved to `docs/calibration.json`.
@@ -180,4 +182,4 @@ Settings → Controls; repeated launch presses stack upward velocity. Surface-lo
 dodges, held-throttle recovery, landing controls and upper goal corners are corrected.
 See [gameplay corrections, changed files and verification](docs/GAMEPLAY-CORRECTIONS.md).
 
-See [resume audit](docs/UPDATE-AUDIT.md), [implementation and verification](docs/MAJOR-UPDATE.md), [physics calibration](docs/PHYSICS.md), and [account security review](docs/ACCOUNT-SECURITY.md).
+See [resume audit](docs/UPDATE-AUDIT.md), [implementation and verification](docs/MAJOR-UPDATE.md), [physics calibration](docs/PHYSICS.md), and [local profile replacement](docs/LOCAL-PROFILE.md).

@@ -12,7 +12,10 @@ const fs = require("node:fs"),
     }
     const file = path.resolve(
       root,
-      req.url.split("?")[0].replace(/^\//, "") || "index.html",
+      req.url
+        .split("?")[0]
+        .replace(/^\/Octane-Arena\//, "/")
+        .replace(/^\//, "") || "index.html",
     );
     if (!file.startsWith(root + path.sep)) {
       res.writeHead(403);
@@ -53,6 +56,7 @@ const fs = require("node:fs"),
     await page.waitForFunction(() => window.__arena);
     await page.locator("#play").click();
     await page.locator("#freeplay-mode").click();
+    await page.locator("#freeplay-launch").click();
     await page.evaluate(() => {
       const a = window.__arena;
       a.qaStep = a.simulation.step.bind(a.simulation);
@@ -177,6 +181,7 @@ const fs = require("node:fs"),
     await page.waitForFunction(() => window.__arena.match.phase === "home");
     await page.locator("#play").click();
     await page.locator("#freeplay-mode").click();
+    await page.locator("#freeplay-launch").click();
     await page.evaluate(() => {
       const a = window.__arena,
         s = a.simulation,
@@ -222,6 +227,27 @@ const fs = require("node:fs"),
         {},
       ]);
     });
+    await page.waitForTimeout(50);
+    assert.equal(
+      await page.evaluate(() => window.__arena.jumpBursts[0].triggers),
+      prior,
+      "first jump must not show the indicator",
+    );
+    await page.evaluate(() => {
+      const a = window.__arena;
+      const input = {
+        throttle: 0,
+        steer: 0,
+        pitch: 0,
+        yaw: 0,
+        roll: 0,
+        boost: false,
+        jump: false,
+        slide: false,
+      };
+      a.qaStep([input, {}]);
+      a.qaStep([{ ...input, jump: true }, {}]);
+    });
     await page.waitForFunction(
       (t) => window.__arena.jumpBursts[0].triggers === t + 1,
       prior,
@@ -248,7 +274,9 @@ const fs = require("node:fs"),
     assert.ok(
       await page.evaluate(() => window.__arena.jumpBursts[0].ring.visible),
     );
-    console.log("PASS normal jump event renders its small white burst");
+    console.log(
+      "PASS first jump has no indicator; double jump renders its small white burst",
+    );
     await page.evaluate(() => {
       const a = window.__arena,
         s = a.simulation,

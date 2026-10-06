@@ -53,6 +53,7 @@ const http = require("node:http"),
     await page.waitForFunction(() => window.__arena);
     await page.locator("#play").click();
     await page.locator("#freeplay-mode").click();
+    await page.locator("#freeplay-launch").click();
     await page.evaluate(() => {
       const a = window.__arena;
       a.qaStep = a.simulation.step.bind(a.simulation);

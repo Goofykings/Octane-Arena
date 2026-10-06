@@ -1,19 +1,27 @@
 import * as T from "three";
-import type { Simulation } from "../physics/simulation";
+import type RAPIER from "@dimforge/rapier3d-compat";
 import { defaults, type CameraSettings } from "../game/settings";
 import { P } from "../config/physics";
 import { CameraClearance } from "./collision";
 import { CameraFraming, MAX_FRAMING_FOV } from "./framing";
+import type { MouseLook } from "./mouse-look";
 
 const damp = (rate: number, dt: number) => 1 - Math.exp(-rate * dt);
 const delta = (a: number, b: number) =>
   Math.atan2(Math.sin(b - a), Math.cos(b - a));
 const worldUp = new T.Vector3(0, 1, 0);
+/** Camera queries work in both closed arenas and open extra-mode worlds. */
+export interface CameraWorld {
+  world: RAPIER.World;
+  ball?: { isEnabled(): boolean };
+  cameraObstacles?: (collider: RAPIER.Collider) => boolean;
+}
 
 /** One gameplay rig, shared by local and snapshot-rendered network matches.
  * All spatial inputs are render poses; physics supplies only arena queries and
  * whether the ball is enabled. Body rotation never defines the camera's up. */
 export class GameCamera {
+  mouseLook?: MouseLook;
   settings: CameraSettings = defaults().camera;
   ballMode = true;
   readonly referenceUp = new T.Vector3(0, 1, 0);
@@ -120,8 +128,8 @@ export class GameCamera {
 
   update(
     car: T.Object3D,
-    ball: T.Object3D,
-    simulation: Simulation,
+    ball: T.Object3D | null,
+    simulation: CameraWorld,
     dt: number,
     home: boolean,
     time: number,
@@ -154,6 +162,7 @@ export class GameCamera {
       p.distance + 4,
       dt,
       first,
+      simulation.cameraObstacles,
     );
     // Surface orientation guides the boom, while arena gravity owns the horizon.
     // This deliberately does not read individual wheel normals or physics poses.
@@ -181,7 +190,7 @@ export class GameCamera {
         delta(this.heading, Math.atan2(-this.forward.x, -this.forward.z)) *
         damp(5, dt) *
         (1 - groundWeight);
-    this.subject.copy(goalFocus ?? ball.position);
+    this.subject.copy(goalFocus ?? ball?.position ?? car.position);
     this.subjectVelocity
       .copy(this.subject)
       .sub(this.previousSubject)
@@ -194,7 +203,7 @@ export class GameCamera {
       .addScaledVector(this.subjectVelocity, 0.28);
     this.carSubject.copy(car.position);
     const tracking =
-      this.ballMode && (simulation.ball.isEnabled() || !!goalFocus);
+      this.ballMode && (!!simulation.ball?.isEnabled() || !!goalFocus);
     this.modeBlend = first
       ? Number(tracking)
       : T.MathUtils.lerp(
@@ -543,5 +552,6 @@ export class GameCamera {
     this.debug.safe =
       this.framing.feasible && c.fov >= this.framing.requiredFov - 0.001;
     this.ready = true;
+    this.mouseLook?.apply(c);
   }
 }

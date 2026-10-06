@@ -8,17 +8,28 @@ const { resolve } = require("node:path"),
   );
   const { app, partyMatches, addresses } = await startLan(8096, ":memory:");
   const base = `http://${addresses[0] || "127.0.0.1"}:8096`;
-  let browser;
+  let browser, context;
   try {
     browser = await chromium.launch({
       executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
       headless: true,
       args: ["--enable-unsafe-swiftshader"],
     });
-    const context = await browser.newContext({
-        viewport: { width: 1280, height: 800 },
-      }),
-      errors = [];
+    context = await browser.newContext({
+      viewport: { width: 1280, height: 800 },
+    });
+    const errors = [];
+    // This suite checks transport/game state; keep several software-rendered
+    // clients affordable without changing their physics or normal game defaults.
+    await context.addInitScript(() => {
+      if (location.protocol !== "http:" && location.protocol !== "https:")
+        return;
+      localStorage.setItem(
+        "octane-arena-settings",
+        JSON.stringify({ quality: "low" }),
+      );
+    });
+    context.setDefaultTimeout(60000);
     context.on("page", (p) => p.on("pageerror", (e) => errors.push(e.message)));
     const open = async () => {
       const p = await context.newPage();
@@ -36,6 +47,7 @@ const { resolve } = require("node:path"),
     await host.waitForFunction(() => window.__arena.party.state?.code);
     const code = await host.evaluate(() => window.__arena.party.state.code);
     const join = async (p) => {
+      await p.bringToFront();
       await p.locator("#party-join-open").click();
       await p.locator("#party-input").fill(code);
       await p.locator("#party-join button[type=submit]").click();
@@ -51,7 +63,7 @@ const { resolve } = require("node:path"),
       await p.waitForFunction(
         () => window.__arena.networkView?.match.phase === "playing",
         null,
-        { timeout: 20000 },
+        { timeout: 60000 },
       );
     const game = partyMatches.matches.get(code);
     assert.ok(game);
@@ -62,6 +74,15 @@ const { resolve } = require("node:path"),
     const local = await host.evaluate(() => window.__arena.party.playerId),
       remote = await guest.evaluate(() => window.__arena.party.playerId);
     for (const p of [host, guest]) {
+      await p.waitForFunction(
+        (id) => window.__arena.arena.mapId === id,
+        game.arenaId,
+        { polling: 100 },
+      );
+      assert.equal(
+        await p.evaluate(() => window.__arena.network.latest.arenaId),
+        game.arenaId,
+      );
       assert.equal(
         await p.evaluate(
           () => window.__arena.network.latest.kickoffFormationId,
@@ -143,7 +164,9 @@ const { resolve } = require("node:path"),
       );
     await host.screenshot({ path: "docs/network-goal.png" });
     for (const large of [false, true]) {
-      game.match.freeze = 2;
+      // Keep the fixture in celebration while both software-rendered tabs
+      // observe the pickup; the normal two-second window can expire mid-check.
+      game.match.freeze = 10;
       const index = game.pads.items.findIndex((p) => p.large === large),
         pad = game.pads.items[index];
       // First let both clients receive the available pad state.
@@ -168,6 +191,9 @@ const { resolve } = require("node:path"),
         },
         { index, large },
       );
+      // Snapshot assertions must not depend on animation frames from a
+      // background tab while the goal celebration/pad cooldown is advancing.
+      await guest.bringToFront();
       await guest.waitForFunction(
         ({ index, local, large }) => {
           const a = window.__arena;
@@ -178,11 +204,14 @@ const { resolve } = require("node:path"),
           );
         },
         { index, local, large },
+        { polling: 50 },
       );
+      await host.bringToFront();
       console.log(
         `PASS network post-goal ${large ? "large" : "small"} pickup and pulse synchronize in both browsers`,
       );
     }
+    game.match.freeze = 0.1;
     await host.waitForFunction(
       () => window.__arena.networkView.match.phase === "countdown",
     );
@@ -199,10 +228,45 @@ const { resolve } = require("node:path"),
     await host.locator("#party-team-screen").waitFor({ state: "visible" });
     console.log("PASS shared result and host return to lobby");
     await host.locator('[data-stage="mode"]').click();
+    await host.waitForFunction(
+      () =>
+        window.__arena.party.state.stage === "mode" &&
+        !window.__arena.party.busy,
+      null,
+      { polling: 50 },
+    );
     await host.locator('[data-mode="2v2bots"]').click();
+    await host.waitForFunction(
+      () =>
+        window.__arena.party.state.mode === "2v2bots" &&
+        !window.__arena.party.busy,
+      null,
+      { polling: 50 },
+    );
     await host.locator("#party-continue").click();
-    for (const p of [host, guest])
+    for (const p of [host, guest]) {
+      await p.bringToFront();
+      await p.waitForFunction(
+        () =>
+          window.__arena.party.state.stage === "teams" &&
+          !window.__arena.party.busy,
+        null,
+        { polling: 50 },
+      );
       await p.locator('.party-team-join[data-team="0"]').click();
+      await p.waitForFunction(
+        () => {
+          const party = window.__arena.party;
+          return (
+            !party.busy &&
+            party.state.members.find((m) => m.id === party.playerId)?.team === 0
+          );
+        },
+        null,
+        { polling: 50 },
+      );
+    }
+    await host.bringToFront();
     await host.locator("#party-launch").click();
     await host.waitForFunction(
       () => window.__arena.networkView?.match.phase === "playing",
@@ -218,6 +282,14 @@ const { resolve } = require("node:path"),
     await host.screenshot({ path: "docs/network-bots.png" });
     console.log("PASS two humans versus two server-controlled bots");
     // Simulate a transient transport drop; the same player/session reconnects.
+    await guest.bringToFront();
+    await guest.waitForFunction(
+      (matchId) =>
+        window.__arena.network.latest?.matchId === matchId &&
+        window.__arena.network.socket?.readyState === WebSocket.OPEN,
+      bots.id,
+      { polling: 50 },
+    );
     await guest.evaluate(() => window.__arena.network.socket.close());
     await guest.waitForTimeout(1200);
     await guest.waitForFunction(() => window.__arena.network.status === "");
@@ -228,6 +300,7 @@ const { resolve } = require("node:path"),
     await guest.bringToFront();
     await guest.keyboard.press("Escape");
     await guest.locator("#network-leave").click();
+    await host.bringToFront();
     await host.waitForFunction(
       () =>
         window.__arena.party.state.stage === "teams" &&
@@ -238,7 +311,20 @@ const { resolve } = require("node:path"),
       "PASS transport reconnect and leaving disposes the shared match",
     );
     await host.locator('[data-stage="mode"]').click();
+    await host.waitForFunction(
+      () =>
+        window.__arena.party.state.stage === "mode" &&
+        !window.__arena.party.busy,
+      null,
+      { polling: 50 },
+    );
     await host.locator('[data-mode="2v2"]').click();
+    await host.waitForFunction(
+      () =>
+        window.__arena.party.state.mode === "2v2" && !window.__arena.party.busy,
+      null,
+      { polling: 50 },
+    );
     await host.locator('[data-stage="home"]').click();
     await join(guest);
     const third = await open(),
@@ -252,17 +338,29 @@ const { resolve } = require("node:path"),
       [guest, 0],
       [third, 1],
       [fourth, 1],
-    ])
+    ]) {
+      await p.bringToFront();
+      await p.waitForFunction(
+        () =>
+          window.__arena.party.state.stage === "teams" &&
+          !window.__arena.party.busy,
+        null,
+        { polling: 50 },
+      );
       await p.locator(`.party-team-join[data-team="${team}"]`).click();
+    }
+    await host.bringToFront();
     await host.locator("#party-launch").click();
-    for (const p of [host, guest, third, fourth])
+    for (const p of [host, guest, third, fourth]) {
+      await p.bringToFront();
       await p.waitForFunction(
         () =>
           window.__arena.networkView?.simulation.cars.length === 4 &&
           window.__arena.networkView.match.phase === "playing",
         null,
-        { timeout: 20000 },
+        { timeout: 60000 },
       );
+    }
     await fourth.bringToFront();
     const fourthId = await fourth.evaluate(() => window.__arena.party.playerId);
     const fourGame = partyMatches.matches.get(code),

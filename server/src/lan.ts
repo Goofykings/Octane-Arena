@@ -1,17 +1,32 @@
 import { networkInterfaces } from "node:os";
 import { resolve, extname, sep } from "node:path";
-import { createReadStream, existsSync, statSync } from "node:fs";
+import { createReadStream, existsSync, statSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { createApp } from "./app.js";
+import type { ServerConfig } from "./config.js";
 export async function startLan(
   port = Number(process.env.LAN_PORT ?? 8090),
   database = process.env.DATABASE_PATH ?? resolve("server/data/arena.sqlite"),
+  rtc: Pick<
+    ServerConfig,
+    "matchTransport" | "stunUrls" | "turnUrls" | "turnSecret" | "icePolicy"
+  > = {},
 ) {
   if (!Number.isInteger(port) || port < 1 || port > 65535)
     throw Error("LAN_PORT must be 1–65535");
   const root = resolve("dist");
   if (!existsSync(resolve(root, "index.html")))
     throw Error("Build the frontend first: npm run build");
+  // The same production build can target a Pages subpath and still launch on
+  // LAN. Honor its actual asset prefix rather than requiring a second build.
+  const script = readFileSync(resolve(root, "index.html"), "utf8").match(
+    /<script[^>]*\ssrc="([^"]*\/assets\/[^"]+)"/,
+  )?.[1];
+  const assetPath = script
+    ? new URL(script, "http://localhost").pathname
+    : "/assets/";
+  const prefix =
+    assetPath.slice(0, assetPath.lastIndexOf("/assets/") + 1) || "/";
   const addresses = [
     ...new Set(
       Object.values(networkInterfaces()).flatMap((v) =>
@@ -37,10 +52,15 @@ export async function startLan(
     sessionSeconds: 86400,
     requestLimit: 1800,
     allowSameOrigin: true,
+    ...rtc,
   });
   app.get("/config.json", async () => ({ lan: true, apiUrl: "/" }));
+  if (prefix !== "/")
+    app.get(prefix + "config.json", async () => ({ lan: true, apiUrl: "/" }));
   app.get("/*", async (req, reply) => {
-    const pathname = new URL(req.url, "http://localhost").pathname;
+    let pathname = new URL(req.url, "http://localhost").pathname;
+    if (prefix !== "/" && pathname.startsWith(prefix))
+      pathname = "/" + pathname.slice(prefix.length);
     if (pathname.startsWith("/api/"))
       return reply.code(404).send({ error: { message: "NOT FOUND" } });
     const file = resolve(

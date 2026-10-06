@@ -5,11 +5,15 @@ import { goalFrame } from "../arena/posts";
 import { P } from "../config/physics";
 import { box, material } from "./models";
 import { polishMaterial } from "./material-polish";
-function turfTexture() {
+import { arenaThemes, isArenaId, type ArenaId } from "./arena-themes";
+import { drawEnvironment, disposeEnvironment } from "./arena-environments";
+import { createFieldArt, rampPaint } from "./field-art";
+function turfTexture(id: ArenaId) {
   const c = document.createElement("canvas");
   c.width = c.height = 512;
   const ctx = c.getContext("2d")!;
-  ctx.fillStyle = "#154e47";
+  const palette = arenaThemes[id].turf;
+  ctx.fillStyle = palette[0];
   ctx.fillRect(0, 0, 512, 512);
   let seed = 73;
   for (let i = 0; i < 40000; i++) {
@@ -17,8 +21,8 @@ function turfTexture() {
     const x = seed % 512;
     seed = (seed * 1664525 + 1013904223) >>> 0;
     const y = seed % 512;
-    ctx.fillStyle = i % 2 ? "#205a4c" : "#103f3e";
-    ctx.fillRect(x, y, 1, 3);
+    ctx.fillStyle = palette[i % 2 ? 1 : 2];
+    ctx.fillRect(x, y, id === "beach" ? 2 : 1, id === "beach" ? 1 : 3);
   }
   const t = new T.CanvasTexture(c);
   t.wrapS = t.wrapT = T.RepeatWrapping;
@@ -26,18 +30,22 @@ function turfTexture() {
   t.colorSpace = T.SRGBColorSpace;
   return t;
 }
-export function drawArena(scene: T.Scene) {
+export function drawArena(scene: T.Scene, initial: ArenaId = "city") {
   const teamMaterials: {
     material: T.MeshBasicMaterial | T.LineBasicMaterial;
     color: number;
   }[] = [];
   const a = P.arena,
     group = new T.Group();
+  group.name = "shared-arena-shell";
   scene.add(group);
   const floor = new T.Mesh(
     new T.PlaneGeometry(a.halfWidth * 2, a.halfLength * 2 + 2 * a.goalDepth),
     polishMaterial(
-      new T.MeshStandardMaterial({ map: turfTexture(), roughness: 0.95 }),
+      new T.MeshStandardMaterial({
+        map: turfTexture(initial),
+        roughness: 0.95,
+      }),
       "ground",
     ),
   );
@@ -90,6 +98,7 @@ export function drawArena(scene: T.Scene) {
       depthWrite: false,
     }),
   ]);
+  wall.name = "shared-arena-walls";
   (wall.material as T.Material[]).forEach((mat) => polishMaterial(mat, "wall"));
   group.add(wall);
   // Ramp contour bands use the same generated positions as collision geometry.
@@ -122,16 +131,12 @@ export function drawArena(scene: T.Scene) {
     "position",
     new T.Float32BufferAttribute(bandPositions, 3),
   );
-  group.add(
-    new T.LineSegments(
-      bands,
-      new T.LineBasicMaterial({
-        color: 0xa6eeeb,
-        transparent: true,
-        opacity: 0.48,
-      }),
-    ),
-  );
+  const bandMaterial = new T.LineBasicMaterial({
+    color: 0xa6eeeb,
+    transparent: true,
+    opacity: 0.48,
+  });
+  group.add(new T.LineSegments(bands, bandMaterial));
   const lines = new T.LineBasicMaterial({
     color: 0xb6ded1,
     transparent: true,
@@ -142,16 +147,26 @@ export function drawArena(scene: T.Scene) {
     group.add(l);
   };
   line([new T.Vector3(-37, 0.025, 0), new T.Vector3(37, 0.025, 0)]);
-  const circle = (r: number, x: number, z: number, color = 0xb6ded1) => {
+  const circle = (r: number, x: number, z: number) => {
     const ps = [];
     for (let i = 0; i <= 96; i++) {
       const t = (i / 96) * Math.PI * 2;
       ps.push(new T.Vector3(x + r * Math.cos(t), 0.035, z + r * Math.sin(t)));
     }
-    line(ps, new T.LineBasicMaterial({ color }));
+    line(ps);
   };
   circle(9, 0, 0);
   circle(0.3, 0, 0);
+  // Restrained inset lane accents leave the central boost routes unobstructed.
+  for (const side of [-1, 1]) {
+    line([
+      new T.Vector3(side * 24, 0.03, -32),
+      new T.Vector3(side * 28, 0.03, -24),
+      new T.Vector3(side * 28, 0.03, 24),
+      new T.Vector3(side * 24, 0.03, 32),
+    ]);
+  }
+  const linings: T.MeshStandardMaterial[] = [];
   for (const sign of [-1, 1]) {
     const color = sign > 0 ? 0x41d9f2 : 0xffb44f,
       glow = polishMaterial(new T.MeshBasicMaterial({ color }), "goal"),
@@ -175,6 +190,7 @@ export function drawArena(scene: T.Scene) {
       }),
     );
     liningMesh.receiveShadow = true;
+    linings.push(liningMesh.material);
     goal.add(liningMesh);
     for (const part of goalFrame(sign)) {
       const post = new T.Mesh(
@@ -239,11 +255,13 @@ export function drawArena(scene: T.Scene) {
       box(group, [0.16, 0.16, 48], [side * 41.2, 19, sign * 24], glow);
     }
   }
+  const citySeating = new T.Group();
+  group.add(citySeating);
   const seats = material(0x1d3945);
   for (const side of [-1, 1])
     for (let tier = 0; tier < 7; tier++) {
       box(
-        group,
+        citySeating,
         [3, 0.45, 112],
         [side * (44 + tier * 2.5), 3 + tier * 1.4, 0],
         seats,
@@ -265,8 +283,73 @@ export function drawArena(scene: T.Scene) {
     line([new T.Vector3(x, 20.4, -48), new T.Vector3(x, 20.4, 48)], gridMat);
   for (let z = -48; z <= 48; z += 6)
     line([new T.Vector3(-38, 20.4, z), new T.Vector3(38, 20.4, z)], gridMat);
-  drawCity(scene);
+  let selected: ArenaId | null = null;
+  let environment: T.Group | null = null;
+  let fieldArt: ReturnType<typeof createFieldArt> | null = null;
+  const setMap = (id: ArenaId) => {
+    if (!isArenaId(id) || id === selected) return;
+    const theme = arenaThemes[id];
+    if (environment) disposeEnvironment(environment);
+    environment = id === "city" ? drawCity() : drawEnvironment(id);
+    scene.add(environment);
+    if (id !== initial || selected !== null) {
+      floor.material.map?.dispose();
+      floor.material.map = turfTexture(id);
+    }
+    selected = id;
+    group.userData.arenaId = id;
+    if (id === "circuit" && !fieldArt) {
+      fieldArt = createFieldArt();
+      group.add(fieldArt);
+      geo.setAttribute(
+        "color",
+        new T.BufferAttribute(rampPaint(shell.vertices, theme.lowerWall), 3),
+      );
+    }
+    if (fieldArt) fieldArt.visible = id === "circuit";
+    if (wall.material[0].vertexColors !== (id === "circuit")) {
+      wall.material[0].vertexColors = id === "circuit";
+      wall.material[0].needsUpdate = true;
+    }
+    citySeating.visible = id === "city";
+    stripe.color.setHex(theme.stripe);
+    stripe.opacity = theme.stripeOpacity;
+    lines.color.setHex(theme.marking);
+    bandMaterial.color.setHex(id === "beach" ? 0x4e6975 : 0xa6eeeb);
+    wall.material[0].color.setHex(
+      id === "circuit" ? 0xffffff : theme.lowerWall,
+    );
+    wall.material[1].color.setHex(theme.upperWall);
+    wall.material[1].opacity = theme.wallOpacity;
+    linings.forEach((mat) => mat.color.setHex(theme.lining));
+    beacon.color.setHex(theme.canopy);
+    gridMat.color.setHex(theme.grid);
+    scene.background = new T.Color(theme.sky);
+    scene.fog = new T.Fog(theme.sky, theme.fogNear, theme.fogFar);
+    scene.children.forEach((o) => {
+      if (o instanceof T.HemisphereLight) {
+        o.color.setHex(theme.skyLight);
+        o.groundColor.setHex(theme.groundLight);
+        o.intensity = theme.ambientIntensity;
+      }
+      if (o instanceof T.DirectionalLight) {
+        o.color.setHex(theme.sunlight);
+        o.intensity = theme.sunIntensity;
+      }
+    });
+  };
+  setMap(initial);
   return {
+    group,
+    floor,
+    wall,
+    get mapId() {
+      return selected!;
+    },
+    get environment() {
+      return environment!;
+    },
+    setMap,
     setNeutral(neutral: boolean) {
       for (const entry of teamMaterials)
         entry.material.color.setHex(neutral ? 0xa8a8a8 : entry.color);
@@ -275,9 +358,9 @@ export function drawArena(scene: T.Scene) {
 }
 
 /** Lumen District: original terraced towers, lit windows and elevated skybridges. */
-function drawCity(scene: T.Scene) {
+function drawCity() {
   const city = new T.Group();
-  scene.add(city);
+  city.name = "environment-city";
   const concrete = material(0x243343, 0.5, 0.7),
     trim = material(0x405469, 0.6, 0.4);
   const windowMat = polishMaterial(
@@ -352,5 +435,6 @@ function drawCity(scene: T.Scene) {
     new T.MeshBasicMaterial({ color: 0xffdfb0 }),
   );
   moon.position.set(-65, 75, -130);
-  scene.add(moon);
+  city.add(moon);
+  return city;
 }

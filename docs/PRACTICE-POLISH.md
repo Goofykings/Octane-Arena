@@ -7,11 +7,12 @@ boost rules and clearing velocities, goal timers and camera focus without a
 countdown. It also clears explosion meshes, particle lifetimes, trails and goal
 sound voices. Only Free Play permits the training reset during a celebration.
 
-Normal jumps publish a sequence number, age, origin and contacted surface
-normal from the actual first-jump action. The renderer uses this event for a
+Double jumps publish a sequence number, age, origin and car-up
+normal from the actual second-jump action. The renderer uses this event for a
 small white ring and two short streaks lasting less than 0.2 seconds. Network
 snapshots carry the same event, with old events ignored. Falling, aerial
-rotation and dodges do not publish a normal-jump event. No jump forces changed.
+rotation, first jumps and dodges do not publish this event. The existing
+`normalJump` snapshot field carries it for compatibility. No jump forces changed.
 
 Flip trails now use the rendered wheel mount positions, including their
 contact placement, for both car bodies. Flip forces and timing are unchanged.
@@ -30,7 +31,7 @@ equal buttons. Its existing modal backdrop and paused-game behavior remain.
 Verification:
 
 - `tests/practice-polish.ts`: repeated kickoff/reset cycles at different goal
-  celebration times; real first jumps and wall jumps; no effects from falling
+  celebration times; real double jumps and wall double jumps; no effects from first jumps or falling
   off a wall; wheel attachments for four flip directions on both bodies.
 - `tests/practice-polish-browser.cjs`: actual reset key, explosion cancellation,
   no countdown, compact centered modal, paused clock, Stay/Leave interactions,

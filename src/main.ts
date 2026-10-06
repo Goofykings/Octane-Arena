@@ -21,6 +21,13 @@ import {
   disposeModel,
 } from "./render/models";
 import { drawArena } from "./render/arena";
+import {
+  loadArenaChoice,
+  saveArenaChoice,
+  arenaThemes,
+} from "./render/arena-themes";
+import { ArenaSelect } from "./ui/arena-select";
+import { chooseMatchArena, type ArenaId } from "../shared/arenas";
 import { Effects } from "./effects/effects";
 import { GameAudio } from "./audio/audio";
 import { DebugView } from "./debug/debug";
@@ -39,6 +46,7 @@ import { GoalExplosion } from "./effects/goal-explosion";
 import { JumpBurst } from "./effects/jump-burst";
 import { BallHeightIndicator } from "./effects/ball-height";
 import { Accounts } from "./game/accounts";
+import { displayIdentity, newLocalPlayerId } from "../shared/local-profile";
 import { trainingActions } from "./input/bindings";
 import { trainingAction } from "./game/training";
 import { SkidMarks } from "./effects/skid-marks";
@@ -46,6 +54,13 @@ import { GoalPlanes } from "./effects/goal-plane";
 import { BallTrails, FlipTrails } from "./effects/motion-trails";
 import { PadRecharge } from "./render/pad-recharge";
 import { DemolitionFlash } from "./effects/demolition-flash";
+import { extraModes, type ExtraSession } from "./extra/session";
+import { ExtraModePanel } from "./ui/extra-mode-panel";
+import { ReplayScenePlayback } from "./replay/scene-playback";
+import { ReplayPanel } from "./ui/replay-panel";
+import { MouseLook } from "./camera/mouse-look";
+import { CameraDrag } from "./input/camera-drag";
+import { VersionPanel } from "./ui/version-panel";
 
 async function boot() {
   await RAPIER.init();
@@ -88,7 +103,16 @@ async function boot() {
   });
   sun.shadow.bias = -0.0005;
   scene.add(sun);
-  const arena = drawArena(scene);
+  const arena = drawArena(scene, loadArenaChoice());
+  let freeplayArena = arena.mapId;
+  let previousMatchArena: ArenaId | undefined;
+  new ArenaSelect(arena.mapId, (id) => {
+    freeplayArena = id;
+    arena.setMap(id);
+    saveArenaChoice(id);
+    const caption = document.querySelector(".arena-caption");
+    if (caption) caption.textContent = arenaThemes[id].name.toUpperCase();
+  });
   const visuals = [
     carModel(
       new T.Color(garage.current.blue).getHex(),
@@ -126,6 +150,18 @@ async function boot() {
     );
     crystal.position.y = p.large ? 0.5 : 0.2;
     group.add(crystal);
+    const base = new T.Mesh(
+      new T.CircleGeometry(p.large ? 1.08 : 0.61, 24),
+      new T.MeshBasicMaterial({
+        color: 0x243b40,
+        transparent: true,
+        opacity: 0.8,
+        depthWrite: false,
+      }),
+    );
+    base.rotation.x = -Math.PI / 2;
+    base.position.y = -0.025;
+    group.add(base);
     group.position.set(p.x, 0.06, p.z);
     scene.add(group);
     return group;
@@ -146,6 +182,31 @@ async function boot() {
     (car, i) => new VehicleEffects(car, scene, i === 0 ? 0x69e9ff : 0xffb654),
   );
   const explosion = new GoalExplosion(scene);
+  const replayView = new ReplayScenePlayback(
+    camera,
+    cars,
+    visuals,
+    ball,
+    simulation.cars,
+    {
+      vehicles: vehicleEffects,
+      ball: ballTrails,
+      flips: flipTrails,
+      jumps: jumpBursts,
+      skids: skidMarks,
+      demos: demoFlashes,
+      explosion,
+    },
+  );
+  const replayPanel = new ReplayPanel(ui.root, () => {
+    if (networkActive) network.skipReplay();
+    else if (match.replay)
+      match.skipReplay(
+        simulation.cars[0].id,
+        match.replay.clip.goal.id,
+        simulation,
+      );
+  });
   const graphics = new Graphics(renderer, scene, camera, sun),
     hitboxes = new Hitboxes(scene);
   const preview = new GaragePreview(document.getElementById("garage-screen")!);
@@ -196,10 +257,14 @@ async function boot() {
     updatePreset();
     garagePanel.render();
     ui.setProfile(garage.profile);
+    simulation.cars[0].displayName = displayIdentity(garage.profile);
   });
+  simulation.cars[0].id = accounts.profile.value.localPlayerId;
   const party = new PartyClient(garage),
     partyPanel = new PartyPanel(party),
     homeLobby = new HomeLobby(scene);
+  document.querySelector(".arena-caption")!.textContent =
+    arenaThemes[arena.mapId].name.toUpperCase();
   const network = new NetworkClient(party);
   let networkView: NetworkMatchView | null = null,
     networkActive = false,
@@ -251,10 +316,30 @@ async function boot() {
   leaveDialog.querySelector<HTMLButtonElement>("#leave-confirm-stay")!.onclick =
     stay;
   const loop = new FixedLoop();
+  let extraSession: ExtraSession | null = null;
+  let localMatchId = "";
+  let extraPanel: ExtraModePanel | null = null;
+  const stopExtra = () => {
+    extraPanel?.dispose();
+    extraPanel = null;
+    extraSession?.dispose();
+    extraSession = null;
+    cameraControl.reset();
+    input.clear();
+  };
   const start = (
     mode: "bot" | "freeplay" = match.mode === "freeplay" ? "freeplay" : "bot",
   ) => {
+    stopExtra();
     ui.modes(false);
+    const selectedArena =
+      mode === "freeplay"
+        ? freeplayArena
+        : chooseMatchArena(previousMatchArena);
+    if (mode !== "freeplay") previousMatchArena = selectedArena;
+    arena.setMap(selectedArena);
+    document.querySelector(".arena-caption")!.textContent =
+      arenaThemes[selectedArena].name.toUpperCase();
     resetEffects();
     audio.unlock();
     input.clear();
@@ -264,6 +349,8 @@ async function boot() {
     simulation.cars[1].displayName = opponent.name;
     document.getElementById("bot-tag")!.textContent = opponent.name;
     match.start(simulation, mode);
+    localMatchId = newLocalPlayerId();
+    simulation.cars[0].displayName = accounts.displayName;
     arena.setNeutral(match.rules.training);
     goalPlanes.setNeutral(match.rules.training);
     pads.reset();
@@ -272,6 +359,9 @@ async function boot() {
     audio.tone(420, 0.12, 0.08, "sine");
   };
   const home = () => {
+    replayView.stop();
+    replayPanel.hide();
+    stopExtra();
     leaveDialog.close();
     ui.leaveConfirmation = false;
     ui.modes(false);
@@ -288,7 +378,62 @@ async function boot() {
     ui.modes(true);
   });
   ui.on("bot-mode", () => start("bot"));
-  ui.on("freeplay-mode", () => start("freeplay"));
+  ui.on("freeplay-mode", () => {
+    ui.screen = "freeplay";
+    input.clear();
+  });
+  ui.on("freeplay-back", () => {
+    ui.screen = "modes";
+    input.clear();
+  });
+  ui.on("freeplay-launch", () => start("freeplay"));
+  ui.on("extra-mode", () => {
+    ui.screen = "extras";
+    input.clear();
+  });
+  ui.on("extras-back", () => {
+    ui.screen = "modes";
+    input.clear();
+  });
+  for (const mode of extraModes)
+    ui.on(`${mode.id}-mode`, () => {
+      stopExtra();
+      resetEffects();
+      input.clear();
+      audio.unlock();
+      match.phase = "home";
+      extraSession = mode.create({
+        camera,
+        preset: garage.current,
+        arenaId: arena.mapId,
+      });
+      extraSession.vehicle.displayName = accounts.displayName;
+      const restart = () => {
+        extraSession?.reset();
+        input.clear();
+        audio.update(0, false, false);
+      };
+      const resume = () => {
+        extraSession?.pause(performance.now());
+        input.clear();
+      };
+      extraPanel = new ExtraModePanel(ui.root, extraSession, {
+        restart,
+        exit: home,
+        resume,
+        settings: () => {
+          if (extraSession && !extraSession.paused)
+            extraSession.pause(performance.now());
+          input.clear();
+          settingsPanel.open();
+        },
+      });
+      homeLobby.update([], camera, 0, performance.now() / 1000, false);
+      partyPanel.host.hidden = true;
+      partyPanel.flow.updateVisibility(false);
+      hitboxes.update(simulation, false);
+      ui.extraGame(100, false);
+    });
   ui.on("friend-mode", () => {
     ui.modes(false);
     if (!party.state) void party.action("create");
@@ -338,9 +483,13 @@ async function boot() {
     }
   });
   window.addEventListener("blur", () => {
+    if (extraSession && !extraSession.paused)
+      extraSession.pause(performance.now());
     if (match.active) match.pause();
   });
   document.addEventListener("visibilitychange", () => {
+    if (document.hidden && extraSession && !extraSession.paused)
+      extraSession.pause(performance.now());
     if (document.hidden && match.active) match.pause();
   });
   window.addEventListener("resize", () => {
@@ -354,8 +503,33 @@ async function boot() {
     tickCount = 0,
     statsTime = 0,
     ticksPerSecond = 0;
-  function updatePadVisuals(dt: number) {
-    pads.items.forEach((p, i) => {
+  const mouseLook = new MouseLook();
+  cameraControl.mouseLook = preview.mouseLook = mouseLook;
+  const cameraDrag = new CameraDrag(ui.root, mouseLook, () => {
+    if (document.hidden || document.querySelector("dialog[open]") || ui.leaveConfirmation) return null;
+    if (party.state?.stage === "match")
+      return !networkPaused && ["countdown", "playing", "goal"].includes(network.latest?.phase ?? "") ? "network" : null;
+    if (extraSession) return null; // Dedicated extra-mode cameras are preserved.
+    if (match.phase === "home") {
+      if (party.state && party.state.stage !== "home") return null;
+      if (ui.screen === "home") return "home";
+      if (ui.screen === "garage" && (!garagePanel.customizing || garagePanel.category !== "explosion")) return "garage";
+      return null;
+    }
+    return ["countdown", "playing", "goal"].includes(match.phase) ? "game" : null;
+  });
+  const versionPanel = new VersionPanel(ui.root, () => { cameraDrag.stop(); input.clear(); });
+  function updatePadVisuals(dt: number, replayPads?: Float32Array | null) {
+    pads.items.forEach((livePad, i) => {
+      const cooldown = replayPads?.[i];
+      const p =
+        cooldown === undefined
+          ? livePad
+          : {
+              ...livePad,
+              cooldown,
+              pulse: Math.max(0, 0.28 - (livePad.large ? 10 : 4) + cooldown),
+            };
       padRecharge[i].update(p);
       const pulse = (p.pulse ?? 0) / 0.28;
       padMeshes[i].children[1].visible = p.cooldown === 0 || pulse > 0;
@@ -374,6 +548,9 @@ async function boot() {
   function frame(now: number) {
     const dt = Math.min((now - previous) / 1000, 0.1);
     previous = now;
+    cameraDrag.sync();
+    mouseLook.update(dt, settings.value.camera);
+    versionPanel.show(match.phase === "home" && ui.screen === "home" && !extraSession && party.state?.stage !== "match" && (!party.state || party.state.stage === "home"));
     const controls = input.sample();
     if (party.state?.stage === "match") {
       if (!networkActive) {
@@ -391,23 +568,35 @@ async function boot() {
       }
       if (input.takeAction("pause") && !document.querySelector("dialog[open]"))
         networkPaused = !networkPaused;
-      if (network.latest && !networkView)
+      if (network.latest && !networkView) {
+        arena.setMap(network.latest.arenaId);
+        document.querySelector(".arena-caption")!.textContent =
+          arenaThemes[network.latest.arenaId].name.toUpperCase();
         networkView = new NetworkMatchView(
           scene,
           camera,
           network.latest,
           party.playerId,
         );
-      if (input.takeAction("camera") && networkView)
+        networkView.camera.mouseLook = mouseLook;
+      }
+      if (
+        input.takeAction("camera") &&
+        networkView &&
+        network.latest?.phase !== "replay"
+      )
         networkView.camera.ballMode = !networkView.camera.ballMode;
       network.input(
-        networkPaused ||
+        network.latest?.phase === "replay" ||
+          networkPaused ||
           document.hidden ||
           !document.hasFocus() ||
           !!document.querySelector("dialog[open]")
           ? neutral()
           : controls,
       );
+      if (network.latest?.phase === "replay" && input.take("Space"))
+        network.skipReplay();
       input.takeAction("jump");
       cars.forEach((c) => (c.visible = false));
       ball.visible = false;
@@ -429,12 +618,41 @@ async function boot() {
         );
       const netMatch = networkView?.match ?? loadingMatch,
         car = networkView?.simulation.cars[0];
+      const snapshot = network.latest;
+      const localPlayer = snapshot?.players.find(
+        (p) => p.id === party.playerId,
+      );
+      if (snapshot && localPlayer && networkView) {
+        accounts.profile.observeMatch(
+          snapshot.matchId,
+          localPlayer.id,
+          localPlayer.team,
+          snapshot.phase,
+          snapshot.score,
+          snapshot.lastGoal,
+        );
+        if (
+          !networkPaused &&
+          !document.hidden &&
+          (snapshot.phase === "playing" || snapshot.phase === "goal")
+        )
+          accounts.profile.addPlayTime(dt);
+      }
       ui.update(
         netMatch,
         car?.boost ?? 0,
         networkView?.camera.ballMode ?? true,
         car?.supersonic ?? false,
       );
+      if (snapshot?.phase === "replay")
+        replayPanel.update(
+          network.replayClip,
+          snapshot.replay ?? null,
+          snapshot.players,
+          party.playerId,
+          networkView?.replayView.director.debug,
+        );
+      else replayPanel.hide();
       document.getElementById("result")!.hidden = true;
       document.getElementById("pause")!.hidden = true;
       networkStatus.hidden = !network.status;
@@ -450,7 +668,7 @@ async function boot() {
       document.getElementById("network-resume")!.hidden = finished;
       document.getElementById("network-return")!.hidden =
         !finished || party.state.hostId !== party.playerId;
-      if (network.latest)
+      if (network.latest && snapshot?.phase !== "replay")
         network.latest.pads.forEach((cooldown, i) => {
           const pad = pads.items[i];
           if (
@@ -469,7 +687,7 @@ async function boot() {
           pad.cooldown = cooldown;
           pad.pulse = Math.max(0, (pad.pulse ?? 0) - dt);
         });
-      updatePadVisuals(dt);
+      updatePadVisuals(dt, networkView?.replayPads);
       effects.update(dt);
       if (car) {
         audio.update(
@@ -507,7 +725,66 @@ async function boot() {
       networkMenu.hidden = networkStatus.hidden = true;
       home();
     }
-    if (input.takeAction("camera"))
+    if (extraSession) {
+      input.takeAction("camera"); // Ball Cam is unavailable in open courses.
+      if (
+        input.takeAction("pause") &&
+        !document.querySelector("dialog[open]")
+      ) {
+        extraSession.pause(now);
+        input.clear();
+      }
+      let restart = input.takeAction("reset");
+      for (const action of trainingActions) {
+        const pressed = input.takeAction(action);
+        if (action === "trainingReset") restart ||= pressed;
+      }
+      if (restart) {
+        extraSession.reset();
+        input.clear();
+      }
+      const sequence = extraSession.resetSequence;
+      extraSession.frame(
+        restart || extraSession.paused ? neutral() : controls,
+        dt,
+        now,
+        settings.value.camera,
+      );
+      if (
+        !extraSession.paused &&
+        !extraSession.complete &&
+        extraSession.readout(now).phase === "running" &&
+        !document.hidden
+      )
+        accounts.profile.addPlayTime(dt);
+      if (sequence !== extraSession.resetSequence) input.clear();
+      input.takeAction("jump");
+      ui.extraGame(extraSession.vehicle.boost, extraSession.vehicle.supersonic);
+      extraPanel!.update(now);
+      partyPanel.host.hidden = true;
+      partyPanel.flow.updateVisibility(false);
+      if (input.takeAction("debug")) debug.enabled = !debug.enabled;
+      const debugText = document.getElementById("debug")!;
+      debugText.hidden = !debug.enabled;
+      if (debug.enabled) {
+        const c = extraSession.vehicle,
+          state = extraSession.readout(now);
+        debugText.textContent = `${extraSession.id.toUpperCase()} • ${state.phase}\n${state.progress} / ${state.total}\n${c.supportKind} • ${c.contacts} wheels\n${new T.Vector3().copy(c.body.linvel()).length().toFixed(2)} m/s`;
+      }
+      const c = extraSession.vehicle;
+      audio.update(
+        Math.abs(c.forwardSpeed),
+        c.boosting,
+        !extraSession.paused && !extraSession.complete,
+        controls.throttle,
+        false,
+        c.skidIntensity,
+      );
+      graphics.render(extraSession.scene, camera);
+      requestAnimationFrame(frame);
+      return;
+    }
+    if (input.takeAction("camera") && !match.replayActive)
       cameraControl.ballMode = !cameraControl.ballMode;
     if (input.takeAction("debug")) debug.enabled = !debug.enabled;
     if (input.takeAction("pause") && !document.querySelector("dialog[open]")) {
@@ -517,10 +794,18 @@ async function boot() {
         } else if (ui.screen === "garage" && garagePanel.customizing) {
           garagePanel.customizing = false;
           garagePanel.render();
+        } else if (ui.screen === "extras" || ui.screen === "freeplay") {
+          ui.screen = "modes";
         } else ui.modes(false);
       } else match.pause();
     }
     input.takeAction("reset"); // Legacy binding never resets a competitive match.
+    if (match.phase === "replay" && input.take("Space") && match.replay)
+      match.skipReplay(
+        simulation.cars[0].id,
+        match.replay.clip.goal.id,
+        simulation,
+      );
     for (const action of trainingActions)
       if (input.takeAction(action)) {
         if (
@@ -601,7 +886,7 @@ async function boot() {
             if (pickup.car === simulation.cars[0]) ui.pickup();
           }
         }
-        match.tick(simulation);
+        match.tick(simulation, pads);
         if (match.resetSequence !== resetSequence && match.rules.training) {
           resetEffects();
           pads.reset();
@@ -638,6 +923,64 @@ async function boot() {
       alpha = match.phase === "countdown" ? 1 : result.alpha;
       tickCount += result.steps;
     } else loop.accumulator = 0;
+    if (match.mode === "bot" && localMatchId)
+      accounts.profile.observeMatch(
+        localMatchId,
+        simulation.cars[0].id,
+        simulation.cars[0].team,
+        match.phase,
+        match.score,
+        match.lastGoal,
+      );
+    if (
+      !document.hidden &&
+      (match.phase === "playing" || match.phase === "goal")
+    )
+      accounts.profile.addPlayTime(dt);
+    if (match.replayActive && match.replay) {
+      if (!replayView.active) {
+        resetEffects();
+        input.clear();
+      }
+      const state = match.replayState!;
+      const cooldowns = replayView.render(
+        match.replay.clip,
+        state.time,
+        state.speed,
+        match.phase === "paused" ? 0 : dt,
+      );
+      updatePadVisuals(dt, cooldowns);
+      ballHeight.group.visible = false;
+      document.getElementById("bot-tag")!.hidden = true;
+      const players = simulation.cars.map((c, i) => ({
+        ...simulation.players[i],
+        id: c.id,
+        name: c.displayName,
+        avatarId: i === 0 ? garage.profile.avatarId : "robot",
+        avatarColor: i === 0 ? garage.profile.avatarColor : undefined,
+      }));
+      replayPanel.update(
+        match.replay.clip,
+        state,
+        players,
+        simulation.cars[0].id,
+        replayView.director.debug,
+      );
+      ui.update(match, 0, false, false);
+      audio.update(0, false, false);
+      goalPlanes.update(ball);
+      graphics.render(scene, camera);
+      requestAnimationFrame(frame);
+      return;
+    }
+    if (replayView.active) {
+      replayView.stop();
+      replayPanel.hide();
+      resetEffects();
+      cameraControl.reset();
+      input.clear();
+      if (match.phase === "countdown") pads.reset();
+    }
     simulation.cars.forEach((c, i) => {
       c.pose.render(cars[i], alpha);
       cars[i].visible = match.phase !== "home" && c.body.isEnabled();
@@ -648,6 +991,9 @@ async function boot() {
         match.active ? dt : 0,
         match.phase !== "home" ? c : undefined,
         cars[i],
+        match.phase === "playing" && !match.rules.training
+          ? match.recorder.wheels(i)
+          : undefined,
       );
     });
     simulation.ballPose.render(ball, alpha);
@@ -750,8 +1096,10 @@ async function boot() {
         {
           id: party.playerId,
           name: garage.profile.name,
+          localPlayerId: garage.profile.localPlayerId,
           title: garage.profile.title,
           avatarId: garage.profile.avatarId ?? "helmet",
+          avatarColor: garage.profile.avatarColor,
           preset: garage.current,
           team: null,
           ready: false,
@@ -761,6 +1109,8 @@ async function boot() {
       dt,
       now / 1000,
       lobbyVisible && !partySetup,
+      mouseLook,
+      simulation,
     );
     if (partySetup) {
       camera.clearViewOffset();
@@ -842,6 +1192,10 @@ async function boot() {
         settings,
         garage,
         cameraControl,
+        mouseLook,
+        cameraDrag,
+        versionPanel,
+        replayView,
         camera,
         graphics,
         audio,
@@ -863,6 +1217,9 @@ async function boot() {
         skidMarks,
         goalPlanes,
         arena,
+        get extraSession() {
+          return extraSession;
+        },
         explosion,
         effects,
         ballTrails,

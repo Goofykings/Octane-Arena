@@ -6,6 +6,7 @@ import { insideArena } from "../src/arena/physics";
 import { P } from "../src/config/physics";
 import { neutralInput } from "../shared/player";
 import { bodies } from "../shared/catalog";
+import { chassisPoints } from "../src/car/chassis";
 import { Match } from "../src/game/match";
 import { GameCamera } from "../src/camera/camera";
 import { carModel, animateWheels, disposeModel } from "../src/render/models";
@@ -206,30 +207,22 @@ for (const orientation of ["roof", "side"] as const)
                 new Vector3().copy(c.body.linvel()).length(),
               );
               // All corners of the physical roof/sides must remain in the actual shell.
-              const d = bodies[body],
-                q = new Quaternion().copy(c.body.rotation()),
+              const q = new Quaternion().copy(c.body.rotation()),
                 p = new Vector3().copy(c.body.translation());
-              for (const x of [-d.halfWidth, d.halfWidth])
-                for (const y of [
-                  d.hitboxY - d.halfHeight,
-                  d.hitboxY + d.halfHeight,
-                ])
-                  for (const z of [-d.halfLength, d.halfLength]) {
-                    const point = new Vector3(x, y, z)
-                      .applyQuaternion(q)
-                      .add(p);
-                    if (!insideArena(s.arenaCollider!, point, 0))
-                      maxPenetration = Math.max(
-                        maxPenetration,
-                        point.distanceTo(
-                          s.arenaCollider!.projectPoint(point, false)!.point,
-                        ),
-                      );
-                    assert.ok(
-                      insideArena(s.arenaCollider!, point, 0.001),
-                      `${surface.name} ${body}/${speed} frame=${i} point=${JSON.stringify(point)} center=${JSON.stringify(p)} distance=${point.distanceTo(s.arenaCollider!.projectPoint(point, false)!.point)}`,
-                    );
-                  }
+              for (const vertex of chassisPoints(body)) {
+                const point = vertex.applyQuaternion(q).add(p);
+                if (!insideArena(s.arenaCollider!, point, 0))
+                  maxPenetration = Math.max(
+                    maxPenetration,
+                    point.distanceTo(
+                      s.arenaCollider!.projectPoint(point, false)!.point,
+                    ),
+                  );
+                assert.ok(
+                  insideArena(s.arenaCollider!, point, 0.001),
+                  `${surface.name} ${body}/${speed} frame=${i} point=${JSON.stringify(point)} center=${JSON.stringify(p)} distance=${point.distanceTo(s.arenaCollider!.projectPoint(point, false)!.point)}`,
+                );
+              }
             }
             assert.ok(
               maximum <=

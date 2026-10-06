@@ -1,3 +1,4 @@
+import { displayIdentity } from "../../shared/local-profile";
 import * as T from "three";
 import { Simulation } from "../physics/simulation";
 import { Match } from "../game/match";
@@ -19,6 +20,7 @@ import { DemolitionFlash } from "../effects/demolition-flash";
 import { JumpBurst } from "../effects/jump-burst";
 import { BallHeightIndicator } from "../effects/ball-height";
 import type { CameraSettings } from "../game/settings";
+import { ReplayScenePlayback } from "../replay/scene-playback";
 
 /** Snapshot-only visual world. This never advances client-side match physics. */
 export class NetworkMatchView {
@@ -29,6 +31,8 @@ export class NetworkMatchView {
   ball = ballModel();
   ballHeight = new BallHeightIndicator(this.group);
   camera: GameCamera;
+  readonly replayView: ReplayScenePlayback;
+  replayPads: Float32Array | null = null;
   private effects: VehicleEffects[];
   private ballTrails: BallTrails;
   private flips: FlipTrails[];
@@ -77,13 +81,29 @@ export class NetworkMatchView {
     this.group.add(this.ball);
     scene.add(this.group);
     this.camera = new GameCamera(camera);
+    this.replayView = new ReplayScenePlayback(
+      camera,
+      this.cars,
+      this.cars,
+      this.ball,
+      this.simulation.cars,
+      {
+        vehicles: this.effects,
+        ball: this.ballTrails,
+        flips: this.flips,
+        jumps: this.jumps,
+        skids: this.skids,
+        demos: this.demos,
+        explosion: this.explosion,
+      },
+    );
     this.match.mode = "network";
     this.labels = document.createElement("div");
     this.labels.id = "network-labels";
     for (const player of players) {
       const label = document.createElement("span");
       label.className = "network-name";
-      label.textContent = player.name;
+      label.textContent = displayIdentity(player);
       label.dataset.team = String(player.team);
       this.labels.append(label);
     }
@@ -111,6 +131,42 @@ export class NetworkMatchView {
       this.demos.forEach((e) => e.reset());
       this.reset = latest.reset;
     }
+    if (latest.phase === "replay") {
+      Object.assign(this.match, {
+        phase: latest.phase,
+        score: latest.score,
+        remaining: latest.remaining,
+        overtime: latest.overtime,
+        message: "",
+      });
+      const clip = client.replayClip,
+        state = latest.replay;
+      this.labels.hidden = true;
+      this.ballHeight.group.visible = false;
+      if (clip && state && clip.goal.id === state.id) {
+        const replayTime =
+          state.time +
+          Math.min(
+            0.1,
+            Math.max(0, (performance.now() - client.arrived) / 1000),
+          ) *
+            state.speed;
+        this.replayPads = this.replayView.render(
+          clip,
+          replayTime,
+          state.speed,
+          dt,
+        );
+      }
+      this.phase = latest.phase;
+      return;
+    }
+    if (this.replayView.active) {
+      this.replayView.stop();
+      this.camera.reset();
+    }
+    this.replayPads = null;
+    this.labels.hidden = false;
     if (latest.phase === "goal" && this.phase !== "goal" && latest.goalFocus)
       this.explosion.trigger(
         new T.Vector3().copy(latest.goalFocus),
@@ -170,7 +226,17 @@ export class NetworkMatchView {
           blend,
         ),
       );
-      animateWheels(model, b.speed, b.steer, dt, car, model);
+      animateWheels(
+        model,
+        b.speed,
+        b.steer,
+        dt,
+        car,
+        model,
+        latest.phase === "playing" && b.wheelAngle !== undefined
+          ? { angle: b.wheelAngle, steer: b.wheelSteer ?? b.steer }
+          : undefined,
+      );
       this.effects[i].update(
         car,
         dt,
@@ -257,6 +323,7 @@ export class NetworkMatchView {
     });
   }
   dispose() {
+    this.replayView.stop();
     this.effects.forEach((e) => e.dispose());
     this.group.removeFromParent();
     disposeModel(this.group);

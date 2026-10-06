@@ -10,6 +10,17 @@ export function innerHeightRatio(height: number, range: number) {
 }
 export class BallHeightIndicator {
   readonly group = new T.Group();
+  // A dark keyline keeps the existing height rings readable on pale sand too.
+  readonly outline = new T.Mesh(
+    new T.RingGeometry(0.92, 1.105, 48),
+    new T.MeshBasicMaterial({
+      color: 0x172d37,
+      transparent: true,
+      opacity: 0.65,
+      side: T.DoubleSide,
+      depthWrite: false,
+    }),
+  );
   readonly outer = new T.Mesh(
     new T.RingGeometry(0.95, 1.07, 48),
     new T.MeshBasicMaterial({
@@ -32,7 +43,8 @@ export class BallHeightIndicator {
   );
   height = 0;
   constructor(scene: T.Scene) {
-    this.group.add(this.outer, this.inner);
+    this.outline.position.z = -0.002;
+    this.group.add(this.outline, this.outer, this.inner);
     scene.add(this.group);
   }
   update(ball: T.Object3D, simulation: Simulation) {
@@ -65,6 +77,7 @@ export class BallHeightIndicator {
       hit ? new T.Vector3().copy(hit.normal) : new T.Vector3(0, 1, 0),
     );
     this.outer.scale.setScalar(outerRadius);
+    this.outline.scale.setScalar(outerRadius);
     this.inner.scale.setScalar(
       outerRadius *
         innerHeightRatio(this.height, ceiling - floor - 2 * P.ball.radius),

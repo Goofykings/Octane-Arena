@@ -2,18 +2,25 @@ import type { FastifyInstance } from "fastify";
 import { WebSocket, WebSocketServer } from "ws";
 import type { ServerConfig } from "./config.js";
 import type { PartyState } from "../../shared/party";
-import type { NetPlayer, ServerMessage } from "../../shared/network";
-import { starter } from "../../shared/catalog";
+import type { ServerMessage } from "../../shared/network";
+import { partyRoster } from "../../shared/match-roster";
 import { FixedLoop } from "../../src/physics/loop";
 import { NetworkMatch } from "./network-match.js";
+import { chooseMatchArena, type ArenaId } from "../../shared/arenas";
+import { replayMessage } from "../../shared/replay";
 
 type Identity = { id: string; code: string | null; touch: () => void };
 export class NetworkMatches {
   matches = new Map<string, NetworkMatch>();
-  private sockets = new Map<string, { socket: WebSocket; seen: number }>();
+  private sockets = new Map<
+    string,
+    { socket: WebSocket; seen: number; replayId?: string }
+  >();
+  private replayPayloads = new Map<string, { id: string; payload: string }>();
   private missing = new Map<string, number>();
   private loops = new Map<string, FixedLoop>();
   private broadcastTick = new Map<string, number>();
+  private previousArena?: ArenaId;
   constructor(
     app: FastifyInstance,
     config: ServerConfig,
@@ -70,6 +77,24 @@ export class NetworkMatches {
           const message = JSON.stringify(game.snapshot());
           for (const p of game.players) {
             const connection = this.sockets.get(p.id);
+            const clip = game.match.replay?.clip;
+            if (
+              connection?.socket.readyState === WebSocket.OPEN &&
+              clip &&
+              connection.replayId !== `${game.id}:${clip.goal.id}` &&
+              connection.socket.bufferedAmount < 128000
+            ) {
+              let cached = this.replayPayloads.get(code);
+              if (cached?.id !== clip.goal.id) {
+                cached = {
+                  id: clip.goal.id,
+                  payload: JSON.stringify(replayMessage(game.id, clip)),
+                };
+                this.replayPayloads.set(code, cached);
+              }
+              connection.socket.send(cached.payload);
+              connection.replayId = `${game.id}:${clip.goal.id}`;
+            }
             if (
               connection?.socket.readyState === WebSocket.OPEN &&
               connection.socket.bufferedAmount < 128000
@@ -121,7 +146,7 @@ export class NetworkMatches {
             .get(player.id)
             ?.socket.close(1000, "Replaced connection");
           this.sockets.set(player.id, { socket, seen: now });
-          for (const game of this.matches.values()) game.disconnect(player.id);
+          for (const game of this.matches.values()) game.connected(player.id);
           socket.send(
             JSON.stringify({ type: "connected" } satisfies ServerMessage),
           );
@@ -137,6 +162,14 @@ export class NetworkMatches {
             const game = player.code ? this.matches.get(player.code) : null;
             if (game && game.id === message.matchId)
               game.accept(player.id, message.sequence, message.input, now);
+          } else if (message.type === "REPLAY_SKIP_REQUEST") {
+            const game = player.code ? this.matches.get(player.code) : null;
+            if (
+              game &&
+              game.id === message.matchId &&
+              typeof message.replayId === "string"
+            )
+              game.skipReplay(player.id, message.replayId);
           } else if (message.type !== "ping") throw Error();
         }
       } catch {
@@ -154,23 +187,10 @@ export class NetworkMatches {
   start(party: PartyState) {
     if (this.matches.has(party.code)) return this.matches.get(party.code)!;
     if (this.matches.size >= 8) throw Error("SERVER IS FULL");
-    const players: NetPlayer[] = party.members.map((m) => ({
-      id: m.id,
-      name: m.name,
-      team: m.team as 0 | 1,
-      controller: "remote",
-      preset: structuredClone(m.preset),
-    }));
-    if (party.mode === "2v2bots")
-      for (let i = 0; i < 2; i++)
-        players.push({
-          id: `bot-${party.code}-${i}`,
-          name: i ? "Relay" : "Circuit",
-          team: 1,
-          controller: "bot",
-          preset: { ...starter(), body: "vector" },
-        });
-    const game = new NetworkMatch(players);
+    const players = partyRoster(party);
+    const arenaId = chooseMatchArena(this.previousArena);
+    const game = new NetworkMatch(players, arenaId);
+    this.previousArena = arenaId;
     this.matches.set(party.code, game);
     this.loops.set(party.code, new FixedLoop());
     return game;
@@ -181,6 +201,7 @@ export class NetworkMatches {
     this.matches.delete(code);
     this.loops.delete(code);
     this.broadcastTick.delete(code);
+    this.replayPayloads.delete(code);
     for (const p of game.players) this.missing.delete(p.id);
     game.dispose();
     this.ended(code, reason);

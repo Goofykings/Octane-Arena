@@ -1,5 +1,8 @@
 import * as T from "three";
 import type { Simulation } from "../physics/simulation";
+import { ConvexGeometry } from "three/addons/geometries/ConvexGeometry.js";
+import { chassisPoints } from "../car/chassis";
+import { bodies } from "../game/inventory";
 export class Hitboxes {
   group = new T.Group();
   private cars: T.Mesh[] = [];
@@ -39,7 +42,16 @@ export class Hitboxes {
       mesh.visible = s.cars[i].body.isEnabled();
       mesh.position.copy(c.translation());
       mesh.quaternion.copy(c.rotation());
-      mesh.scale.copy(c.halfExtents()!);
+      const id = s.cars[i].bodyId;
+      if (mesh.userData.bodyId !== id) {
+        mesh.geometry.dispose();
+        mesh.geometry = new ConvexGeometry(
+          chassisPoints(id).map((p) =>
+            p.add(new T.Vector3(0, -bodies[id].hitboxY, 0)),
+          ),
+        );
+        mesh.userData.bodyId = id;
+      }
     });
     this.ball.visible = s.ball.isEnabled();
     this.ball.position.copy(s.ballCollider.translation());

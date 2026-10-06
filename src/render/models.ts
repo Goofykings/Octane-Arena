@@ -1,7 +1,12 @@
 import * as T from "three";
 import { P } from "../config/physics";
 import { bodies, type BodyId } from "../game/inventory";
-import { wheelMount, wheelRadius, wheelMountY } from "../car/wheels";
+import {
+  wheelMount,
+  wheelRadius,
+  wheelMountY,
+  wheelHalfWidth,
+} from "../car/wheels";
 import type { Car } from "../car/car";
 import { polishMaterial } from "./material-polish";
 export const material = (color: number, metalness = 0.1, roughness = 0.65) =>
@@ -175,6 +180,7 @@ export function carModel(
   const spins: T.Group[] = [],
     mounts: T.Group[] = [],
     steering: T.Group[] = [];
+  const rubber = material(0x111318, 0, 0.9);
   for (let i = 0; i < 4; i++) {
     const x = (i % 2 ? 1 : -1) * (d.halfWidth + 0.005),
       z = (i < 2 ? -1 : 1) * d.axle;
@@ -186,8 +192,24 @@ export function carModel(
     pivot.add(spin);
     g.add(pivot);
     const tyre = new T.Mesh(
-      new T.CylinderGeometry(wheelRadius, wheelRadius, 0.115, 20),
-      dark,
+      new T.LatheGeometry(
+        // Closed annular cross-section: tread remains outward-facing, but the
+        // sidewalls stop at the rim instead of sealing the hub behind rubber.
+        // Outer profile runs bottom-to-top; the inner return faces the opening.
+        [
+          [0.12, -wheelHalfWidth * 0.85],
+          [0.15, -wheelHalfWidth],
+          [wheelRadius * 0.97, -wheelHalfWidth * 0.72],
+          [wheelRadius, -wheelHalfWidth * 0.4],
+          [wheelRadius, wheelHalfWidth * 0.4],
+          [wheelRadius * 0.97, wheelHalfWidth * 0.72],
+          [0.15, wheelHalfWidth],
+          [0.12, wheelHalfWidth * 0.85],
+          [0.12, -wheelHalfWidth * 0.85],
+        ].map(([radius, axial]) => new T.Vector2(radius, axial)),
+        20,
+      ),
+      rubber,
     );
     tyre.rotation.z = Math.PI / 2;
     tyre.castShadow = true;
@@ -196,14 +218,16 @@ export function carModel(
       new T.CylinderGeometry(
         wheels === "disc" ? 0.14 : 0.115,
         wheels === "disc" ? 0.14 : 0.115,
-        0.12,
+        0.07,
         wheels === "disc" ? 24 : 6,
       ),
-      material(0xa6cad3, 0.9, 0.25),
+      // Keep the alloy legible with the garage's direct lights and no env map.
+      material(0xa6cad3, 0.4, 0.38),
     );
     hub.rotation.z = Math.PI / 2;
     spin.add(hub);
-    const spoke = box(spin, [0.125, 0.025, 0.26], [0, 0, 0], paint);
+    // Separate the painted face from the hub caps to avoid coplanar flicker.
+    const spoke = box(spin, [0.082, 0.025, 0.26], [0, 0, 0], paint);
     if (wheels === "disc") spoke.rotation.x = Math.PI / 4;
     spins.push(spin);
     if (i < 2) steering.push(pivot);
@@ -250,7 +274,15 @@ export function animateWheels(
   dt: number,
   car?: Car,
   pose?: T.Object3D,
+  recorded?: { angle: number; steer: number },
 ) {
+  if (recorded) {
+    for (const wheel of model.userData.wheels as T.Group[])
+      wheel.rotation.x = recorded.angle;
+    for (const pivot of model.userData.frontWheels as T.Group[])
+      pivot.rotation.y = recorded.steer;
+    return;
+  }
   const spin = (model.userData.wheelSpin ??= {
     speed: 0,
     contactSpeed: 0,

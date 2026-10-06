@@ -79,44 +79,44 @@
   },
   {
     "name": "calmer ball bounce restitution",
-    "value": 0.4796801836567288,
+    "value": 0.4783759855972262,
     "pass": true
   },
   {
     "name": "front strike 2 m/s",
-    "value": 1.7600629329681396,
+    "value": 1.6121957302093506,
     "pass": true
   },
   {
     "name": "glancing strike 2 m/s",
-    "value": 1.251167455377068,
+    "value": 1.1047377603099733,
     "pass": true
   },
   {
     "name": "front strike 10 m/s",
-    "value": 15.596012939557527,
+    "value": 14.54197637626554,
     "pass": true
   },
   {
     "name": "glancing strike 10 m/s",
-    "value": 11.131268837584331,
+    "value": 11.253751979557613,
     "pass": true
   },
   {
     "name": "front strike 20 m/s",
-    "value": 30.351105228974703,
+    "value": 28.908798233842433,
     "pass": true
   },
   {
     "name": "glancing strike 20 m/s",
-    "value": 22.19575991069401,
+    "value": 22.38868041712985,
     "pass": true
   },
   {
     "name": "floor to vertical wall driving",
     "value": {
-      "maxY": 20.099990844726562,
-      "wallContacts": 171
+      "maxY": 20.077312469482422,
+      "wallContacts": 174
     },
     "pass": true
   },
@@ -228,7 +228,7 @@
   {
     "name": "CCD fast wall bounce",
     "value": {
-      "x": 38.820072174072266,
+      "x": 38.816383361816406,
       "vx": -28.57060432434082
     },
     "pass": true
@@ -274,12 +274,12 @@
   },
   {
     "name": "goal blast launches cars",
-    "value": 9.141033789778886,
+    "value": 9.141034707764884,
     "pass": true
   },
   {
     "name": "cars move during celebration",
-    "value": 8.750374702154595,
+    "value": 8.790318436344581,
     "pass": true
   },
   {
@@ -324,10 +324,10 @@
   {
     "name": "complete 5-minute live simulation",
     "value": {
-      "seconds": 346.46666666666664,
+      "seconds": 1085.25,
       "score": [
         0,
-        7
+        54
       ],
       "phase": "finished",
       "escaped": false
@@ -338,8 +338,8 @@
     "name": "head-on opponent collision",
     "value": {
       "collision": true,
-      "opponentZ": -5.321254253387451,
-      "playerZ": -2.305267810821533
+      "opponentZ": -4.668824672698975,
+      "playerZ": -2.8907923698425293
     },
     "pass": true
   },
@@ -347,8 +347,8 @@
     "name": "glancing opponent collision",
     "value": {
       "collision": true,
-      "opponentZ": -4.831594944000244,
-      "playerZ": -2.4782819747924805
+      "opponentZ": -4.331659317016602,
+      "playerZ": -3.1122238636016846
     },
     "pass": true
   }

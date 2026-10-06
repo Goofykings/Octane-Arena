@@ -8,9 +8,11 @@ import {
 export * from "../../shared/catalog";
 export interface Profile {
   name: string;
+  localPlayerId?: string;
   title: string;
   level: number;
   avatarId?: string;
+  avatarColor?: string;
   xp?: number;
 }
 export class Garage {

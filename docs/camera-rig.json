@@ -76,7 +76,7 @@
     "fps": 30,
     "aspect": 1.7777777777777777,
     "peakTurn": 0.7592991226253146,
-    "peakExtent": 0.3600892805147876,
+    "peakExtent": 0.3698943120167661,
     "minimumBoom": 5.727128425310542,
     "peakFovStep": 0
   },
@@ -84,10 +84,10 @@
     "name": "H1 fast close ball crossing behind",
     "fps": 30,
     "aspect": 1.7777777777777777,
-    "peakTurn": 4.99999999986074,
-    "peakExtent": 0.8999999999999999,
+    "peakTurn": 4.9999999991147925,
+    "peakExtent": 0.9000000000000002,
     "minimumBoom": 5.727128425310541,
-    "peakFovStep": 12.170217760866237
+    "peakFovStep": 12.357614152408203
   },
   {
     "name": "J continuous aerial air-roll",
@@ -102,10 +102,10 @@
     "name": "K aerial overhead crossing",
     "fps": 30,
     "aspect": 1.7777777777777777,
-    "peakTurn": 4.999990497856605,
+    "peakTurn": 4.999990438287566,
     "peakExtent": 0.8528260358379305,
     "minimumBoom": 5.727128425310542,
-    "peakFovStep": 0.678318670584801
+    "peakFovStep": 0.737723787718096
   },
   {
     "name": "L wall to aerial",
@@ -229,7 +229,7 @@
     "fps": 30,
     "aspect": 1.3333333333333333,
     "peakTurn": 0.7592991226253146,
-    "peakExtent": 0.3600892805147876,
+    "peakExtent": 0.3698943120167661,
     "minimumBoom": 5.727128425310542,
     "peakFovStep": 0
   },
@@ -237,10 +237,10 @@
     "name": "H1 fast close ball crossing behind",
     "fps": 30,
     "aspect": 1.3333333333333333,
-    "peakTurn": 4.999999999200423,
-    "peakExtent": 0.9000000000000005,
+    "peakTurn": 4.999999999941169,
+    "peakExtent": 0.9000000000000009,
     "minimumBoom": 5.727128425310541,
-    "peakFovStep": 18.084557657064934
+    "peakFovStep": 18.094821973838776
   },
   {
     "name": "J continuous aerial air-roll",
@@ -255,10 +255,10 @@
     "name": "K aerial overhead crossing",
     "fps": 30,
     "aspect": 1.3333333333333333,
-    "peakTurn": 4.999990497856605,
+    "peakTurn": 4.999990438287566,
     "peakExtent": 0.8528260358379305,
     "minimumBoom": 5.727128425310542,
-    "peakFovStep": 0.678318670584801
+    "peakFovStep": 0.737723787718096
   },
   {
     "name": "L wall to aerial",
@@ -319,7 +319,7 @@
     "fps": 30,
     "aspect": 0.5625,
     "peakTurn": 2.000000000000525,
-    "peakExtent": 0.433925487832881,
+    "peakExtent": 0.4387004180720182,
     "minimumBoom": 7.336968795838723,
     "peakFovStep": 0
   },
@@ -382,7 +382,7 @@
     "fps": 30,
     "aspect": 0.5625,
     "peakTurn": 0.5497193485134111,
-    "peakExtent": 0.4573319083304073,
+    "peakExtent": 0.47075516948748436,
     "minimumBoom": 7.336968795838723,
     "peakFovStep": 0
   },
@@ -390,10 +390,10 @@
     "name": "H1 fast close ball crossing behind",
     "fps": 30,
     "aspect": 0.5625,
-    "peakTurn": 8.888749736915509,
-    "peakExtent": 0.9000000000000007,
+    "peakTurn": 8.888762106175895,
+    "peakExtent": 0.9000000000000004,
     "minimumBoom": 7.336968795838722,
-    "peakFovStep": 19.03001217369946
+    "peakFovStep": 18.98211081925747
   },
   {
     "name": "J continuous aerial air-roll",
@@ -409,9 +409,9 @@
     "fps": 30,
     "aspect": 0.5625,
     "peakTurn": 5.582233723887621,
-    "peakExtent": 0.8829037895706826,
+    "peakExtent": 0.8829578183321802,
     "minimumBoom": 7.336968795838723,
-    "peakFovStep": 4.803039904035515
+    "peakFovStep": 4.813999126648753
   },
   {
     "name": "L wall to aerial",
@@ -420,7 +420,7 @@
     "peakTurn": 3.002385634452577,
     "peakExtent": 0.8499999999943677,
     "minimumBoom": 7.436677810475059,
-    "peakFovStep": 3.286022016931298
+    "peakFovStep": 3.2767229485571505
   },
   {
     "name": "M wall to floor",
@@ -454,7 +454,7 @@
     "fps": 30,
     "aspect": 0.5625,
     "peakTurn": 1.4424297905518193,
-    "peakExtent": 0.5660709485472937,
+    "peakExtent": 0.5704876088209666,
     "minimumBoom": 7.33696879583872,
     "peakFovStep": 0
   },
@@ -535,7 +535,7 @@
     "fps": 30,
     "aspect": 2.3333333333333335,
     "peakTurn": 0.7592991226253146,
-    "peakExtent": 0.3600892805147876,
+    "peakExtent": 0.3698943120167661,
     "minimumBoom": 5.727128425310542,
     "peakFovStep": 0
   },
@@ -543,10 +543,10 @@
     "name": "H1 fast close ball crossing behind",
     "fps": 30,
     "aspect": 2.3333333333333335,
-    "peakTurn": 4.999999998906797,
-    "peakExtent": 0.8844795217566538,
+    "peakTurn": 4.999999999686998,
+    "peakExtent": 0.8845329077717597,
     "minimumBoom": 5.727128425310541,
-    "peakFovStep": 4.978840705814889
+    "peakFovStep": 4.988494903396315
   },
   {
     "name": "J continuous aerial air-roll",
@@ -561,10 +561,10 @@
     "name": "K aerial overhead crossing",
     "fps": 30,
     "aspect": 2.3333333333333335,
-    "peakTurn": 4.999990497856605,
+    "peakTurn": 4.999990438287566,
     "peakExtent": 0.8528260358379305,
     "minimumBoom": 5.727128425310542,
-    "peakFovStep": 0.678318670584801
+    "peakFovStep": 0.737723787718096
   },
   {
     "name": "L wall to aerial",
@@ -688,7 +688,7 @@
     "fps": 60,
     "aspect": 1.7777777777777777,
     "peakTurn": 0.7594998543475563,
-    "peakExtent": 0.36174575715211227,
+    "peakExtent": 0.37144555759336917,
     "minimumBoom": 5.727128425310542,
     "peakFovStep": 0
   },
@@ -696,10 +696,10 @@
     "name": "H1 fast close ball crossing behind",
     "fps": 60,
     "aspect": 1.7777777777777777,
-    "peakTurn": 4.999999997913515,
-    "peakExtent": 0.9000000000000007,
+    "peakTurn": 4.999999997331092,
+    "peakExtent": 0.9000000000000005,
     "minimumBoom": 5.72712842531054,
-    "peakFovStep": 9.405629274764095
+    "peakFovStep": 9.361818015005653
   },
   {
     "name": "J continuous aerial air-roll",
@@ -714,10 +714,10 @@
     "name": "K aerial overhead crossing",
     "fps": 60,
     "aspect": 1.7777777777777777,
-    "peakTurn": 4.999998989534289,
-    "peakExtent": 0.8540519904413448,
+    "peakTurn": 4.999998984198131,
+    "peakExtent": 0.854204331112758,
     "minimumBoom": 5.727128425310542,
-    "peakFovStep": 0.38036005295533926
+    "peakFovStep": 0.4096340602842474
   },
   {
     "name": "L wall to aerial",
@@ -841,7 +841,7 @@
     "fps": 60,
     "aspect": 1.3333333333333333,
     "peakTurn": 0.7594998543475563,
-    "peakExtent": 0.36174575715211227,
+    "peakExtent": 0.37144555759336917,
     "minimumBoom": 5.727128425310542,
     "peakFovStep": 0
   },
@@ -849,10 +849,10 @@
     "name": "H1 fast close ball crossing behind",
     "fps": 60,
     "aspect": 1.3333333333333333,
-    "peakTurn": 4.999999998821211,
-    "peakExtent": 0.9000000000000006,
+    "peakTurn": 4.999999999252991,
+    "peakExtent": 0.9000000000000007,
     "minimumBoom": 5.72712842531054,
-    "peakFovStep": 11.798496932472958
+    "peakFovStep": 11.742031410442621
   },
   {
     "name": "J continuous aerial air-roll",
@@ -867,10 +867,10 @@
     "name": "K aerial overhead crossing",
     "fps": 60,
     "aspect": 1.3333333333333333,
-    "peakTurn": 4.999998989534289,
-    "peakExtent": 0.8540519904413448,
+    "peakTurn": 4.999998984198131,
+    "peakExtent": 0.854204331112758,
     "minimumBoom": 5.727128425310542,
-    "peakFovStep": 0.38036005295533926
+    "peakFovStep": 0.4096340602842474
   },
   {
     "name": "L wall to aerial",
@@ -879,7 +879,7 @@
     "peakTurn": 3.117294652761355,
     "peakExtent": 0.8500000000000003,
     "minimumBoom": 5.799016940304871,
-    "peakFovStep": 0.8443757028922789
+    "peakFovStep": 0.8454416572225085
   },
   {
     "name": "M wall to floor",
@@ -931,7 +931,7 @@
     "fps": 60,
     "aspect": 0.5625,
     "peakTurn": 2.0000000000016,
-    "peakExtent": 0.4874701310196911,
+    "peakExtent": 0.492267334083411,
     "minimumBoom": 7.336968795838723,
     "peakFovStep": 0
   },
@@ -994,7 +994,7 @@
     "fps": 60,
     "aspect": 0.5625,
     "peakTurn": 0.5497917675511557,
-    "peakExtent": 0.4648850675617346,
+    "peakExtent": 0.47836555360113053,
     "minimumBoom": 7.336968795838723,
     "peakFovStep": 0
   },
@@ -1002,10 +1002,10 @@
     "name": "H1 fast close ball crossing behind",
     "fps": 60,
     "aspect": 0.5625,
-    "peakTurn": 8.888858513053801,
+    "peakTurn": 8.888858878469724,
     "peakExtent": 0.9000000000000008,
     "minimumBoom": 7.336968795838722,
-    "peakFovStep": 10.866636207426808
+    "peakFovStep": 10.807370386475384
   },
   {
     "name": "J continuous aerial air-roll",
@@ -1021,9 +1021,9 @@
     "fps": 60,
     "aspect": 0.5625,
     "peakTurn": 5.594163900414611,
-    "peakExtent": 0.8999999999999997,
+    "peakExtent": 0.9000000000000001,
     "minimumBoom": 7.336968795838723,
-    "peakFovStep": 3.094885828427053
+    "peakFovStep": 3.1259664356364283
   },
   {
     "name": "L wall to aerial",
@@ -1032,7 +1032,7 @@
     "peakTurn": 2.982315501284851,
     "peakExtent": 0.8499999999674219,
     "minimumBoom": 7.436677570477737,
-    "peakFovStep": 1.6220184484752735
+    "peakFovStep": 1.617710926995926
   },
   {
     "name": "M wall to floor",
@@ -1066,7 +1066,7 @@
     "fps": 60,
     "aspect": 0.5625,
     "peakTurn": 1.4401431854547662,
-    "peakExtent": 0.5928474588448016,
+    "peakExtent": 0.5972802230380264,
     "minimumBoom": 7.336968795838721,
     "peakFovStep": 0
   },
@@ -1147,7 +1147,7 @@
     "fps": 60,
     "aspect": 2.3333333333333335,
     "peakTurn": 0.7594998543475563,
-    "peakExtent": 0.36174575715211227,
+    "peakExtent": 0.37144555759336917,
     "minimumBoom": 5.727128425310542,
     "peakFovStep": 0
   },
@@ -1155,10 +1155,10 @@
     "name": "H1 fast close ball crossing behind",
     "fps": 60,
     "aspect": 2.3333333333333335,
-    "peakTurn": 4.999999998932515,
-    "peakExtent": 0.9000000000000004,
+    "peakTurn": 4.999999999104267,
+    "peakExtent": 0.9000000000000005,
     "minimumBoom": 5.72712842531054,
-    "peakFovStep": 5.777653111901415
+    "peakFovStep": 5.787137596560669
   },
   {
     "name": "J continuous aerial air-roll",
@@ -1173,10 +1173,10 @@
     "name": "K aerial overhead crossing",
     "fps": 60,
     "aspect": 2.3333333333333335,
-    "peakTurn": 4.999998989534289,
-    "peakExtent": 0.8540519904413448,
+    "peakTurn": 4.999998984198131,
+    "peakExtent": 0.854204331112758,
     "minimumBoom": 5.727128425310542,
-    "peakFovStep": 0.38036005295533926
+    "peakFovStep": 0.4096340602842474
   },
   {
     "name": "L wall to aerial",
@@ -1257,7 +1257,7 @@
     "peakTurn": 4.1836024757941335,
     "peakExtent": 0.8868345606765462,
     "minimumBoom": 5.938228806035203,
-    "peakFovStep": 0.675941117520722
+    "peakFovStep": 0.6728818771169074
   },
   {
     "name": "E vertical wall",
@@ -1300,7 +1300,7 @@
     "fps": 144,
     "aspect": 1.7777777777777777,
     "peakTurn": 0.7595029525446362,
-    "peakExtent": 0.3627842534113653,
+    "peakExtent": 0.3724399613734008,
     "minimumBoom": 5.727128425310542,
     "peakFovStep": 0
   },
@@ -1308,10 +1308,10 @@
     "name": "H1 fast close ball crossing behind",
     "fps": 144,
     "aspect": 1.7777777777777777,
-    "peakTurn": 4.99999999999663,
-    "peakExtent": 0.9000000000000007,
+    "peakTurn": 4.999999999980053,
+    "peakExtent": 0.9000000000000006,
     "minimumBoom": 5.727128425310541,
-    "peakFovStep": 4.704271153639269
+    "peakFovStep": 4.685112845954322
   },
   {
     "name": "J continuous aerial air-roll",
@@ -1326,10 +1326,10 @@
     "name": "K aerial overhead crossing",
     "fps": 144,
     "aspect": 1.7777777777777777,
-    "peakTurn": 4.999999823205918,
-    "peakExtent": 0.8557434842839488,
+    "peakTurn": 4.999999822467348,
+    "peakExtent": 0.8557818589841125,
     "minimumBoom": 5.727128425310542,
-    "peakFovStep": 0.16918257333367137
+    "peakFovStep": 0.18139620532582512
   },
   {
     "name": "L wall to aerial",
@@ -1453,7 +1453,7 @@
     "fps": 144,
     "aspect": 1.3333333333333333,
     "peakTurn": 0.7595029525446362,
-    "peakExtent": 0.3627842534113653,
+    "peakExtent": 0.3724399613734008,
     "minimumBoom": 5.727128425310542,
     "peakFovStep": 0
   },
@@ -1461,10 +1461,10 @@
     "name": "H1 fast close ball crossing behind",
     "fps": 144,
     "aspect": 1.3333333333333333,
-    "peakTurn": 4.9999999999984714,
-    "peakExtent": 0.9000000000000008,
+    "peakTurn": 4.999999999978211,
+    "peakExtent": 0.900000000000001,
     "minimumBoom": 5.727128425310541,
-    "peakFovStep": 5.311365907974434
+    "peakFovStep": 5.290804180262015
   },
   {
     "name": "J continuous aerial air-roll",
@@ -1479,10 +1479,10 @@
     "name": "K aerial overhead crossing",
     "fps": 144,
     "aspect": 1.3333333333333333,
-    "peakTurn": 4.999999823205918,
-    "peakExtent": 0.8557434842839488,
+    "peakTurn": 4.999999822467348,
+    "peakExtent": 0.8557818589841125,
     "minimumBoom": 5.727128425310542,
-    "peakFovStep": 0.16918257333367137
+    "peakFovStep": 0.18139620532582512
   },
   {
     "name": "L wall to aerial",
@@ -1491,7 +1491,7 @@
     "peakTurn": 3.1225413923876366,
     "peakExtent": 0.850000000000001,
     "minimumBoom": 5.799016877251499,
-    "peakFovStep": 0.35888910163386356
+    "peakFovStep": 0.35944485943993243
   },
   {
     "name": "M wall to floor",
@@ -1543,7 +1543,7 @@
     "fps": 144,
     "aspect": 0.5625,
     "peakTurn": 2.0000000000117377,
-    "peakExtent": 0.5217266895410931,
+    "peakExtent": 0.5265397078878574,
     "minimumBoom": 7.336968795838723,
     "peakFovStep": 0
   },
@@ -1606,7 +1606,7 @@
     "fps": 144,
     "aspect": 0.5625,
     "peakTurn": 0.5498055033772824,
-    "peakExtent": 0.4699088310747444,
+    "peakExtent": 0.48340667711992086,
     "minimumBoom": 7.336968795838723,
     "peakFovStep": 0
   },
@@ -1614,10 +1614,10 @@
     "name": "H1 fast close ball crossing behind",
     "fps": 144,
     "aspect": 0.5625,
-    "peakTurn": 8.888885289740962,
-    "peakExtent": 0.9000000000000008,
+    "peakTurn": 8.888885104513996,
+    "peakExtent": 0.9000000000000009,
     "minimumBoom": 7.336968795838721,
-    "peakFovStep": 4.721340616909515
+    "peakFovStep": 4.694443387503426
   },
   {
     "name": "J continuous aerial air-roll",
@@ -1635,7 +1635,7 @@
     "peakTurn": 5.601672323941724,
     "peakExtent": 0.9000000000000004,
     "minimumBoom": 7.336968795838723,
-    "peakFovStep": 1.7186398396332407
+    "peakFovStep": 1.770633599487553
   },
   {
     "name": "L wall to aerial",
@@ -1644,7 +1644,7 @@
     "peakTurn": 3.0263417172423375,
     "peakExtent": 0.8499999998202343,
     "minimumBoom": 7.436677483067421,
-    "peakFovStep": 0.6671547550297277
+    "peakFovStep": 0.6703759373255167
   },
   {
     "name": "M wall to floor",
@@ -1678,7 +1678,7 @@
     "fps": 144,
     "aspect": 0.5625,
     "peakTurn": 1.439022087437547,
-    "peakExtent": 0.5831558511551679,
+    "peakExtent": 0.5875854753257065,
     "minimumBoom": 7.336968795838721,
     "peakFovStep": 0
   },
@@ -1716,7 +1716,7 @@
     "peakTurn": 4.1836024757941335,
     "peakExtent": 0.8868345606765462,
     "minimumBoom": 5.938228806035203,
-    "peakFovStep": 0.675941117520722
+    "peakFovStep": 0.6728818771169074
   },
   {
     "name": "E vertical wall",
@@ -1759,7 +1759,7 @@
     "fps": 144,
     "aspect": 2.3333333333333335,
     "peakTurn": 0.7595029525446362,
-    "peakExtent": 0.3627842534113653,
+    "peakExtent": 0.3724399613734008,
     "minimumBoom": 5.727128425310542,
     "peakFovStep": 0
   },
@@ -1767,10 +1767,10 @@
     "name": "H1 fast close ball crossing behind",
     "fps": 144,
     "aspect": 2.3333333333333335,
-    "peakTurn": 4.999999999989263,
-    "peakExtent": 0.9000000000000008,
+    "peakTurn": 4.999999999981895,
+    "peakExtent": 0.9000000000000006,
     "minimumBoom": 5.727128425310541,
-    "peakFovStep": 3.607889198052874
+    "peakFovStep": 3.673659051961124
   },
   {
     "name": "J continuous aerial air-roll",
@@ -1785,10 +1785,10 @@
     "name": "K aerial overhead crossing",
     "fps": 144,
     "aspect": 2.3333333333333335,
-    "peakTurn": 4.999999823205918,
-    "peakExtent": 0.8557434842839488,
+    "peakTurn": 4.999999822467348,
+    "peakExtent": 0.8557818589841125,
     "minimumBoom": 5.727128425310542,
-    "peakFovStep": 0.16918257333367137
+    "peakFovStep": 0.18139620532582512
   },
   {
     "name": "L wall to aerial",

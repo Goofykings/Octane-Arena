@@ -1,12 +1,13 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { randomBytes, randomInt, randomUUID } from "node:crypto";
+import { presetSchema } from "../../shared/accounts.js";
 import {
-  presetSchema,
-  titles,
-  type AccountData,
-} from "../../shared/accounts.js";
+  localIdentitySchema,
+  defaultAvatarColor,
+} from "../../shared/local-profile.js";
 import {
   partyAlphabet,
+  partyMaxPlayers,
   partyModes,
   teamCapacity,
   normalizePartyCode,
@@ -20,20 +21,34 @@ import { starter } from "../../shared/catalog.js";
 import type { ServerConfig } from "./config.js";
 import { NetworkMatches } from "./network.js";
 import { initializeMatchPhysics } from "./network-match.js";
+import { chooseMatchArena, type ArenaId } from "../../shared/arenas";
+import { rtcSignalSchema, type RtcEnvelope } from "../../shared/rtc";
+import { iceConfiguration } from "./rtc-config";
 type Player = {
   member: PartyMember;
   code: string | null;
   seen: number;
   notice: string;
+  signals: RtcEnvelope[];
+  signalSequence: number;
 };
 export async function registerParties(
   app: FastifyInstance,
   config: ServerConfig,
-  account: (req: FastifyRequest) => AccountData | null,
 ) {
   await initializeMatchPhysics();
   const players = new Map<string, Player>(),
     parties = new Map<string, PartyState>();
+  let previousRtcArena: ArenaId | undefined;
+  const endRtc = (party: PartyState, notice = "") => {
+    party.stage = "teams";
+    delete party.matchId;
+    delete party.matchArenaId;
+    delete party.matchHostId;
+    delete party.matchFinished;
+    for (const p of players.values())
+      if (p.code === party.code) p.notice = notice;
+  };
   const cookieName = config.production ? "__Host-oa_party" : "oa_party";
   const matches = new NetworkMatches(
     app,
@@ -74,6 +89,9 @@ export async function registerParties(
   const leave = (p: Player) => {
     if (p.code) matches.stop(p.code, "PLAYER LEFT — MATCH ENDED");
     const party = p.code ? parties.get(p.code) : null;
+    if (party?.transport === "webrtc" && party.stage === "match")
+      endRtc(party, "PLAYER LEFT — MATCH ENDED");
+    p.signals = [];
     p.code = null;
     p.member.ready = false;
     p.member.team = null;
@@ -102,22 +120,20 @@ export async function registerParties(
   const refresh = (p: Player, req: FastifyRequest, preset: unknown) => {
     const parsed = presetSchema.safeParse(preset);
     if (!parsed.success) return fail(400, "INVALID CAR PRESET");
-    const a = account(req);
-    if (a)
-      for (const key of [
-        "body",
-        "wheels",
-        "boost",
-        "topper",
-        "decal",
-        "explosion",
-      ] as const)
-        if (!a.owned[key]?.includes(parsed.data[key]))
-          return fail(403, "COSMETIC NOT OWNED");
+    const raw = (req.body as { profile?: unknown })?.profile;
+    const identity =
+      raw === undefined ? null : localIdentitySchema.safeParse(raw);
+    if (identity && !identity.success)
+      return fail(400, "INVALID LOCAL PROFILE");
+    if (
+      identity?.success &&
+      p.member.localPlayerId &&
+      p.member.localPlayerId !== identity.data.localPlayerId
+    )
+      return fail(409, "LOCAL ID CANNOT CHANGE DURING A SESSION");
     Object.assign(p.member, {
-      name: a?.username ?? "Guest",
-      title: titles.find((t) => t.id === a?.titleId)?.name ?? "Rookie",
-      avatarId: a?.avatarId ?? "helmet",
+      ...(identity?.success ? identity.data : {}),
+      title: "Rookie",
       preset: parsed.data,
     });
   };
@@ -144,6 +160,7 @@ export async function registerParties(
             name: "Guest",
             title: "Rookie",
             avatarId: "helmet",
+            avatarColor: defaultAvatarColor,
             preset: starter(),
             team: null,
             ready: false,
@@ -151,6 +168,8 @@ export async function registerParties(
           code: null,
           seen: Date.now(),
           notice: "",
+          signals: [],
+          signalSequence: 0,
         };
         players.set(token!, p);
       }
@@ -168,6 +187,84 @@ export async function registerParties(
     },
   );
   app.get("/api/party", async (req) => state(get(req)));
+  app.get("/api/party/rtc-config", async (req) =>
+    iceConfiguration(config, get(req).member.id),
+  );
+  app.post(
+    "/api/party/signal",
+    { config: { rateLimit: { max: 120, timeWindow: "1 minute" } } },
+    async (req) => {
+      const sender = get(req),
+        party = sender.code ? parties.get(sender.code) : null;
+      const parsed = rtcSignalSchema.safeParse(req.body);
+      if (!parsed.success) return fail(400, "INVALID CONNECTION MESSAGE");
+      if (!party || party.transport !== "webrtc")
+        return fail(409, "JOIN A WEBRTC PARTY FIRST");
+      const signal = parsed.data;
+      const recipient = Array.from(players.values()).find(
+        (p) => p.member.id === signal.to && p.code === sender.code,
+      );
+      if (!recipient || recipient === sender)
+        return fail(403, "PLAYER IS NOT IN YOUR PARTY");
+      if (
+        sender.member.id !== party.hostId &&
+        recipient.member.id !== party.hostId
+      )
+        return fail(403, "CONNECT THROUGH THE PARTY HOST");
+      if (
+        signal.data.kind === "description" &&
+        (signal.data.description.type === "offer") !==
+          (sender.member.id === party.hostId)
+      )
+        return fail(403, "INVALID CONNECTION ROLE");
+      recipient.signals = recipient.signals.filter(
+        (s) => s.expires > Date.now(),
+      );
+      if (recipient.signals.length >= 128)
+        return fail(429, "CONNECTION QUEUE FULL — RETRY");
+      recipient.signals.push({
+        ...signal,
+        from: sender.member.id,
+        code: party.code,
+        sequence: ++recipient.signalSequence,
+        expires: Date.now() + 60000,
+      });
+      return state(sender);
+    },
+  );
+  app.get("/api/party/signals", async (req) => {
+    const p = get(req),
+      after = Number((req.query as { after?: string }).after ?? 0);
+    if (!Number.isSafeInteger(after) || after < 0)
+      return fail(400, "INVALID CONNECTION CURSOR");
+    p.signals = p.signals.filter((s) => s.expires > Date.now());
+    return { signals: p.signals.filter((s) => s.sequence > after) };
+  });
+  app.post("/api/party/rtc-end", async (req) => {
+    const p = get(req),
+      party = p.code ? parties.get(p.code) : null;
+    const data = req.body as { matchId?: unknown; reason?: unknown };
+    if (
+      !party ||
+      party.transport !== "webrtc" ||
+      party.stage !== "match" ||
+      party.matchId !== data.matchId
+    )
+      return fail(409, "MATCH IS NO LONGER ACTIVE");
+    if (data.reason === "finished") {
+      if (party.matchHostId !== p.member.id)
+        return fail(403, "ONLY THE MATCH HOST CAN REPORT RESULTS");
+      party.matchFinished = true;
+    } else if (data.reason === "disconnect")
+      endRtc(party, "PLAYER CONNECTION LOST — MATCH ENDED");
+    else return fail(400, "INVALID MATCH RESULT");
+    return state(p);
+  });
+  // Renew presence without polling lobby snapshots while SSE is healthy.
+  app.post("/api/party/heartbeat", async (req, reply) => {
+    get(req);
+    return reply.code(204).send();
+  });
   // Server-sent lobby snapshots: updates arrive without waiting for the
   // recovery poll. Inputs and physics never travel on this channel.
   const streams = new Set<() => void>();
@@ -186,7 +283,8 @@ export async function registerParties(
     });
     reply.hijack();
     let previous = "",
-      heartbeat = 0;
+      heartbeat = 0,
+      signalCursor = 0;
     const publish = () => {
       // Only incoming client requests renew presence; a half-open stream must
       // not keep a disconnected player in the party forever.
@@ -199,6 +297,12 @@ export async function registerParties(
         reply.raw.write(`data: ${data}\n\n`);
         previous = data;
       } else if (++heartbeat % 40 === 0) reply.raw.write(": heartbeat\n\n");
+      p.signals = p.signals.filter((s) => s.expires > Date.now());
+      for (const signal of p.signals)
+        if (signal.sequence > signalCursor) {
+          reply.raw.write(`event: signal\ndata: ${JSON.stringify(signal)}\n\n`);
+          signalCursor = signal.sequence;
+        }
     };
     const interval = setInterval(publish, 100);
     const close = () => {
@@ -227,6 +331,9 @@ export async function registerParties(
     parties.set(code, {
       code,
       hostId: p.member.id,
+      maxPlayers: partyMaxPlayers,
+      transport:
+        config.matchTransport ?? (config.production ? "webrtc" : "server"),
       members: [p.member],
       mode: "1v1",
       stage: "home",
@@ -244,7 +351,8 @@ export async function registerParties(
     if (!party) return fail(404, "PARTY NOT FOUND");
     if (p.code === code) return state(p);
     if (party.stage === "match") return fail(409, "MATCH IN PROGRESS");
-    if (party.members.length >= 4) return fail(409, "PARTY FULL");
+    if (party.members.length >= party.maxPlayers)
+      return fail(409, "PARTY FULL");
     if (
       party.stage === "teams" &&
       party.mode !== "2v2" &&
@@ -381,9 +489,17 @@ export async function registerParties(
     )
       return fail(409, "FILL BOTH TEAMS BEFORE STARTING");
     try {
-      const game = matches.start(party);
+      if (party.transport === "webrtc") {
+        party.matchId = randomUUID();
+        party.matchHostId = party.hostId;
+        party.matchArenaId = chooseMatchArena(previousRtcArena);
+        previousRtcArena = party.matchArenaId;
+        party.matchFinished = false;
+      } else {
+        const game = matches.start(party);
+        party.matchId = game.id;
+      }
       party.stage = "match";
-      party.matchId = game.id;
       for (const member of players.values())
         if (member.code === party.code) member.notice = "";
     } catch {
@@ -396,6 +512,11 @@ export async function registerParties(
       party = p.code ? parties.get(p.code) : null;
     if (!party || party.hostId !== p.member.id)
       return fail(403, "ONLY THE HOST CAN RETURN EVERYONE");
+    if (party.transport === "webrtc") {
+      if (!party.matchFinished) return fail(409, "MATCH IS STILL PLAYING");
+      endRtc(party);
+      return state(p);
+    }
     if (matches.matches.get(party.code)?.match.phase !== "finished")
       return fail(409, "MATCH IS STILL PLAYING");
     matches.stop(party.code);

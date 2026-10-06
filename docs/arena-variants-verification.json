@@ -1,0 +1,196 @@
+[
+  {
+    "id": "city",
+    "environment": "environment-city",
+    "shared": true,
+    "pads": true,
+    "colors": 3,
+    "canvas": 512,
+    "environments": 1,
+    "props": 154,
+    "neutral": true,
+    "indicator": true,
+    "outline": 1518903,
+    "effectsFailed": false,
+    "floorSize": {
+      "width": 81.92,
+      "height": 120,
+      "widthSegments": 1,
+      "heightSegments": 1
+    },
+    "colliders": 10,
+    "trajectory": {
+      "position": {
+        "x": 7.667591571807861,
+        "y": 0.31019747257232666,
+        "z": 9.250564575195312
+      },
+      "rotation": {
+        "x": 0,
+        "y": -0.35830381512641907,
+        "z": 0,
+        "w": 0.9336050152778625
+      },
+      "velocity": {
+        "x": 13.688905715942383,
+        "y": 0,
+        "z": -15.849296569824219
+      }
+    },
+    "resourceCheck": {
+      "before": {
+        "geometries": 58,
+        "textures": 4
+      },
+      "after": {
+        "geometries": 58,
+        "textures": 4
+      }
+    }
+  },
+  {
+    "id": "beach",
+    "environment": "environment-beach",
+    "shared": true,
+    "pads": true,
+    "colors": 3,
+    "canvas": 512,
+    "environments": 1,
+    "props": true,
+    "neutral": true,
+    "indicator": true,
+    "outline": 1518903,
+    "effectsFailed": false,
+    "floorSize": {
+      "width": 81.92,
+      "height": 120,
+      "widthSegments": 1,
+      "heightSegments": 1
+    },
+    "colliders": 10,
+    "trajectory": {
+      "position": {
+        "x": 7.667591571807861,
+        "y": 0.31019747257232666,
+        "z": 9.250564575195312
+      },
+      "rotation": {
+        "x": 0,
+        "y": -0.35830381512641907,
+        "z": 0,
+        "w": 0.9336050152778625
+      },
+      "velocity": {
+        "x": 13.688905715942383,
+        "y": 0,
+        "z": -15.849296569824219
+      }
+    }
+  },
+  {
+    "id": "stadium",
+    "environment": "environment-stadium",
+    "shared": true,
+    "pads": true,
+    "colors": 3,
+    "canvas": 512,
+    "environments": 1,
+    "props": 1728,
+    "neutral": true,
+    "indicator": true,
+    "outline": 1518903,
+    "effectsFailed": false,
+    "floorSize": {
+      "width": 81.92,
+      "height": 120,
+      "widthSegments": 1,
+      "heightSegments": 1
+    },
+    "colliders": 10,
+    "trajectory": {
+      "position": {
+        "x": 7.667591571807861,
+        "y": 0.31019747257232666,
+        "z": 9.250564575195312
+      },
+      "rotation": {
+        "x": 0,
+        "y": -0.35830381512641907,
+        "z": 0,
+        "w": 0.9336050152778625
+      },
+      "velocity": {
+        "x": 13.688905715942383,
+        "y": 0,
+        "z": -15.849296569824219
+      }
+    }
+  },
+  {
+    "id": "circuit",
+    "environment": "environment-circuit",
+    "shared": true,
+    "pads": true,
+    "colors": 3,
+    "canvas": 512,
+    "environments": 1,
+    "props": 122,
+    "neutral": true,
+    "indicator": true,
+    "outline": 1518903,
+    "effectsFailed": false,
+    "floorSize": {
+      "width": 81.92,
+      "height": 120,
+      "widthSegments": 1,
+      "heightSegments": 1
+    },
+    "colliders": 10,
+    "fieldArt": {
+      "coverage": 0.1939824422200521,
+      "center": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "blue": [
+        88,
+        155,
+        200,
+        125
+      ],
+      "orange": [
+        206,
+        149,
+        92,
+        125
+      ],
+      "padClear": true,
+      "ramp": {
+        "blue": true,
+        "orange": true,
+        "fade": true
+      },
+      "visible": true
+    },
+    "trajectory": {
+      "position": {
+        "x": 7.667591571807861,
+        "y": 0.31019747257232666,
+        "z": 9.250564575195312
+      },
+      "rotation": {
+        "x": 0,
+        "y": -0.35830381512641907,
+        "z": 0,
+        "w": 0.9336050152778625
+      },
+      "velocity": {
+        "x": 13.688905715942383,
+        "y": 0,
+        "z": -15.849296569824219
+      }
+    }
+  }
+]

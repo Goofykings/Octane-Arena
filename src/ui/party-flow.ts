@@ -1,3 +1,4 @@
+import { displayIdentity } from "../../shared/local-profile";
 import type { PartyClient } from "../game/party";
 import { partyModes, teamCapacity, type PartyMode } from "../../shared/party";
 
@@ -131,7 +132,9 @@ export class PartyFlow {
           ? i === 0
             ? "CIRCUIT"
             : "RELAY"
-          : (m?.name ?? "OPEN SLOT");
+          : m
+            ? displayIdentity(m)
+            : "OPEN SLOT";
         tag.textContent = bots
           ? "BOT"
           : m?.id === p.playerId
@@ -157,7 +160,8 @@ export class PartyFlow {
     const waiting = s.members.filter((m) => m.team === null);
     this.dialog.querySelector<HTMLElement>("#party-unassigned")!.textContent =
       waiting.length
-        ? "CHOOSING A SIDE · " + waiting.map((m) => m.name).join(" · ")
+        ? "CHOOSING A SIDE · " +
+          waiting.map((m) => displayIdentity(m)).join(" · ")
         : "";
     this.dialog.querySelector<HTMLElement>("#party-flow-message")!.textContent =
       p.message;

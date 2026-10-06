@@ -1,3 +1,7 @@
+import {
+  displayIdentity,
+  defaultAvatarColor,
+} from "../../shared/local-profile";
 import { PartyClient } from "../game/party";
 import { icon } from "./icons";
 import { PartyFlow } from "./party-flow";
@@ -12,6 +16,12 @@ export class PartyPanel {
     this.host.setAttribute("aria-label", "Party");
     this.host.innerHTML = `<div class="party-top"><button id="party-code" title="Copy party code" hidden></button><div id="party-members" role="group" aria-label="Party members"></div><div id="party-actions" hidden><b></b><button id="party-kick">KICK</button><button id="party-dismiss" aria-label="Close player actions">×</button></div></div><div class="party-controls"><button id="party-create" class="party-button">CREATE PARTY</button><button id="party-join-open" class="party-button">JOIN PARTY</button><form id="party-join" hidden><input id="party-input" aria-label="Party code" placeholder="ENTER CODE" maxlength="6" autocomplete="off" spellcheck="false"><button class="party-button" type="submit">JOIN</button><button class="party-button" type="button" id="party-cancel">CANCEL</button></form><button id="party-leave" class="party-button" hidden>LEAVE PARTY</button></div><div id="party-message" role="status" aria-live="polite"></div>`;
     document.getElementById("app")!.append(this.host);
+    const retry = document.createElement("button");
+    retry.id = "party-retry";
+    retry.className = "party-button";
+    retry.textContent = "RETRY CONNECTION";
+    retry.onclick = () => void party.retry();
+    this.host.querySelector(".party-controls")!.append(retry);
     this.flow = new PartyFlow(party);
     const start = document.createElement("button");
     start.id = "party-start";
@@ -99,6 +109,7 @@ export class PartyPanel {
     get("party-code").hidden = !s;
     get("party-code").textContent = s ? `PARTY  ${s.code}` : "";
     get("party-message").textContent = p.message;
+    get("party-retry").hidden = p.connection !== "offline" || !p.message;
     const start = get("party-start") as HTMLButtonElement;
     start.hidden = !s;
     start.disabled = p.busy || s?.hostId !== p.playerId;
@@ -109,7 +120,14 @@ export class PartyPanel {
     this.flow.render();
     const strip = get("party-members"),
       signature = JSON.stringify([
-        s?.members.map((m) => [m.id, m.name, m.avatarId, m.team, m.ready]),
+        s?.members.map((m) => [
+          m.id,
+          m.name,
+          m.avatarId,
+          m.avatarColor,
+          m.team,
+          m.ready,
+        ]),
         s?.hostId,
         this.selected,
       ]);
@@ -122,7 +140,8 @@ export class PartyPanel {
         b.className = "party-avatar";
         b.dataset.player = m.id;
         b.dataset.team = String(m.team);
-        b.title = `${m.name} · ${m.team === null ? "Unassigned" : m.team === 0 ? "Blue" : "Orange"}`;
+        b.style.color = m.avatarColor ?? defaultAvatarColor;
+        b.title = `${displayIdentity(m)} · ${m.team === null ? "Unassigned" : m.team === 0 ? "Blue" : "Orange"}`;
         b.setAttribute(
           "aria-label",
           b.title + (m.id === s.hostId ? " — Party leader" : ""),
@@ -144,7 +163,9 @@ export class PartyPanel {
     const member = s?.members.find((m) => m.id === this.selected);
     if (!member) this.selected = null;
     get("party-actions").hidden = !member;
-    get("party-actions").querySelector("b")!.textContent = member?.name ?? "";
+    get("party-actions").querySelector("b")!.textContent = member
+      ? displayIdentity(member)
+      : "";
     get("party-kick").hidden =
       !member || s?.hostId !== p.playerId || member.id === p.playerId;
     for (const b of this.host.querySelectorAll<HTMLButtonElement>(

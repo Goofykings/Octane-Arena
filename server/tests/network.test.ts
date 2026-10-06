@@ -6,6 +6,7 @@ import { NetworkMatch, initializeMatchPhysics } from "../src/network-match.js";
 import { starter } from "../../shared/catalog";
 import { neutralInput } from "../../shared/player";
 import type { MatchSnapshot, NetPlayer } from "../../shared/network";
+import { isArenaId } from "../../shared/arenas";
 
 test("server-owned physics, pads, goals, reset, clock and bots", async () => {
   await initializeMatchPhysics();
@@ -44,6 +45,7 @@ test("server-owned physics, pads, goals, reset, clock and bots", async () => {
     game.disconnect("p0");
     for (let i = 1; i < 360; i++) game.step(0);
     assert.equal(game.match.phase, "playing");
+    game.connected("p0");
     assert.ok(
       game.accept("p0", 1, { ...neutralInput(), throttle: 1, boost: true }, 0),
     );
@@ -118,6 +120,9 @@ test("server-owned physics, pads, goals, reset, clock and bots", async () => {
     const reset = game.match.resetSequence;
     for (let i = 0; i < 600 && game.match.phase === "goal"; i++)
       game.step(1000 + i);
+    assert.equal(game.match.phase, "replay");
+    assert.ok(game.skipReplay("p0", game.match.replay!.clip.goal.id));
+    assert.ok(game.skipReplay("p1", game.match.replay!.clip.goal.id));
     assert.ok(game.match.resetSequence > reset);
     assert.equal(game.match.phase, "countdown");
     game.match.phase = "playing";
@@ -130,7 +135,7 @@ test("server-owned physics, pads, goals, reset, clock and bots", async () => {
   }
 });
 
-test("snapshots publish each real normal-jump visual event and clear it at kickoff", async () => {
+test("snapshots publish double-jump visuals, skip first jumps and clear at kickoff", async () => {
   await initializeMatchPhysics();
   const game = new NetworkMatch([
     {
@@ -146,6 +151,9 @@ test("snapshots publish each real normal-jump visual event and clear it at kicko
       neutral = neutralInput();
     car.reset(0, 15, 0);
     for (let i = 0; i < 60; i++) game.simulation.step([neutral]);
+    game.simulation.step([{ ...neutral, jump: true }]);
+    assert.equal(game.snapshot().cars[0].normalJump?.sequence, 0);
+    game.simulation.step([neutral]);
     game.simulation.step([{ ...neutral, jump: true }]);
     const event = JSON.parse(JSON.stringify(game.snapshot())).cars[0]
       .normalJump;
@@ -233,6 +241,9 @@ test("authenticated sockets share a match, isolate inputs, and return on party l
     await new Promise((r) => setTimeout(r, 400));
     assert.ok(replies[0].length > 0 && replies[1].length > 0);
     assert.equal(replies[0][0].matchId, replies[1][0].matchId);
+    assert.ok(isArenaId(replies[0][0].arenaId));
+    assert.equal(replies[0][0].arenaId, replies[1][0].arenaId);
+    assert.ok(replies[0].every((s) => s.arenaId === replies[0][0].arenaId));
     const tick = replies[0][0].tick,
       other = replies[1].find((s) => s.tick === tick);
     assert.ok(other);

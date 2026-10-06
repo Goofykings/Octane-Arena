@@ -85,6 +85,7 @@ const fs = require("node:fs"),
     if (await page.locator("#leave-confirm").evaluate(d => d.open)) await page.locator("#leave-confirm-yes").click();
     await page.locator("#play").click();
     await page.locator("#freeplay-mode").click();
+    await page.locator("#freeplay-launch").click();
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.evaluate(() => {
       window.__arena.simulation.step = () => {};
@@ -133,6 +134,7 @@ const fs = require("node:fs"),
     await page.waitForFunction(() => window.__arena);
     await page.locator("#play").click();
     await page.locator("#freeplay-mode").click();
+    await page.locator("#freeplay-launch").click();
     assert.ok(
       await page.evaluate(() => {
         const { goalPlanes } = window.__arena;

@@ -8,16 +8,16 @@ export function backendEndpoints(
   config: BackendConfig,
   configuredUrl: string | undefined,
   pageOrigin: string,
-  development = false,
+  developmentUrl = "",
 ) {
   const address =
     config.lan === true
       ? pageOrigin
-      : configuredUrl ||
-        config.apiUrl ||
-        (development ? "http://127.0.0.1:8787" : "");
+      : configuredUrl || config.apiUrl || developmentUrl;
   if (!address) return { apiUrl: "", websocketUrl: "" };
   const url = new URL(address, pageOrigin);
+  if (new URL(pageOrigin).protocol === "https:" && url.protocol !== "https:")
+    throw new Error("Multiplayer requires an HTTPS backend address.");
   if (
     (url.protocol !== "https:" &&
       !(
@@ -51,6 +51,6 @@ export async function loadBackendEndpoints() {
     config ?? {},
     import.meta.env.VITE_API_URL,
     location.origin,
-    import.meta.env.DEV,
+    import.meta.env.DEV ? "http://127.0.0.1:8787" : "",
   );
 }

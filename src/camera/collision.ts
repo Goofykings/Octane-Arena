@@ -29,6 +29,7 @@ export class CameraClearance {
   private world!: RAPIER.World;
   private pivot = new T.Vector3();
   private length = 0;
+  private obstacles = arenaOnly;
 
   reset() {
     this.length = 0;
@@ -41,7 +42,9 @@ export class CameraClearance {
     reach: number,
     dt: number,
     first: boolean,
+    obstacles = arenaOnly,
   ) {
+    this.obstacles = obstacles;
     this.world = world;
     this.pivot.copy(pivot);
     Object.assign(this.ray.origin, pivot);
@@ -57,7 +60,7 @@ export class CameraClearance {
         undefined,
         undefined,
         undefined,
-        arenaOnly,
+        this.obstacles,
       );
       const weight = hit
         ? 1 - T.MathUtils.smoothstep(hit.timeOfImpact, 0.3, reach)
@@ -123,7 +126,7 @@ export class CameraClearance {
         undefined,
         undefined,
         undefined,
-        arenaOnly,
+        this.obstacles,
       );
       if (!hit) break;
       this.sum.copy(hit.normal);
@@ -156,7 +159,7 @@ export class CameraClearance {
       undefined,
       undefined,
       undefined,
-      arenaOnly,
+      this.obstacles,
     );
     const available = hit
       ? Math.max(0.05, hit.time_of_impact - 0.035)

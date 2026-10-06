@@ -1,5 +1,7 @@
 import type { Preset } from "./catalog.js";
+import type { ArenaId } from "./arenas.js";
 export const partyAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+export const partyMaxPlayers = 4;
 export const normalizePartyCode = (code: string) =>
   code.replace(/\s/g, "").toUpperCase();
 export const validPartyCode = (code: string) =>
@@ -16,9 +18,11 @@ export const teamCapacity = (mode: PartyMode, team: 0 | 1) =>
 export type PartyTeam = 0 | 1 | null;
 export interface PartyMember {
   id: string;
+  localPlayerId?: string;
   name: string;
   title: string;
   avatarId: string;
+  avatarColor?: string;
   preset: Preset;
   team: PartyTeam;
   ready: boolean;
@@ -26,10 +30,15 @@ export interface PartyMember {
 export interface PartyState {
   code: string;
   hostId: string;
+  maxPlayers: number;
   members: PartyMember[];
   mode: PartyMode;
   stage: PartyStage;
+  transport?: "server" | "webrtc";
   matchId?: string;
+  matchArenaId?: ArenaId;
+  matchHostId?: string;
+  matchFinished?: boolean;
 }
 export interface PartyReply {
   playerId: string;
@@ -49,4 +58,5 @@ export interface PartyActions {
   disconnect: Record<string, never>;
   launch: Record<string, never>;
   return: Record<string, never>;
+  "rtc-end": { matchId: string; reason: "finished" | "disconnect" };
 }

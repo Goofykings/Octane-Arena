@@ -13,7 +13,12 @@
     "format": "prettier --write src tests vite.config.ts index.html README.md docs/PHYSICS.md PLAN.md",
     "test:camera": "tsx tests/camera-stability.ts && tsx tests/framing.ts && tsx tests/camera-rig.ts && tsx tests/ramp-quality.ts",
     "test:energy-roof": "tsx tests/energy-roof.ts",
-    "test:graphics": "tsx tests/graphics-polish.ts"
+    "test:graphics": "tsx tests/graphics-polish.ts",
+    "test:edge-support": "tsx tests/edge-support.ts",
+    "test:rings": "tsx tests/rings.ts && tsx tests/rings-flight.ts",
+    "test:replay": "tsx tests/replay.ts",
+    "test:mouse-look": "tsx tests/mouse-look.ts",
+    "test:rtc": "tsx tests/rtc.ts && tsx --test server/tests/rtc.test.ts"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",

@@ -1,347 +1,167 @@
+﻿import type { Garage } from "./inventory";
+import type { Settings } from "./settings";
+import { LocalProfile, browserProfile } from "./local-profile";
 import {
-  avatars,
-  titles,
-  credentialsSchema,
-  saveSchema,
-  type AccountData,
-  type AccountSave,
-} from "../../shared/accounts";
-import type { Garage } from "./inventory";
-import type { Settings, Preferences } from "./settings";
+  displayIdentity,
+  avatarIds,
+  avatarColors,
+} from "../../shared/local-profile";
 import { icon } from "../ui/icons";
-import { loadBackendEndpoints } from "./backend";
+import { ExtraRecords } from "../extra/storage";
+import { createRingsCourse } from "../extra/course";
 
-class ApiError extends Error {
-  constructor(
-    message: string,
-    public status = 0,
-  ) {
-    super(message);
-  }
-}
+/** Browser-local identity. Garage/settings retain their existing independent saves. */
 export class Accounts {
-  account: AccountData | null = null;
-  private url = "";
-  private ready = false;
-  private status = "";
-  private pending = false;
-  private blocked = false;
-  private generation = 0;
-  private savedGeneration = 0;
-  private timer = 0;
-  private saving: Promise<void> | null = null;
-  private guest: {
-    presets: Garage["presets"];
-    selected: string;
-    profile: Garage["profile"];
-    settings: Preferences;
-  } | null = null;
+  readonly profile: LocalProfile = browserProfile();
   private dialog = document.querySelector<HTMLDialogElement>("#account")!;
-  private formMode: "login" | "register" = "login";
   constructor(
     private garage: Garage,
-    private settings: Settings,
+    _settings: Settings,
     private changed: () => void,
   ) {
-    document.getElementById("profile")!.onclick = () => {
-      this.render();
-      this.dialog.showModal();
-    };
-    window.addEventListener("beforeunload", (e) => {
-      if (this.account && this.generation !== this.savedGeneration) {
-        e.preventDefault();
-      }
+    this.apply();
+    document.getElementById("profile")!.onclick = () => this.open();
+    window.addEventListener("pagehide", () => this.profile.flush());
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) this.profile.flush();
     });
-    void this.initialize();
   }
-  private async initialize() {
-    try {
-      this.url = (await loadBackendEndpoints()).apiUrl;
-      if (this.url) {
-        try {
-          const { account } = await this.request<{ account: AccountData }>(
-            "/api/me",
-          );
-          this.load(account);
-        } catch (e) {
-          if (!(e instanceof ApiError && e.status === 401))
-            this.status = this.message(e);
-        }
-      }
-    } catch {
-      this.status = "Account configuration could not be loaded.";
-    }
-    this.ready = true;
-    if (this.dialog.open) this.render();
-  }
-  private async request<T>(
-    path: string,
-    method = "GET",
-    body?: unknown,
-  ): Promise<T> {
-    if (!this.url)
-      throw new ApiError(
-        "Accounts are not connected yet. You can keep playing as Guest.",
-      );
-    let response: Response;
-    try {
-      response = await fetch(this.url + path, {
-        method,
-        credentials: "include",
-        headers:
-          method === "GET"
-            ? {}
-            : { "Content-Type": "application/json", "X-Arena-Client": "1" },
-        body: body === undefined ? undefined : JSON.stringify(body),
-        signal: AbortSignal.timeout(12000),
-      });
-    } catch {
-      throw new ApiError(
-        "Account service is unavailable. Check your connection and try again.",
-      );
-    }
-    if (response.status === 204) return undefined as T;
-    const data = await response.json().catch(() => null);
-    if (!response.ok)
-      throw new ApiError(
-        data?.error?.message ?? "Account request failed. Please try again.",
-        response.status,
-      );
-    if (!data)
-      throw new ApiError("Account service returned an invalid response.");
-    return data as T;
-  }
-  private message(e: unknown) {
-    return e instanceof Error ? e.message : "Please try again.";
-  }
-  private preferences(value: Preferences) {
-    // Keep the binding object used by Input alive across account changes.
-    Object.assign(this.settings.value.camera, value.camera);
-    Object.assign(this.settings.value.audio, value.audio);
-    Object.assign(this.settings.value.bindings, value.bindings);
-    for (const k of [
-      "infiniteBoost",
-      "showHitboxes",
-      "quickChat",
-      "quality",
-    ] as const)
-      Object.assign(this.settings.value, { [k]: value[k] });
-  }
-  private load(account: AccountData) {
-    if (!this.guest)
-      this.guest = structuredClone({
-        presets: this.garage.presets,
-        selected: this.garage.selected,
-        profile: this.garage.profile,
-        settings: this.settings.value,
-      });
-    this.account = account;
-    this.garage.presets = structuredClone(account.presets);
-    this.garage.selected = account.selected;
-    this.preferences(account.settings);
-    this.garage.onSave = this.settings.onSave = () => this.schedule();
-    this.generation = this.savedGeneration = 0;
-    this.blocked = false;
-    this.status = "Saved";
-    this.profile();
+  private apply() {
+    Object.assign(this.garage.profile, {
+      name: this.profile.value.name,
+      avatarId: this.profile.value.avatarId,
+      avatarColor: this.profile.value.avatarColor,
+      localPlayerId: this.profile.value.localPlayerId,
+    });
     this.changed();
   }
-  private profile() {
-    const a = this.account;
-    if (a)
-      this.garage.profile = {
-        name: a.username,
-        title: titles.find((t) => t.id === a.titleId)?.name ?? "Rookie",
-        level: a.level,
-        xp: a.xp,
-        avatarId: a.avatarId,
-      };
-  }
-  private schedule() {
-    this.generation++;
-    if (!this.blocked) this.status = "Saving…";
-    clearTimeout(this.timer);
-    this.timer = window.setTimeout(
-      () => void this.flush().catch(() => {}),
-      550,
-    );
-    this.updateStatus();
-  }
-  private snapshot(): AccountSave {
-    const a = this.account!;
-    return structuredClone({
-      revision: a.revision,
-      presets: this.garage.presets,
-      selected: this.garage.selected,
-      settings: this.settings.value,
-      avatarId: a.avatarId,
-      titleId: a.titleId,
-    }) as AccountSave;
-  }
-  async flush(): Promise<void> {
-    clearTimeout(this.timer);
-    if (this.saving) {
-      await this.saving;
-      if (this.generation !== this.savedGeneration) return this.flush();
-      return;
-    }
-    if (!this.account || this.generation === this.savedGeneration) return;
-    if (this.blocked) throw new ApiError(this.status);
-    const generation = this.generation,
-      parsed = saveSchema.safeParse(this.snapshot());
-    if (!parsed.success) {
-      this.status =
-        "Some settings could not be saved. " + parsed.error.issues[0].message;
-      this.updateStatus();
-      throw new ApiError(this.status);
-    }
-    const snapshot = parsed.data;
-    this.saving = (async () => {
-      try {
-        const { account } = await this.request<{ account: AccountData }>(
-          "/api/me/save",
-          "PUT",
-          snapshot,
-        );
-        this.account!.revision = account.revision;
-        this.savedGeneration = generation;
-        this.status = "Saved";
-      } catch (e) {
-        this.blocked = e instanceof ApiError && e.status === 409;
-        this.status = this.message(e);
-        throw e;
-      } finally {
-        this.saving = null;
-        this.updateStatus();
-      }
-    })();
-    await this.saving;
-    if (this.generation !== this.savedGeneration) await this.flush();
-  }
-  private updateStatus() {
-    const node = this.dialog.querySelector("#account-status");
-    if (node) node.textContent = this.status;
-  }
-  private async action(work: () => Promise<void>) {
-    if (this.pending) return;
-    this.pending = true;
-    this.dialog
-      .querySelectorAll<HTMLButtonElement>("button")
-      .forEach((b) => (b.disabled = true));
-    try {
-      await work();
-    } catch (e) {
-      this.status = this.message(e);
-    } finally {
-      this.pending = false;
-      this.render();
-    }
+  open() {
+    this.render();
+    this.dialog.showModal();
   }
   private render() {
-    const a = this.account;
-    this.dialog.innerHTML = `<div class="dialog-heading"><h2>${a ? "PROFILE" : "ACCOUNT"}</h2><button class="icon-button" id="account-close" aria-label="Close account">×</button></div><div class="account-body">${a ? `<div class="account-identity"><div class="avatar">${icon(a.avatarId)}</div><div><h3 id="account-name"></h3><p>LEVEL ${a.level} · ${a.xp} XP</p></div></div><h3>AVATAR</h3><div class="avatar-grid">${avatars.map((v) => `<button data-avatar="${v.id}" aria-label="${v.name}" aria-pressed="${a.avatarId === v.id}">${icon(v.id)}</button>`).join("")}</div><h3>TITLE</h3><div class="title-grid">${titles.map((t) => `<button data-title="${t.id}" ${a.owned.title?.includes(t.id) ? "" : "disabled"} aria-pressed="${a.titleId === t.id}">${t.name}${t.level > 1 ? ` <small>LV ${t.level}</small>` : ""}</button>`).join("")}</div><div class="account-actions"><button id="account-retry" class="small-button">RETRY SAVE</button><button id="account-reload" class="small-button">LOAD CLOUD SAVE</button><button id="account-logout" class="small-button">LOG OUT</button></div><div id="reload-confirm" hidden><p>Replace unsaved changes with the latest cloud save?</p><button id="reload-yes" class="small-button">LOAD SAVE</button><button id="reload-no" class="small-button">CANCEL</button></div>` : `<nav class="settings-tabs"><button data-auth="login" aria-pressed="${this.formMode === "login"}">LOG IN</button><button data-auth="register" aria-pressed="${this.formMode === "register"}">CREATE ACCOUNT</button></nav><form id="account-form"><label for="username">USERNAME</label><input id="username" name="username" autocomplete="username" minlength="5" maxlength="20" pattern="[A-Za-z0-9_]+" required spellcheck="false"><label for="password">PASSWORD</label><input id="password" name="password" type="password" autocomplete="${this.formMode === "login" ? "current-password" : "new-password"}" minlength="8" maxlength="128" required>${this.formMode === "register" ? '<p class="field-note">Username: 5–20 letters, numbers or underscores. Password: 8–128 characters.</p>' : ""}<button class="nav-button primary" type="submit" ${this.ready && this.url ? "" : "disabled"}>${this.formMode === "login" ? "LOG IN" : "CREATE ACCOUNT"}</button></form><p class="field-note">${this.ready ? (this.url ? "Your Guest garage stays on this device." : "Accounts are not connected yet. Continue playing as Guest.") : "Connecting…"}</p>`}<p id="account-status" role="status"></p></div>`;
-    this.updateStatus();
-    this.dialog
-      .querySelector("#account-close")!
-      .addEventListener("click", () => this.dialog.close());
-    if (a) {
-      this.dialog.querySelector("#account-name")!.textContent = a.username;
-      this.dialog.querySelectorAll<HTMLButtonElement>("[data-avatar]").forEach(
-        (b) =>
-          (b.onclick = () => {
-            a.avatarId = b.dataset.avatar!;
-            this.profile();
-            this.changed();
-            this.schedule();
-            this.render();
-          }),
-      );
-      this.dialog.querySelectorAll<HTMLButtonElement>("[data-title]").forEach(
-        (b) =>
-          (b.onclick = () => {
-            a.titleId = b.dataset.title!;
-            this.profile();
-            this.changed();
-            this.schedule();
-            this.render();
-          }),
-      );
-      this.dialog
-        .querySelector("#account-retry")!
-        .addEventListener("click", () => void this.action(() => this.flush()));
-      this.dialog
-        .querySelector("#account-reload")!
-        .addEventListener("click", () => {
-          (this.dialog.querySelector("#reload-confirm") as HTMLElement).hidden =
-            false;
-        });
-      this.dialog
-        .querySelector("#reload-no")!
-        .addEventListener("click", () => this.render());
-      this.dialog.querySelector("#reload-yes")!.addEventListener(
-        "click",
-        () =>
-          void this.action(async () => {
-            clearTimeout(this.timer);
-            await this.saving?.catch(() => {});
-            this.load(
-              (await this.request<{ account: AccountData }>("/api/me")).account,
-            );
-          }),
-      );
-      this.dialog.querySelector("#account-logout")!.addEventListener(
-        "click",
-        () =>
-          void this.action(async () => {
-            await this.flush();
-            await this.request("/api/auth/logout", "POST", {});
-            this.account = null;
-            this.garage.onSave = this.settings.onSave = undefined;
-            const guest = this.guest!;
-            this.garage.presets = guest.presets;
-            this.garage.selected = guest.selected;
-            this.garage.profile = guest.profile;
-            this.preferences(guest.settings);
-            this.guest = null;
-            this.status = "Logged out";
-            this.changed();
-          }),
-      );
-    } else {
-      this.dialog.querySelectorAll<HTMLButtonElement>("[data-auth]").forEach(
-        (b) =>
-          (b.onclick = () => {
-            this.formMode = b.dataset.auth as typeof this.formMode;
-            this.status = "";
-            this.render();
-          }),
-      );
-      this.dialog.querySelector<HTMLFormElement>("#account-form")!.onsubmit = (
-        e,
-      ) => {
-        e.preventDefault();
-        const form = new FormData(e.currentTarget as HTMLFormElement);
-        const parsed = credentialsSchema.safeParse(Object.fromEntries(form));
-        if (!parsed.success) {
-          this.status = parsed.error.issues[0].message;
-          this.updateStatus();
-          return;
-        }
-        void this.action(async () => {
-          await this.request(`/api/auth/${this.formMode}`, "POST", parsed.data);
-          try {
-            this.load(
-              (await this.request<{ account: AccountData }>("/api/me")).account,
-            );
-          } catch (e) {
-            if (e instanceof ApiError && e.status === 401)
-              throw new ApiError(
-                "Your browser blocked the account cookie. Allow this site’s cookies and log in again.",
-              );
-            throw e;
-          }
-        });
+    let storage: Storage | undefined;
+    try {
+      storage = localStorage;
+    } catch {}
+    const rings = new ExtraRecords(createRingsCourse().id, storage).value;
+    const stats = this.profile.value.stats;
+    const entries = [
+      ["MATCHES COMPLETED", stats.matchesPlayed],
+      ["WINS", stats.wins],
+      ["LOSSES", stats.losses],
+      ["GOALS", stats.goals],
+      ["PLAY TIME", `${Math.floor(stats.playTime / 60)} MIN`],
+      ["RINGS BEST", `${rings.bestRings} / 40`],
+      [
+        "BEST RINGS TIME",
+        rings.bestTime === null
+          ? "—"
+          : `${Math.floor(rings.bestTime / 60)}:${(rings.bestTime % 60).toFixed(3).padStart(6, "0")}`,
+      ],
+    ];
+    this.dialog.innerHTML = `<div class="dialog-heading"><h2>PROFILE</h2><button class="icon-button" id="account-close" aria-label="Close profile">×</button></div><div class="account-body local-profile-body"><form id="profile-form"><div class="profile-fields"><button type="button" id="profile-avatar-edit" aria-label="Change profile picture" aria-expanded="false" aria-controls="profile-avatar-picker" title="Change profile picture"></button><label>NAME<input id="profile-edit-name" maxlength="20" required autocomplete="nickname"></label></div><section id="profile-avatar-picker" hidden aria-label="Profile picture options"><h3>ICON</h3><div class="avatar-grid" role="group" aria-label="Profile icons">${avatarIds.map((id) => `<button type="button" data-avatar="${id}" aria-label="${id}" title="${id}" aria-pressed="false">${icon(id)}</button>`).join("")}</div><h3>COLOR</h3><div class="avatar-color-grid" role="group" aria-label="Icon colors">${avatarColors.map((color) => `<button type="button" data-avatar-color="${color}" style="--swatch:${color}" aria-label="Icon color ${color}" aria-pressed="false"></button>`).join("")}<label class="avatar-custom-color" title="Choose any icon color"><input id="profile-avatar-color" type="color" aria-label="Custom icon color"><span>CUSTOM</span></label></div></section><h3>ACCOUNT STATS</h3><dl class="profile-stats">${entries.map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join("")}</dl><p class="field-note">Saved in this browser only. Clearing site data can erase your profile. It does not sync between devices.</p><p id="profile-status" role="status"></p><div class="account-actions"><button class="small-button" type="submit">SAVE</button><button class="small-button" type="button" id="profile-back">BACK</button><button class="small-button" type="button" id="profile-reset">RESET LOCAL PROFILE</button></div><div id="profile-reset-confirm" hidden><p>Reset your name, profile picture and local match stats? Garage, settings and Rings records are kept.</p><button class="small-button" type="button" id="profile-reset-yes">RESET</button><button class="small-button" type="button" id="profile-reset-no">CANCEL</button></div></form></div>`;
+    const name =
+      this.dialog.querySelector<HTMLInputElement>("#profile-edit-name")!;
+    name.value = this.profile.value.name;
+    const status = this.dialog.querySelector<HTMLElement>("#profile-status")!;
+    const preview = this.dialog.querySelector<HTMLButtonElement>(
+      "#profile-avatar-edit",
+    )!;
+    const picker = this.dialog.querySelector<HTMLElement>(
+      "#profile-avatar-picker",
+    )!;
+    const colorInput = this.dialog.querySelector<HTMLInputElement>(
+      "#profile-avatar-color",
+    )!;
+    const updateAvatar = () => {
+      const { avatarId, avatarColor } = this.profile.value;
+      preview.innerHTML = icon(avatarId);
+      preview.style.color = avatarColor;
+      colorInput.value = avatarColor;
+      for (const button of picker.querySelectorAll<HTMLButtonElement>(
+        "[data-avatar]",
+      )) {
+        button.style.color = avatarColor;
+        button.setAttribute(
+          "aria-pressed",
+          String(button.dataset.avatar === avatarId),
+        );
+      }
+      for (const button of picker.querySelectorAll<HTMLButtonElement>(
+        "[data-avatar-color]",
+      ))
+        button.setAttribute(
+          "aria-pressed",
+          String(button.dataset.avatarColor === avatarColor),
+        );
+    };
+    const saveAvatar = (avatarId: string, avatarColor: string) => {
+      this.profile.customize(this.profile.value.name, avatarId, avatarColor);
+      this.apply();
+      updateAvatar();
+      status.textContent = this.profile.persistent
+        ? "Saved"
+        : "Saved for this session only; browser storage is unavailable.";
+    };
+    preview.onclick = () => {
+      picker.hidden = !picker.hidden;
+      preview.setAttribute("aria-expanded", String(!picker.hidden));
+    };
+    for (const button of picker.querySelectorAll<HTMLButtonElement>(
+      "[data-avatar]",
+    ))
+      button.onclick = () =>
+        saveAvatar(button.dataset.avatar!, this.profile.value.avatarColor);
+    for (const button of picker.querySelectorAll<HTMLButtonElement>(
+      "[data-avatar-color]",
+    ))
+      button.onclick = () =>
+        saveAvatar(this.profile.value.avatarId, button.dataset.avatarColor!);
+    colorInput.onchange = () =>
+      saveAvatar(this.profile.value.avatarId, colorInput.value);
+    updateAvatar();
+    if (!this.profile.persistent)
+      status.textContent =
+        "Storage is unavailable. Changes will last for this session only.";
+    this.dialog.querySelector<HTMLFormElement>("#profile-form")!.onsubmit = (
+      e,
+    ) => {
+      e.preventDefault();
+      try {
+        this.profile.customize(name.value);
+        this.apply();
+        name.value = this.profile.value.name;
+        status.textContent = this.profile.persistent
+          ? "Saved"
+          : "Saved for this session only; browser storage is unavailable.";
+      } catch {
+        status.textContent = "Name: 1–20 characters, no control characters.";
+      }
+    };
+    for (const id of ["account-close", "profile-back"])
+      this.dialog.querySelector<HTMLButtonElement>("#" + id)!.onclick = () =>
+        this.dialog.close();
+    const confirm = this.dialog.querySelector<HTMLElement>(
+      "#profile-reset-confirm",
+    )!;
+    this.dialog.querySelector<HTMLButtonElement>("#profile-reset")!.onclick =
+      () => {
+        confirm.hidden = false;
       };
-    }
+    this.dialog.querySelector<HTMLButtonElement>("#profile-reset-no")!.onclick =
+      () => {
+        confirm.hidden = true;
+      };
+    this.dialog.querySelector<HTMLButtonElement>(
+      "#profile-reset-yes",
+    )!.onclick = () => {
+      this.profile.reset();
+      this.apply();
+      this.render();
+    };
+  }
+  get displayName() {
+    return displayIdentity(this.profile.value);
   }
 }

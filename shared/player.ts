@@ -14,6 +14,9 @@ export interface PlayerInput {
 export type TeamId = 0 | 1;
 export interface PlayerEntity {
   id: string;
+  localPlayerId?: string;
+  avatarId?: string;
+  avatarColor?: string;
   name: string;
   team: TeamId;
   controller: "local" | "bot" | "remote";

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { Group, PerspectiveCamera, Quaternion, Vector3 } from "three";
 import { Simulation } from "../src/physics/simulation";
@@ -295,6 +295,7 @@ try {
     "PASS real wall-to-floor and wall-jump aerial transitions in both directions at 30/60/144 FPS",
   );
 } finally {
+  mkdirSync(".tools", { recursive: true });
   writeFileSync(".tools/ramp-quality.json", JSON.stringify(results, null, 2));
   s.dispose();
 }

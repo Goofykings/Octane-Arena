@@ -113,7 +113,7 @@ for (const side of [-1, 1])
       triggered = false;
     for (let i = 0; i < 360; i++) {
       tick(s, { ...neutral(), throttle: 1 });
-      triggered ||= c.recovering;
+      triggered ||= c.edgeDriveForce.lengthSq() > 0;
       recovered ||= c.grounded && c.up.y > 0.8;
     }
     assert.ok(triggered && recovered);

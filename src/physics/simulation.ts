@@ -40,6 +40,10 @@ export class Simulation {
     age: number;
   }[] = [];
   lastTouchId: string | null = null;
+  lastTouchTime = -Infinity;
+  touchSequence = 0;
+  readonly touchEvents: { playerId: string; time: number }[] = [];
+  readonly players: PlayerEntity[];
   private velocities: Vector3[] = [];
   ballContacts: CarBallContact[];
   private relative: Vector3[] = [];
@@ -52,6 +56,7 @@ export class Simulation {
       { id: "bot", name: "Rival", team: 1, controller: "bot" },
     ],
   ) {
+    this.players = players;
     if (
       players.length < 1 ||
       players.length > 4 ||
@@ -106,6 +111,8 @@ export class Simulation {
       }
     this.demolitions = [];
     this.lastTouchId = null;
+    this.lastTouchTime = -Infinity;
+    this.touchEvents.length = 0;
     this.ballCollider.setCollisionGroups(0xffffffff);
     this.ball.setEnabled(true);
     for (const c of this.cars) {
@@ -154,6 +161,7 @@ export class Simulation {
   }
   step(inputs: Controls[] | ReadonlyMap<string, PlayerInput>, passive = false) {
     this.clock += P.dt;
+    this.touchEvents.length = 0;
     this.demolitions = this.demolitions.filter((e) => (e.age += P.dt) < 1);
     this.cars.forEach((c) => {
       if (c.demolitionState === "active") return;
@@ -218,7 +226,7 @@ export class Simulation {
         (c) => c.collider.handle === (a === this.ballCollider.handle ? b : a),
       );
       if (carIndex >= 0) {
-        this.lastTouchId = this.cars[carIndex].id;
+        this.recordTouch(this.cars[carIndex].id);
       } else {
         const speed = new Vector3()
           .subVectors(
@@ -255,7 +263,7 @@ export class Simulation {
             const point = new Vector3().copy(manifold.solverContactPoint(0));
             if (touched) return;
             touched = true;
-            this.lastTouchId = car.id;
+            this.recordTouch(car.id);
             response.resolve(car, this.ball, point, normal);
             if (response.impulse.lengthSq() > 0)
               this.hits.push({
@@ -383,6 +391,14 @@ export class Simulation {
       strength: closing,
       age: 0,
     });
+  }
+  private recordTouch(id: string) {
+    if (!this.touchEvents.some((event) => event.playerId === id))
+      this.touchEvents.push({ playerId: id, time: this.clock });
+    if (this.lastTouchId !== id || this.lastTouchTime !== this.clock)
+      this.touchSequence++;
+    this.lastTouchId = id;
+    this.lastTouchTime = this.clock;
   }
   dispose() {
     this.events.free();

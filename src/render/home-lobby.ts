@@ -1,6 +1,9 @@
+import { displayIdentity } from "../../shared/local-profile";
 import * as T from "three";
 import { carModel, disposeModel } from "./models";
 import type { PartyMember } from "../../shared/party";
+import { MouseOrbit, type MouseLook } from "../camera/mouse-look";
+import type { CameraWorld } from "../camera/camera";
 type Display = {
   model: T.Group;
   label: HTMLElement;
@@ -13,6 +16,9 @@ export class HomeLobby {
   group = new T.Group();
   private displays = new Map<string, Display>();
   private count = 1;
+  private basePosition = new T.Vector3();
+  private baseReady = false;
+  private mouseOrbit = new MouseOrbit();
   area = document.createElement("div");
   labels = document.createElement("div");
   constructor(scene: T.Scene) {
@@ -27,11 +33,20 @@ export class HomeLobby {
     dt: number,
     time: number,
     visible: boolean,
+    mouseLook?: MouseLook,
+    world?: CameraWorld,
   ) {
     this.group.visible = visible;
     this.area.hidden = !visible;
     this.labels.hidden = !visible;
-    if (!visible) return;
+    if (!visible) {
+      this.baseReady = false;
+      return;
+    }
+    if (!this.baseReady) {
+      this.basePosition.copy(camera.position);
+      this.baseReady = true;
+    }
     const narrow = innerWidth < 760,
       columns = narrow ? Math.min(2, members.length) : members.length,
       rows = Math.ceil(members.length / columns);
@@ -83,7 +98,7 @@ export class HomeLobby {
         0.31,
         14 + row * 2.3 + (rows === 1 && i % 2 ? 0.18 : 0),
       );
-      d.label.textContent = m.name;
+      d.label.textContent = displayIdentity(m);
       d.model.rotation.y = Math.PI + 0.38;
       d.leaving = false;
     });
@@ -105,7 +120,8 @@ export class HomeLobby {
         .add(
           new T.Vector3(Math.sin(time * 0.1) * 0.07, distance * 0.42, distance),
         );
-    camera.position.lerp(position, ease);
+    this.basePosition.lerp(position, ease);
+    camera.position.copy(this.basePosition);
     camera.up.set(0, 1, 0);
     camera.lookAt(target);
     camera.fov = fov;
@@ -119,6 +135,7 @@ export class HomeLobby {
     );
     camera.updateProjectionMatrix();
     camera.updateMatrixWorld(true);
+    this.mouseOrbit.apply(camera, target, mouseLook, dt, world, 0.3);
     for (const [id, d] of this.displays) {
       d.model.position.lerp(d.target, ease);
       d.opacity = T.MathUtils.lerp(d.opacity, d.leaving ? 0 : 1, ease);

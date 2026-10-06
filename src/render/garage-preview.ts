@@ -4,14 +4,18 @@ import type { Preset, Team } from "../game/inventory";
 import { VehicleEffects } from "../effects/vehicle-effects";
 import { Effects } from "../effects/effects";
 import { GoalExplosion } from "../effects/goal-explosion";
+import { MouseOrbit, type MouseLook } from "../camera/mouse-look";
 export class GaragePreview {
   scene = new T.Scene();
   camera = new T.PerspectiveCamera(37, 1, 0.05, 60);
   private car = new T.Group();
   private angle = -0.55;
-  private dragging = false;
-  private x = 0;
-  private pointer: number | null = null;
+  mouseLook?: MouseLook;
+  private mouseOrbit = new MouseOrbit();
+  private mouseFocus = new T.Vector3(0, 0.25, 0);
+  get dragging() {
+    return this.mouseLook?.dragging ?? false;
+  }
   private category = "body";
   private boostEffects: VehicleEffects | null = null;
   private particles = new Effects(this.scene);
@@ -58,36 +62,6 @@ export class GaragePreview {
     this.scene.add(this.car);
     this.camera.position.set(2.15, 1.5, 3.15);
     this.camera.lookAt(0, 0.25, 0);
-    host.addEventListener("pointerdown", (e) => {
-      if (
-        (e.target as HTMLElement).id !== "preview-drag" ||
-        e.button !== 0 ||
-        this.category === "explosion"
-      )
-        return;
-      this.stopDrag();
-      this.dragging = true;
-      this.pointer = e.pointerId;
-      this.x = e.clientX;
-      host.setPointerCapture(e.pointerId);
-    });
-    host.addEventListener("pointermove", (e) => {
-      if (this.dragging && e.pointerId === this.pointer) {
-        if (e.pointerType === "mouse" && e.buttons === 0) {
-          this.stopDrag();
-          return;
-        }
-        this.angle += (e.clientX - this.x) * 0.012;
-        this.x = e.clientX;
-      }
-    });
-    const end = (e: PointerEvent) => {
-      if (e.pointerId === this.pointer) this.stopDrag();
-    };
-    window.addEventListener("pointerup", end, true);
-    window.addEventListener("pointercancel", end, true);
-    host.addEventListener("lostpointercapture", end);
-    window.addEventListener("blur", () => this.stopDrag());
     host.addEventListener("preview-reset", () => this.stopDrag());
     host.addEventListener("preview-explosion", () => {
       this.setCategory("explosion");
@@ -97,9 +71,6 @@ export class GaragePreview {
       this.goalBall.visible = true;
       this.goalBall.position.set(0, 0.365, 2);
     });
-    new MutationObserver(() => {
-      if (host.hidden) this.stopDrag();
-    }).observe(host, { attributes: true, attributeFilter: ["hidden"] });
     this.goalScene.background = new T.Color(0x101e2e);
     this.goalScene.add(new T.HemisphereLight(0xd5f4ff, 0x354c43, 3));
     const field = new T.Mesh(new T.PlaneGeometry(10, 14), material(0x1b514b));
@@ -135,11 +106,7 @@ export class GaragePreview {
     this.goalScene.add(this.goalBall);
   }
   stopDrag() {
-    const pointer = this.pointer;
-    this.pointer = null;
-    this.dragging = false;
-    if (pointer !== null && this.host.hasPointerCapture(pointer))
-      this.host.releasePointerCapture(pointer);
+    this.mouseLook?.end();
   }
   setCategory(category: string) {
     if (category === this.category) return;
@@ -204,5 +171,14 @@ export class GaragePreview {
     this.camera.aspect = width / height;
     this.camera.setViewOffset(width, height, -width * 0.2, 0, width, height);
     this.camera.updateProjectionMatrix();
+    if (category !== "explosion")
+      this.mouseOrbit.apply(
+        this.camera,
+        this.mouseFocus,
+        this.mouseLook,
+        dt,
+        undefined,
+        0.16,
+      );
   }
 }

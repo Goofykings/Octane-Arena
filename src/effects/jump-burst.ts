@@ -2,7 +2,7 @@ import * as T from "three";
 import type { Car } from "../car/car";
 import { MotionTrails } from "./motion-trails";
 
-/** One small pressure ring and two short white streaks per real first jump. */
+/** One small pressure ring and two short white streaks per real double jump. */
 export class JumpBurst {
   readonly ring = new T.Mesh(
     new T.RingGeometry(0.055, 0.085, 16),

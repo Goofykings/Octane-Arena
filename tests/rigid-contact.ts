@@ -257,7 +257,18 @@ for (const sideways of [false, true])
         touched && minHeight > 0.3 && maxRebound < 0.05,
         `landing ${minHeight}/${maxRebound}`,
       );
-      if (sideways) assert.ok(c.body.linvel().x > 4);
+      if (sideways) {
+        // The user-adjustable minimum handbrake grip controls coast-down.
+        // A fixed >4 m/s expectation assumed the original 0.006 tuning.
+        const minimum =
+          12 *
+          Math.exp(-P.car.grip * P.powerslide.minimumLateralGrip * 480 * P.dt) *
+          0.9;
+        assert.ok(
+          c.body.linvel().x > minimum,
+          "normal correction killed tangential powerslide velocity",
+        );
+      }
       s.dispose();
       return { minHeight, maxRebound };
     },

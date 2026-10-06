@@ -191,6 +191,7 @@ const os = require("node:os");
     await host.bringToFront();
     await host.locator("#play").click();
     await host.locator("#freeplay-mode").click();
+    await host.locator("#freeplay-launch").click();
     await host.waitForFunction(
       () =>
         window.__arena.match.mode === "freeplay" &&

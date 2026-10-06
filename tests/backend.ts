@@ -40,7 +40,12 @@ assert.equal(
   "",
 );
 assert.equal(
-  backendEndpoints({}, undefined, "http://localhost:5173", true).apiUrl,
+  backendEndpoints(
+    {},
+    undefined,
+    "http://localhost:5173",
+    "http://127.0.0.1:8787",
+  ).apiUrl,
   "http://127.0.0.1:8787",
 );
 assert.throws(() =>
@@ -50,6 +55,17 @@ assert.throws(() =>
     "https://user.github.io",
   ),
 );
+for (const address of [
+  "http://localhost:8787",
+  "http://127.0.0.1:8787",
+  "http://192.168.1.5:8090",
+  "ws://api.example",
+  "https://api.example?token=secret",
+]) {
+  assert.throws(() =>
+    backendEndpoints({}, address, "https://goofykings.github.io"),
+  );
+}
 console.log(
   "PASS LAN page-origin precedence, host/port preservation, WebSocket scheme, deployment override and Guest defaults",
 );

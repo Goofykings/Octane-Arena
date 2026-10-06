@@ -262,6 +262,14 @@ try {
   }
   const reset = game.match.resetSequence;
   while (game.match.phase === "goal") game.step(0);
+  assert.equal(game.match.phase, "replay");
+  assert.ok(game.skipReplay(car.id, game.match.replay!.clip.goal.id));
+  assert.equal(
+    game.match.phase,
+    "replay",
+    "The other connected human still needs to vote",
+  );
+  assert.ok(game.skipReplay("b", game.match.replay!.clip.goal.id));
   assert.equal(game.match.phase, "countdown");
   assert.ok(game.match.resetSequence > reset);
   assert.equal(car.boost, 33);

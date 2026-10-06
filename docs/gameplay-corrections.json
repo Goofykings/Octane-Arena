@@ -104,8 +104,8 @@
     "pass": true,
     "data": {
       "supported": 90,
-      "maxPitch": 0.010899347786244922,
-      "speed": 8.325314468160695
+      "maxPitch": 0.00424882267877799,
+      "speed": 8.325314514163423
     }
   },
   {
@@ -164,18 +164,18 @@
     "name": "ion training placement follows orientation and clears the collider",
     "pass": true,
     "data": [
-      2.070343349883097e-7,
-      1.1725001487245093,
-      -0.35400010279820615
+      -9.274680456278217e-8,
+      1.209999852041075,
+      -0.3539999883892786
     ]
   },
   {
     "name": "vector training placement follows orientation and clears the collider",
     "pass": true,
     "data": [
-      1.4718121443824117e-9,
-      1.3324999722694448,
-      -0.39599999655749796
+      -8.404855466465078e-8,
+      1.370000098488077,
+      -0.3959999333329836
     ]
   },
   {

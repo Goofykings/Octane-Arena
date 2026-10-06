@@ -11,7 +11,7 @@ export const P = {
   maxSteps: 12,
   gravity: 650 * UU,
   car: {
-    mass: 180,
+    mass: 150,
     halfWidth: 42 * UU,
     halfHeight: 18 * UU,
     halfLength: 59 * UU,
@@ -56,7 +56,8 @@ export const P = {
     contactRelease: 0.025,
     airControlBlend: 0.04,
     recoveryCooldown: 0.8,
-    stuckTime: 0.35,
+    edgeRecoverySpeed: 2, // Slow wheel-shoulder contact only; never normal cornering.
+    edgeDriveGrip: 0.65, // Maximum driven sidewall friction as a fraction of static load.
   },
   powerslide: {
     // RocketSim handbrake rates / friction curves; our contact-force mapping is original.
@@ -64,16 +65,16 @@ export const P = {
     fall: 2,
     lateralAtForward: 0.1,
     lateralAtSideways: 0,
-    minimumLateralGrip: 0.006,
+    minimumLateralGrip: 0.030,
     longitudinalAtForward: 0.5,
     longitudinalAtSideways: 1,
     slipGripFalloff: 0.8,
-    coastDrag: 0.18, // Supported, unpowered drift keeps rolling resistance.
+    coastDrag: 0.25, // Supported, unpowered drift keeps rolling resistance.
     lowSpeedSteer: 0.39235,
     highSpeedSteer: 0.1261,
     steerCurveEnd: 25,
     yawResponse: 14,
-    rotationScale: 0.65, // Gentler powerslide rotation; normal steering is unchanged.
+    rotationScale: 0.6, // Gentler powerslide rotation; normal steering is unchanged.
     partialContactScale: 0.5,
   },
   jump: {
@@ -97,9 +98,10 @@ export const P = {
     cancelDamping: 4, // Pitch-only braking rate (1/s), preserving existing momentum.
   },
   ball: {
-    radius: 91.25 * UU,
+    // radius: 91.25 * UU,
+    radius: 95 * UU,
     // Heavier, calmer ball for Octane Arena's standard mode (original tuning).
-    mass: 42,
+    mass: 50,
     restitution: 0.48,
     friction: 0.28,
     drag: 0.08,

@@ -52,6 +52,7 @@ const fs = require("node:fs"),
     await page.waitForFunction(() => window.__arena);
     await page.locator("#play").click();
     await page.locator("#freeplay-mode").click();
+    await page.locator("#freeplay-launch").click();
     await page.waitForFunction(() => window.__arena.match.phase === "playing");
     await page.evaluate(() => {
       const c = window.__arena.simulation.cars[0];

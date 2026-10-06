@@ -12,7 +12,7 @@ const path = require("node:path");
       return res.end();
     }
     const relative = decodeURIComponent(req.url.split("?")[0]).replace(
-      /^\/repository\//,
+      /^\/(?:repository|Octane-Arena)\//,
       "",
     );
     const file = path.resolve(root, relative === "" ? "index.html" : relative);
@@ -216,9 +216,10 @@ const path = require("node:path");
     await page.locator("#play").click();
     await page.waitForTimeout(300);
     assert(
-      (await page.locator(".mode-card:disabled").count()) === 1 &&
+        (await page.locator("#modes .mode-card:disabled").count()) === 0 &&
+          (await page.locator("#extra-mode").isEnabled()) &&
         (await page.locator("#friend-mode").isEnabled()),
-      "Friend matches are enabled; only ranked remains disabled",
+      "Friend matches and Extra Modes are enabled; Ranked is replaced",
     );
     await page.screenshot({ path: "docs/modes.png" });
     await page.locator("#bot-mode").click();
@@ -357,10 +358,14 @@ const path = require("node:path");
         const a = window.__arena;
         const c = a.simulation.cars[0].collider,
           m = a.hitboxes.group.children[0],
-          h = c.halfExtents();
+          vertices = c.vertices(),
+          halfLength = Math.max(
+            ...Array.from(vertices).filter((_, i) => i % 3 === 2),
+          );
+        m.geometry.computeBoundingBox();
         return (
           m.position.distanceTo(c.translation()) < 0.001 &&
-          Math.abs(m.scale.z - h.z) < 0.0001
+          Math.abs(m.geometry.boundingBox.max.z - halfLength) < 0.0001
         );
       }),
       "Hitbox overlay follows actual collider dimensions and position",
@@ -455,6 +460,7 @@ const path = require("node:path");
     await page.locator("#close-settings").click();
     await page.locator("#play").click();
     await page.locator("#freeplay-mode").click();
+    await page.locator("#freeplay-launch").click();
     assert(
       await page.evaluate(
         () =>

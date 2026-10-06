@@ -5,6 +5,29 @@ import { P } from "../config/physics";
 export const wheelRadius = 0.18;
 export const wheelHalfWidth = 0.0575;
 export const wheelMountY = -0.12;
+/** Round only the sidewall/shoulder. Ordinary tread contacts retain the existing
+ * rigid cylinder envelope and ramp clearance exactly. */
+function roundedWheelOffset(axle: Vector3, normal: Vector3) {
+  const axial = axle.dot(normal),
+    radial = normal.clone().addScaledVector(axle, -axial);
+  const radialLength = radial.length();
+  if (radialLength > 1e-8) radial.multiplyScalar(1 / radialLength);
+  const blend = Math.max(0, Math.min(1, (Math.abs(axial) - 0.65) / 0.3));
+  const denominator = Math.hypot(
+    wheelRadius * radialLength,
+    wheelHalfWidth * axial,
+  );
+  const roundedRadial =
+    (wheelRadius * wheelRadius * radialLength) / Math.max(1e-8, denominator);
+  const roundedAxial =
+    (wheelHalfWidth * wheelHalfWidth * axial) / Math.max(1e-8, denominator);
+  return radial
+    .multiplyScalar(wheelRadius + (roundedRadial - wheelRadius) * blend)
+    .addScaledVector(
+      axle,
+      Math.sign(axial) * wheelHalfWidth * (1 - blend) + roundedAxial * blend,
+    );
+}
 /** Actual fixed cylinder support point, including camber and tread width. */
 export function wheelSupportPoint(
   origin: Vector3,
@@ -18,14 +41,10 @@ export function wheelSupportPoint(
     0,
     -Math.sin(steer),
   ).applyQuaternion(rotation);
-  const axial = axle.dot(normal);
-  const radial = normal.clone().addScaledVector(axle, -axial);
-  if (radial.lengthSq() > 1e-8) radial.normalize().multiplyScalar(wheelRadius);
   return origin
     .clone()
     .addScaledVector(up, wheelMountY)
-    .sub(radial)
-    .addScaledVector(axle, -Math.sign(axial) * wheelHalfWidth);
+    .sub(roundedWheelOffset(axle, normal));
 }
 export function wheelMount(id: BodyId, index: number, out = new Vector3()) {
   const d = bodies[id];
@@ -67,9 +86,9 @@ export function wheelClearance(
     0,
     -Math.sin(steer),
   ).applyQuaternion(rotation);
-  const axial = Math.min(1, Math.abs(axle.dot(hit.normal)));
-  const support =
-    wheelRadius * Math.sqrt(1 - axial * axial) + wheelHalfWidth * axial;
+  const support = roundedWheelOffset(axle, new Vector3().copy(hit.normal)).dot(
+    hit.normal,
+  );
   // Required rigid mount clearance. The whole chassis is corrected by physics;
   // this value must never displace a rendered wheel relative to the chassis.
   let height =
@@ -94,9 +113,10 @@ export function wheelClearance(
       (col) => col.parent() === null,
     );
     if (!edge || up.dot(edge.normal) < 0.25) continue;
-    const axial = Math.min(1, Math.abs(axle.dot(edge.normal)));
-    const support =
-      wheelRadius * Math.sqrt(1 - axial * axial) + wheelHalfWidth * axial;
+    const support = roundedWheelOffset(
+      axle,
+      new Vector3().copy(edge.normal),
+    ).dot(edge.normal);
     const edgeHeight =
       -edge.timeOfImpact +
       (support + P.car.contactSkin + offset.dot(edge.normal)) /
