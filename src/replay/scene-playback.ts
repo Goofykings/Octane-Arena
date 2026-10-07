@@ -1,3 +1,4 @@
+import { heatseekerBall, heatIntensity } from "../effects/heatseeker-ball";
 import { Vector3, Quaternion, type Group, type PerspectiveCamera } from "three";
 import type { Car } from "../car/car";
 import { animateBall, animateWheels } from "../render/models";
@@ -122,6 +123,10 @@ export class ReplayScenePlayback {
     this.ball.visible = !!frame[13] && time < clip.goal.time;
     this.ballVelocity.fromArray(frame, 7);
     animateBall(this.ball, time);
+    let heat: import("../../shared/soccer").HeatseekerState | undefined;
+    for (const entry of clip.heatseeker ?? [])
+      if (entry.time <= time) heat = entry.state;
+    heatseekerBall(this.ball, heat);
     this.sources.forEach((source, i) => {
       const index = clip.carIds.indexOf(source.id);
       if (index < 0) {
@@ -215,10 +220,11 @@ export class ReplayScenePlayback {
     this.effects.ball.updateBall(
       this.ball,
       this.ballVelocity.length(),
-      team,
+      heat?.active ? heat.ownerTeam : team,
       effectDt,
       this.ball.visible,
       this.director.camera.position,
+      heatIntensity(heat),
     );
     if (time >= clip.goal.time && !this.goalShown) {
       this.effects.explosion.trigger(

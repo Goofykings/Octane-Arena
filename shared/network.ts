@@ -2,6 +2,7 @@ import type { PlayerEntity, PlayerInput } from "./player";
 import type { Preset } from "./catalog";
 import type { ArenaId } from "./arenas";
 import type { ReplayMessage, ReplayState } from "./replay";
+import type { SoccerMode, HeatseekerState } from "./soccer";
 export type Vec = { x: number; y: number; z: number };
 export type Rotation = Vec & { w: number };
 export type NetPlayer = PlayerEntity & { preset: Preset };
@@ -31,6 +32,8 @@ export interface MatchSnapshot {
   type: "snapshot";
   matchId: string;
   arenaId: ArenaId;
+  gameMode?: SoccerMode;
+  heatseeker?: HeatseekerState | null;
   tick: number;
   time: number;
   reset: number;

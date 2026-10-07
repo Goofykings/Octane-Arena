@@ -1,3 +1,4 @@
+import { heatseekerBall, heatIntensity } from "../effects/heatseeker-ball";
 import { displayIdentity } from "../../shared/local-profile";
 import * as T from "three";
 import { Simulation } from "../physics/simulation";
@@ -268,6 +269,7 @@ export class NetworkMatchView {
     this.simulation.ball.setEnabled(newer.ball.enabled);
     this.simulation.ball.setTranslation(this.ball.position, true);
     animateBall(this.ball, time);
+    heatseekerBall(this.ball, latest.heatseeker);
     const ballSpeed =
       new T.Vector3()
         .copy(newer.ball.position)
@@ -276,14 +278,18 @@ export class NetworkMatchView {
     this.ballTrails.updateBall(
       this.ball,
       ballSpeed,
-      latest.touchTeam,
+      latest.heatseeker?.active
+        ? latest.heatseeker.ownerTeam
+        : latest.touchTeam,
       dt,
       newer.ball.enabled,
       this.camera.camera.position,
+      heatIntensity(latest.heatseeker),
     );
     this.explosion.update(dt);
     this.ballHeight.update(this.ball, this.simulation);
     Object.assign(this.match, {
+      gameMode: latest.gameMode ?? "soccar",
       phase: latest.phase,
       score: latest.score,
       remaining: latest.remaining,

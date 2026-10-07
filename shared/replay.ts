@@ -1,5 +1,6 @@
 import { Quaternion } from "three";
 import type { Vec } from "./network";
+import type { HeatseekerState } from "./soccer";
 
 export const REPLAY_HZ = 120;
 export const REPLAY_CAPACITY = 6 * REPLAY_HZ + 1;
@@ -52,6 +53,7 @@ export interface ReplayEvent {
   index?: number;
 }
 export interface ReplayClip {
+  heatseeker?: { time: number; state: HeatseekerState }[];
   goal: ReplayGoal;
   carIds: string[];
   padCount: number;

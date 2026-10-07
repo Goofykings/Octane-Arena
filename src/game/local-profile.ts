@@ -22,6 +22,7 @@ export interface LocalProfileData {
   avatarColor: string;
   stats: ReturnType<typeof blankStats>;
   recentEvents: string[];
+  challenges: Record<string, number>;
 }
 export class LocalProfile {
   value: LocalProfileData = {
@@ -32,6 +33,7 @@ export class LocalProfile {
     avatarColor: defaultAvatarColor,
     stats: blankStats(),
     recentEvents: [],
+    challenges: {},
   };
   persistent = true;
   private pendingTime = 0;
@@ -61,6 +63,9 @@ export class LocalProfile {
         this.value.recentEvents = raw.recentEvents
           .filter((v: unknown) => typeof v === "string" && v.length < 160)
           .slice(-256);
+      const dribble = raw?.challenges?.dribble;
+      if (Number.isInteger(dribble) && dribble >= 0 && dribble <= 1000)
+        this.value.challenges.dribble = dribble;
     } catch {
       /* Corrupt saves fall back to a playable local profile. */
     }
@@ -96,11 +101,29 @@ export class LocalProfile {
       avatarId: "helmet",
       avatarColor: defaultAvatarColor,
       stats: blankStats(),
+      challenges: {},
     });
     this.save();
   }
   flush() {
     if (this.pendingTime > 0) this.save();
+  }
+  challengeProgress(id: string, total: number) {
+    const count = this.value.challenges[id] ?? 0;
+    return Number.isInteger(count) && count >= 0 && count <= total ? count : 0;
+  }
+  completeChallengeLevel(id: string, level: number, total: number) {
+    const completed = this.challengeProgress(id, total);
+    if (
+      !Number.isInteger(level) ||
+      level < 1 ||
+      level > total ||
+      level > completed + 1
+    )
+      return false;
+    this.value.challenges[id] = Math.max(completed, level);
+    this.save();
+    return true;
   }
   addPlayTime(seconds: number) {
     if (!Number.isFinite(seconds) || seconds <= 0) return;

@@ -47,7 +47,10 @@ export class BallHeightIndicator {
     this.group.add(this.outline, this.outer, this.inner);
     scene.add(this.group);
   }
-  update(ball: T.Object3D, simulation: Simulation) {
+  update(
+    ball: T.Object3D,
+    simulation: Pick<Simulation, "world" | "arenaCollider">,
+  ) {
     this.group.visible = ball.visible;
     if (!ball.visible) return;
     const p = ball.position;

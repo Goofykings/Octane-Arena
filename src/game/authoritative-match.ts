@@ -8,6 +8,7 @@ import { neutralInput, type PlayerInput } from "../../shared/player";
 import type { MatchSnapshot, NetPlayer } from "../../shared/network";
 import type { ArenaId } from "../../shared/arenas";
 import { displayIdentity } from "../../shared/local-profile";
+import type { SoccerMode } from "../../shared/soccer";
 
 let initialized: Promise<void> | undefined;
 export const initializeMatchPhysics = () =>
@@ -43,6 +44,7 @@ export class NetworkMatch {
     public readonly players: NetPlayer[],
     readonly arenaId: ArenaId = "city",
     readonly id: string = crypto.randomUUID(),
+    readonly gameMode: SoccerMode = "soccar",
   ) {
     this.simulation = new Simulation(false, players);
     this.simulation.cars.forEach((car, i) => {
@@ -51,6 +53,7 @@ export class NetworkMatch {
     });
     for (const p of players)
       if (p.controller === "bot") this.bots.set(p.id, new Opponent());
+    this.match.gameMode = gameMode;
     this.match.start(this.simulation, "network");
   }
   accept(
@@ -140,6 +143,8 @@ export class NetworkMatch {
       type: "snapshot",
       matchId: this.id,
       arenaId: this.arenaId,
+      gameMode: this.gameMode,
+      heatseeker: s.heatseeker ? { ...s.heatseeker.state } : null,
       lastGoal: m.lastGoal,
       replay: m.replayState,
       tick: this.tick,

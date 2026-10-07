@@ -13,6 +13,9 @@ import { RingsLevel } from "./rings-view";
 import { RingsPhysics, RingsRun } from "./rings";
 import { ExtraRecords } from "./storage";
 import type { Car } from "../car/car";
+import { DribbleSession } from "./dribble/session";
+import type { LocalProfile } from "../game/local-profile";
+import type { MouseLook } from "../camera/mouse-look";
 
 export interface ExtraReadout {
   phase: "ready" | "running" | "paused" | "complete";
@@ -21,15 +24,22 @@ export interface ExtraReadout {
   bestProgress: number;
   elapsed: number;
   bestTime: number | null;
+  unlocked?: number;
+  message?: string;
 }
 
 export interface ExtraSession {
+  readonly ball?: T.Object3D;
   readonly id: string;
   readonly scene: T.Scene;
   readonly paused: boolean;
   readonly complete: boolean;
   readonly vehicle: Car;
   readonly resetSequence: number;
+  readonly supportsBallCam?: boolean;
+  readonly cameraControl?: GameCamera;
+  navigate?(delta: number): boolean;
+  toggleCamera?(): void;
   readout(now: number): ExtraReadout;
   frame(
     input: PlayerInput,
@@ -45,6 +55,8 @@ export interface ExtraSessionOptions {
   camera: T.PerspectiveCamera;
   preset: Preset;
   arenaId: ArenaId;
+  profile?: LocalProfile;
+  mouseLook?: MouseLook;
 }
 
 export class RingsSession implements ExtraSession {
@@ -217,5 +229,11 @@ export const extraModes = [
     name: "RINGS",
     icon: "rings",
     create: (options: ExtraSessionOptions) => new RingsSession(options),
+  },
+  {
+    id: "dribble",
+    name: "DRIBBLE CHALLENGE",
+    icon: "dribble",
+    create: (options: ExtraSessionOptions) => new DribbleSession(options),
   },
 ] as const;

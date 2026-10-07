@@ -8,7 +8,7 @@
     "lan": "npm run build && npm --prefix server run build && node server/dist/server/src/lan.js",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "tsx tests/backend.ts && tsx tests/calibration.ts && tsx tests/improvements.ts && tsx tests/major-update.ts && tsx tests/gameplay-corrections.ts && tsx tests/camera-stability.ts && tsx tests/camera-rig.ts && tsx tests/polish.ts && tsx tests/framing.ts && tsx tests/surface-effects.ts && tsx tests/focused-fixes.ts && tsx tests/rigid-contact.ts && tsx tests/roof-sliding.ts && tsx tests/wheel-spin.ts && tsx tests/kickoff-formations.ts && tsx tests/ramp-quality.ts && tsx tests/tilted-landings.ts && tsx tests/frame-flip-quality.ts && tsx tests/ball-quality.ts && tsx tests/practice-polish.ts && tsx tests/lan-foundation.ts && tsx tests/arena-collision.ts && tsx tests/energy-roof.ts",
+    "test": "tsx tests/backend.ts && tsx tests/calibration.ts && tsx tests/improvements.ts && tsx tests/major-update.ts && tsx tests/gameplay-corrections.ts && tsx tests/camera-stability.ts && tsx tests/camera-rig.ts && tsx tests/polish.ts && tsx tests/framing.ts && tsx tests/surface-effects.ts && tsx tests/focused-fixes.ts && tsx tests/rigid-contact.ts && tsx tests/roof-sliding.ts && tsx tests/wheel-spin.ts && tsx tests/kickoff-formations.ts && tsx tests/ramp-quality.ts && tsx tests/tilted-landings.ts && tsx tests/frame-flip-quality.ts && tsx tests/ball-quality.ts && tsx tests/practice-polish.ts && tsx tests/lan-foundation.ts && tsx tests/arena-collision.ts && tsx tests/energy-roof.ts && tsx tests/dribble.ts && tsx tests/dribble-traversal.ts && tsx tests/heatseeker.ts && tsx tests/speed-reverse.ts",
     "test:arena": "tsx tests/arena-collision.ts",
     "format": "prettier --write src tests vite.config.ts index.html README.md docs/PHYSICS.md PLAN.md",
     "test:camera": "tsx tests/camera-stability.ts && tsx tests/framing.ts && tsx tests/camera-rig.ts && tsx tests/ramp-quality.ts",
@@ -18,7 +18,9 @@
     "test:rings": "tsx tests/rings.ts && tsx tests/rings-flight.ts",
     "test:replay": "tsx tests/replay.ts",
     "test:mouse-look": "tsx tests/mouse-look.ts",
-    "test:rtc": "tsx tests/rtc.ts && tsx --test server/tests/rtc.test.ts"
+    "test:rtc": "tsx tests/rtc.ts && tsx --test server/tests/rtc.test.ts",
+    "test:dribble": "tsx tests/dribble.ts && tsx tests/dribble-traversal.ts",
+    "test:match-features": "tsx tests/heatseeker.ts && tsx tests/speed-reverse.ts"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",

@@ -1552,6 +1552,21 @@ output {
 .extra-grid { grid-template-columns: repeat(auto-fit, minmax(210px, 320px)); justify-content: start; }
 #rings-mode { background: radial-gradient(ellipse at 50% 30%, #4c846459, transparent 65%), linear-gradient(145deg, #1b3544e8, #101f32ee); }
 #rings-mode > svg { color: #85f8b1; }
+#dribble-mode { background: radial-gradient(ellipse at 50% 30%, #d4a04b44, transparent 65%), linear-gradient(145deg, #244154ee, #101f32ee); }
+#dribble-mode > svg { color: #f5c77a; }
+#dribble-ui { position: absolute; inset: 0; z-index: var(--layer-hud); pointer-events: none; }
+#dribble-ui button, #dribble-ui .modal-card { pointer-events: auto; }
+#dribble-hud { position: absolute; top: 24px; left: 28px; padding: 15px 20px; background: #112737dd; border-left: 3px solid #f5c77a; clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%); }
+#dribble-hud small { display: block; font-size: 12px; color: #c2dce7; letter-spacing: .06em; }
+.dribble-stats { display: flex; gap: 28px; margin-top: 9px; }
+.dribble-stats b { font-size: clamp(16px, 2vw, 25px); }
+.dribble-actions { position: absolute; bottom: 24px; left: 28px; display: flex; flex-wrap: wrap; gap: 10px; }
+.dribble-actions button { font-size: clamp(11px, 1.2vw, 15px); padding: 10px 14px; }
+.dribble-actions button:disabled { opacity: .35; cursor: default; }
+#dribble-message { position: absolute; top: 23%; left: 50%; transform: translateX(-50%); font-size: clamp(17px, 3vw, 34px); color: #f7d291; text-shadow: 0 2px 12px #102330; }
+#app:has(#dribble-ui) .camera-status { bottom: 90px; }
+@media(max-width:640px) { #app:has(#dribble-ui) .camera-status { bottom: 125px; } }
+@media(max-width: 640px) { .extra-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } .extra-grid .mode-card { min-width: 0; height: clamp(160px, 32vh, 260px); padding: 14px; } .extra-grid .mode-card strong { font-size: clamp(14px, 4vw, 20px); } .extra-grid .mode-card > svg { width: 48px; height: 48px; } #dribble-hud { top: 15px; left: 15px; padding: 12px; } .dribble-actions { bottom: 15px; left: 15px; right: 15px; gap: 7px; } .dribble-actions button { padding: 9px 10px; } }
 #rings-ui { position: absolute; inset: 0; z-index: var(--layer-hud); pointer-events: none; }
 #rings-ui button, #rings-ui .modal-card { pointer-events: auto; }
 #rings-hud { position: absolute; top: 28px; left: 32px; padding: 18px 24px; min-width: 215px; background: linear-gradient(130deg, #102435ee, #10243599); border-left: 3px solid #85f8b1; clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%); }
@@ -1650,3 +1665,10 @@ output {
 .replay-skip button { margin-top: 12px; width: 100%; padding: 7px 0; pointer-events: auto; font-size: 11px; background: transparent; border: 0; color: #bceeff; }
 #replay-debug { position: absolute; top: 70px; left: 16px; max-height: 60vh; overflow: auto; font: 11px monospace; background: #000a; padding: 10px; }
 @media (max-width: 700px) { .replay-scorer { left: 16px; transform: none; width: min(52vw, 300px); padding: 10px; gap: 10px; } .replay-avatar { width: 38px; height: 38px; padding: 6px; } .replay-skip { width: min(38vw, 200px); padding: 10px; } .replay-scorer strong { font-size: 14px; } }
+.match-setup-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:clamp(18px,4vw,64px);align-items:start;margin:clamp(20px,5vh,60px) 0}
+.match-setup-grid h3{font-size:clamp(16px,1.8vw,25px);letter-spacing:.12em;margin:0 0 16px}
+.setup-selector{display:grid;grid-template-columns:clamp(36px,4vw,60px) minmax(0,1fr) clamp(36px,4vw,60px);align-items:center;min-height:clamp(110px,20vh,230px);background:linear-gradient(145deg,#24465be8,#102a3cef);clip-path:polygon(0 0,94% 0,100% 12%,100% 100%,0 100%);border-bottom:3px solid #8edbe2}
+.setup-selector button{font-size:clamp(30px,4vw,52px);background:transparent;min-width:0;padding:4px}
+.setup-selection{overflow:hidden;text-align:center}.setup-selection strong{display:block;font-size:clamp(21px,3vw,48px);text-shadow:0 0 14px #71c6f44d;white-space:nowrap}
+#party-setup-launch{width:100%;margin-top:clamp(18px,4vh,40px);min-height:60px;font-size:clamp(20px,2vw,30px)}
+@media(max-width:640px){.match-setup-grid{grid-template-columns:1fr;gap:22px;margin:20px 0}.setup-selector{min-height:100px}.setup-selection strong{font-size:clamp(24px,7vw,36px)}#party-setup-launch{margin-top:20px}}

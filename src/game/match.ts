@@ -10,6 +10,7 @@ import {
   type ReplayState,
 } from "../../shared/replay";
 import type { Pads } from "./pads";
+import type { SoccerMode } from "../../shared/soccer";
 export type Phase =
   | "home"
   | "countdown"
@@ -19,6 +20,7 @@ export type Phase =
   | "paused"
   | "finished";
 export class Match {
+  gameMode: SoccerMode = "soccar";
   readonly recorder = new ReplayRecorder();
   replay: {
     clip: ReplayClip;
@@ -69,6 +71,7 @@ export class Match {
   }
   start(s: Simulation, mode: Mode = this.mode) {
     this.mode = mode;
+    s.setGameMode(this.gameMode);
     this.practiceKickoff = 0;
     // Explicit collision participation also removes already-registered broadphase pairs.
     this.score = [0, 0];
@@ -81,15 +84,18 @@ export class Match {
     }
   }
   kickoff(s: Simulation) {
-    const formation = this.rules.training
-      ? freeplayKickoffs[this.practiceKickoff++ % freeplayKickoffs.length]
-      : this.kickoffBag.next(
-          Math.max(
-            ...[0, 1].map(
-              (team) => s.cars.filter((c) => c.team === team).length,
-            ),
-          ),
-        );
+    const formation =
+      this.gameMode === "heatseeker"
+        ? undefined
+        : this.rules.training
+          ? freeplayKickoffs[this.practiceKickoff++ % freeplayKickoffs.length]
+          : this.kickoffBag.next(
+              Math.max(
+                ...[0, 1].map(
+                  (team) => s.cars.filter((c) => c.team === team).length,
+                ),
+              ),
+            );
     this.kickoffFormationId = formation?.id ?? null;
     s.reset(formation);
     if (!this.rules.training)

@@ -1,5 +1,6 @@
 import type { Preset } from "./catalog.js";
 import type { ArenaId } from "./arenas.js";
+import type { SoccerMode } from "./soccer.js";
 export const partyAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 export const partyMaxPlayers = 4;
 export const normalizePartyCode = (code: string) =>
@@ -33,6 +34,7 @@ export interface PartyState {
   maxPlayers: number;
   members: PartyMember[];
   mode: PartyMode;
+  gameMode?: SoccerMode;
   stage: PartyStage;
   transport?: "server" | "webrtc";
   matchId?: string;
@@ -54,6 +56,7 @@ export interface PartyActions {
   team: { team: PartyTeam };
   ready: { ready: boolean };
   mode: { mode: PartyMode };
+  gamemode: { gameMode: SoccerMode };
   stage: { stage: PartyStage };
   disconnect: Record<string, never>;
   launch: Record<string, never>;

@@ -8,8 +8,15 @@ import type { NetPlayer } from "../../shared/network";
 import type { ArenaId } from "../../shared/arenas";
 import type { PlayerInput } from "../../shared/player";
 
+import type { SoccerMode } from "../../shared/soccer";
 export type AuthorityCommand =
-  | { type: "start"; players: NetPlayer[]; arenaId: ArenaId; matchId: string }
+  | {
+      type: "start";
+      players: NetPlayer[];
+      arenaId: ArenaId;
+      matchId: string;
+      gameMode?: SoccerMode;
+    }
   | { type: "input"; id: string; sequence: number; input: PlayerInput }
   | { type: "connected" | "disconnected"; id: string }
   | { type: "skip"; id: string; replayId: string };
@@ -29,6 +36,7 @@ scope.onmessage = (event) => {
         message.players,
         message.arenaId,
         message.matchId,
+        message.gameMode ?? "soccar",
       );
       const loop = new FixedLoop();
       let previous = performance.now(),

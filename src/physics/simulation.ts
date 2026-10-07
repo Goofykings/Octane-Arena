@@ -14,6 +14,9 @@ import { canDemolish, respawnLocations } from "../game/demolition";
 import { bodies } from "../game/inventory";
 import { kickoffSpawn, type KickoffFormation } from "../../shared/kickoff";
 import { CarBallContact } from "./car-ball";
+import { Heatseeker, isBackboard } from "../game/heatseeker";
+import type { SoccerMode } from "../../shared/soccer";
+import { HEATSEEKER as H } from "../config/heatseeker";
 // Initialize the same Rapier module used by the simulation, including in Node.
 export const initializeSimulation = () => RAPIER.init();
 export interface Hit {
@@ -25,6 +28,16 @@ export interface Hit {
   age: number;
 }
 export class Simulation {
+  gameMode: SoccerMode = "soccar";
+  heatseeker: Heatseeker | null = null;
+  private heatContacts = new Set<string>();
+  private backboardContact: number | null = null;
+  setGameMode(mode: SoccerMode) {
+    this.gameMode = mode;
+    this.heatseeker = mode === "heatseeker" ? new Heatseeker() : null;
+    this.heatContacts.clear();
+    this.backboardContact = null;
+  }
   world: RAPIER.World;
   cars: Car[];
   ball: RAPIER.RigidBody;
@@ -134,6 +147,27 @@ export class Simulation {
     this.ballPose.snap();
     this.hits = [];
     this.ballContacts.forEach((contact) => contact.reset());
+    this.heatContacts.clear();
+    this.backboardContact = null;
+    if (this.heatseeker) {
+      const receiver = Math.random() < 0.5 ? 0 : 1;
+      this.heatseeker.reset(receiver);
+      const direction = receiver === 0 ? 1 : -1;
+      this.cars.forEach((c) => {
+        const team = this.cars.filter((p) => p.team === c.team),
+          slot = team.indexOf(c);
+        c.reset(
+          team.length === 1 ? 0 : (slot - 0.5) * 10,
+          (c.team === 0 ? 1 : -1) * H.kickoffCarDistance,
+          c.team === 0 ? 0 : Math.PI,
+        );
+      });
+      this.ball.setTranslation(
+        { x: 0, y: P.ball.radius + 0.02, z: direction * H.kickoffBallDistance },
+        true,
+      );
+      this.ballPose.snap();
+    }
   }
   /** Physical blast; the match keeps steering, aerial control and boost live. */
   explode(origin: { x: number; y: number; z: number }) {
@@ -204,6 +238,7 @@ export class Simulation {
       this.ballContacts[i].sample(c, this.ball);
     });
     this.ballPose.before();
+    this.heatseeker?.steer(this.ball, P.dt);
     this.world.step(this.events);
     this.events.drainCollisionEvents((a, b, started) => {
       if (
@@ -248,6 +283,7 @@ export class Simulation {
           });
       }
     });
+    const heatContacts = new Set<string>();
     this.cars.forEach((car, i) => {
       const response = this.ballContacts[i];
       let touched = false;
@@ -265,6 +301,11 @@ export class Simulation {
             touched = true;
             this.recordTouch(car.id);
             response.resolve(car, this.ball, point, normal);
+            if (this.heatseeker) {
+              heatContacts.add(car.id);
+              if (!this.heatContacts.has(car.id))
+                this.heatseeker.touch(car.id, car.team as 0 | 1, this.clock);
+            }
             if (response.impulse.lengthSq() > 0)
               this.hits.push({
                 position: point,
@@ -278,6 +319,25 @@ export class Simulation {
         );
       if (!touched) response.separate();
     });
+    this.heatContacts = heatContacts;
+    if (this.heatseeker && this.arenaCollider && this.ball.isEnabled()) {
+      let board: 0 | 1 | null = null;
+      this.world.contactPair(
+        this.ballCollider,
+        this.arenaCollider,
+        (manifold) => {
+          for (let i = 0; i < manifold.numSolverContacts(); i++) {
+            const point = manifold.solverContactPoint(i),
+              normal = manifold.normal();
+            for (const team of [0, 1] as const)
+              if (isBackboard(point, normal, team)) board = team;
+          }
+        },
+      );
+      if (board !== null && board !== this.backboardContact)
+        this.heatseeker.backboard(board);
+      this.backboardContact = board;
+    }
     const cap = (body: RAPIER.RigidBody, speed: number, angular: number) => {
       const v = new Vector3().copy(body.linvel()),
         w = new Vector3().copy(body.angvel());

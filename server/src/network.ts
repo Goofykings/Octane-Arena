@@ -189,7 +189,13 @@ export class NetworkMatches {
     if (this.matches.size >= 8) throw Error("SERVER IS FULL");
     const players = partyRoster(party);
     const arenaId = chooseMatchArena(this.previousArena);
-    const game = new NetworkMatch(players, arenaId);
+    const game = new NetworkMatch(
+      players,
+      arenaId,
+      undefined,
+      party.gameMode ?? "soccar",
+    );
+    party.matchArenaId = arenaId;
     this.previousArena = arenaId;
     this.matches.set(party.code, game);
     this.loops.set(party.code, new FixedLoop());

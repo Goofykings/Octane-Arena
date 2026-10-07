@@ -18,6 +18,7 @@ const paths: Record<string, string> = {
   ranked: "M5 4h14v9l-7 8-7-8z M8 9l4-3 4 3m-8 4 4-3 4 3",
   extras: "M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M17 13v8m-4-4h8",
   rings: "M12 2a7 7 0 1 0 0 14 7 7 0 0 0 0-14 M12 5a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M5 14a7 7 0 0 0 14 0 M8 17a4 4 0 0 0 8 0",
+  dribble: "M12 2a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M5 17l2-4h10l2 4v4h-3v-2H8v2H5z M3 23h18",
   friend:
     "M8 4a3 3 0 1 0 0 6 3 3 0 0 0 0-6 M2 20v-5l3-3h6l3 3v5 M17 7a3 3 0 0 1 0 6m0 2h3l2 3v2",
   profile: "M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M4 21v-4l4-3h8l4 3v4",

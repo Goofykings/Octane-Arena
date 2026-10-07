@@ -1,3 +1,16 @@
+async function selectFormat(page, target) {
+  for (let i = 0; i < 3; i++) {
+    await page.waitForFunction(() => !window.__arena.party.busy);
+    const before = await page.evaluate(() => window.__arena.party.state.mode);
+    if (before === target) return;
+    await page.locator('[data-cycle="mode"][data-direction="1"]').click();
+    await page.waitForFunction(
+      (mode) => window.__arena.party.state.mode !== mode,
+      before,
+    );
+  }
+  throw Error("Could not select player format " + target);
+}
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -65,7 +78,7 @@ const os = require("node:os");
     );
     assert.equal(await guest.locator("#party-start").isDisabled(), true);
     await host.locator("#party-start").click();
-    await host.locator('[data-mode="2v2"]').click();
+    await selectFormat(host, "2v2");
     await guest.waitForFunction(
       () =>
         window.__arena.party.state.mode === "2v2" &&
@@ -175,7 +188,7 @@ const os = require("node:os");
     );
     console.log("PASS closing tab removes participant");
     await host.locator("#party-start").click();
-    await host.locator('[data-mode="1v1"]').click();
+    await selectFormat(host, "1v1");
     await guest.waitForFunction(
       () => window.__arena.party.state.mode === "1v1",
     );

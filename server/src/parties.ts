@@ -17,6 +17,7 @@ import {
   type PartyActions,
   type PartyReply,
 } from "../../shared/party.js";
+import { soccerModes } from "../../shared/soccer.js";
 import { starter } from "../../shared/catalog.js";
 import type { ServerConfig } from "./config.js";
 import { NetworkMatches } from "./network.js";
@@ -70,6 +71,7 @@ export async function registerParties(
       if (party) {
         party.stage = "teams";
         delete party.matchId;
+        delete party.matchArenaId;
       }
       if (reason)
         for (const p of players.values())
@@ -336,6 +338,7 @@ export async function registerParties(
         config.matchTransport ?? (config.production ? "webrtc" : "server"),
       members: [p.member],
       mode: "1v1",
+      gameMode: "soccar",
       stage: "home",
     });
     return state(p);
@@ -447,6 +450,20 @@ export async function registerParties(
     }
     return state(p);
   });
+  app.post("/api/party/gamemode", async (req) => {
+    const p = get(req),
+      party = p.code ? parties.get(p.code) : null;
+    const gameMode = (req.body as PartyActions["gamemode"])?.gameMode;
+    if (!party || party.hostId !== p.member.id)
+      return fail(403, "ONLY THE HOST CAN CHANGE GAMEMODE");
+    if (party.stage === "match" || party.stage === "teams")
+      return fail(409, "RETURN TO MATCH SETUP FIRST");
+    if (!soccerModes.some((m) => m.id === gameMode))
+      return fail(400, "INVALID GAMEMODE");
+    party.gameMode = gameMode;
+    party.members.forEach((m) => (m.ready = false));
+    return state(p);
+  });
   app.post("/api/party/stage", async (req) => {
     const p = get(req),
       party = p.code ? parties.get(p.code) : null;
@@ -479,7 +496,33 @@ export async function registerParties(
       party = p.code ? parties.get(p.code) : null;
     if (!party || party.hostId !== p.member.id)
       return fail(403, "ONLY THE HOST CAN START");
-    if (party.stage !== "teams") return fail(409, "CHOOSE TEAMS FIRST");
+    if (party.stage === "mode") {
+      const required =
+        teamCapacity(party.mode, 0) + teamCapacity(party.mode, 1);
+      if (party.members.length !== required)
+        return fail(
+          409,
+          "THIS FORMAT NEEDS " +
+            required +
+            " PLAYERS - CHOOSE ANOTHER FORMAT OR INVITE FRIENDS",
+        );
+      const counts = [0, 0];
+      for (const m of party.members) {
+        if (
+          m.team !== null &&
+          counts[m.team] < teamCapacity(party.mode, m.team)
+        )
+          counts[m.team]++;
+        else m.team = null;
+      }
+      for (const m of party.members)
+        if (m.team === null) {
+          const team = counts[0] < teamCapacity(party.mode, 0) ? 0 : 1;
+          m.team = team;
+          counts[team]++;
+        }
+    } else if (party.stage !== "teams")
+      return fail(409, "OPEN MATCH SETUP FIRST");
     const blue = party.members.filter((m) => m.team === 0).length,
       orange = party.members.filter((m) => m.team === 1).length;
     if (

@@ -7,7 +7,12 @@ export class Input {
   capturing = false;
   constructor(public bindings: Bindings = { ...defaultBindings }) {
     window.addEventListener("keydown", (e) => {
-      if((e.target as HTMLElement)?.matches('input,textarea,select,[contenteditable="true"]'))return;
+      if (
+        (e.target as HTMLElement)?.matches(
+          'input,textarea,select,[contenteditable="true"]',
+        )
+      )
+        return;
       if (this.capturing || document.querySelector("dialog[open]")) return;
       if (Object.values(this.bindings).includes(e.code)) e.preventDefault();
       if (!e.repeat) this.actions.add(e.code);
@@ -27,6 +32,21 @@ export class Input {
   }
   takeAction(action: Action) {
     return this.take(this.bindings[action]);
+  }
+  isHeld(action: Action) {
+    if (
+      this.capturing ||
+      document.querySelector("dialog[open]") ||
+      document.hidden
+    )
+      return false;
+    const pad = Array.from(navigator.getGamepads?.() ?? []).find(
+      (p) => p?.connected,
+    );
+    return (
+      this.keys.has(this.bindings[action]) ||
+      (action === "reverseCam" && !!pad?.buttons[11]?.pressed)
+    );
   }
   sample(): Controls {
     const c = neutral(),

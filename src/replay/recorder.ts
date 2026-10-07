@@ -13,9 +13,13 @@ import type { Vec } from "../../shared/network";
 export class ReplayRecorder {
   buffer: ReplayBuffer | null = null;
   private touchSequence = -1;
+  private heatHistory: NonNullable<
+    import("../../shared/replay").ReplayClip["heatseeker"]
+  > = [];
   private wheelStates = new Float64Array(4 * 6);
   private padCooldowns = new Float32Array(20);
   reset() {
+    this.heatHistory = [];
     this.buffer?.reset();
     this.touchSequence = -1;
     this.wheelStates.fill(0);
@@ -137,6 +141,21 @@ export class ReplayRecorder {
       for (const event of s.touchEvents)
         if (event.time === s.clock) b.event({ kind: "touch", ...event });
     this.touchSequence = s.touchSequence;
+    if (s.heatseeker) {
+      const previous = this.heatHistory.at(-1)?.state,
+        state = s.heatseeker.state;
+      if (
+        !previous ||
+        previous.tier !== state.tier ||
+        previous.active !== state.active
+      )
+        this.heatHistory.push({ time: s.clock, state: { ...state } });
+      while (
+        this.heatHistory.length > 1 &&
+        this.heatHistory[1].time < s.clock - 6.1
+      )
+        this.heatHistory.shift();
+    }
   }
   clip(goal: ReplayGoal) {
     this.buffer!.event({
@@ -144,7 +163,13 @@ export class ReplayRecorder {
       playerId: goal.scorerId,
       time: goal.time,
     });
-    return this.buffer!.clip(goal);
+    const clip = this.buffer!.clip(goal);
+    if (this.heatHistory.length)
+      clip.heatseeker = this.heatHistory.map((entry) => ({
+        time: entry.time,
+        state: { ...entry.state },
+      }));
+    return clip;
   }
   wheels(index: number) {
     return {

@@ -1,3 +1,16 @@
+async function selectFormat(page, target) {
+  for (let i = 0; i < 3; i++) {
+    await page.waitForFunction(() => !window.__arena.party.busy);
+    const before = await page.evaluate(() => window.__arena.party.state.mode);
+    if (before === target) return;
+    await page.locator('[data-cycle="mode"][data-direction="1"]').click();
+    await page.waitForFunction(
+      (mode) => window.__arena.party.state.mode !== mode,
+      before,
+    );
+  }
+  throw Error("Could not select player format " + target);
+}
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
 const assert = require("node:assert/strict");
 (async () => {
@@ -42,7 +55,7 @@ const assert = require("node:assert/strict");
     assert.ok(await guest.locator("#party-start").isDisabled());
     await host.locator("#party-start").click();
     await guest.locator("#party-mode-screen").waitFor({ state: "visible" });
-    assert.equal(await host.locator(".party-mode-card").count(), 3);
+    assert.equal(await host.locator(".setup-selector").count(), 2);
     await host.waitForTimeout(350);
     await host.screenshot({ path: "docs/party-mode-selection.png" });
     await host.locator("#party-continue").click();
@@ -71,8 +84,20 @@ const assert = require("node:assert/strict");
       window.__arena.party.state.members.some((m) => m.team === 1),
     );
     // Ready remains a protocol foundation; the requested UI replaces its button.
-    assert.equal(await guest.evaluate(() => window.__arena.party.action("ready", { ready: true })), true);
-    await host.waitForFunction(() => window.__arena.party.state.members.some(m => m.id !== window.__arena.party.playerId && m.ready), null, {timeout:1500});
+    assert.equal(
+      await guest.evaluate(() =>
+        window.__arena.party.action("ready", { ready: true }),
+      ),
+      true,
+    );
+    await host.waitForFunction(
+      () =>
+        window.__arena.party.state.members.some(
+          (m) => m.id !== window.__arena.party.playerId && m.ready,
+        ),
+      null,
+      { timeout: 1500 },
+    );
     console.log("PASS ready state synchronizes over live events");
     await host.unroute("**/api/party");
     await host.screenshot({ path: "docs/party-team-selection.png" });
@@ -80,7 +105,7 @@ const assert = require("node:assert/strict");
       "PASS shared mode/Continue flow; 1v1 capacity and live team updates without polling",
     );
     await host.locator('[data-stage="mode"]').click();
-    await host.locator('[data-mode="2v2bots"]').click();
+    await selectFormat(host, "2v2bots");
     await host.locator("#party-continue").click();
     await guest.locator("#party-team-screen").waitFor({ state: "visible" });
     for (const p of [host, guest]) {
@@ -115,7 +140,7 @@ const assert = require("node:assert/strict");
     }
     await host.setViewportSize({ width: 1280, height: 800 });
     await host.locator('[data-stage="mode"]').click();
-    await host.locator('[data-mode="2v2"]').click();
+    await selectFormat(host, "2v2");
     await host.locator('[data-stage="home"]').click();
     await guest.waitForFunction(
       () => !document.querySelector("#party-flow").open,

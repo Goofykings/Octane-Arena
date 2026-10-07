@@ -55,7 +55,7 @@ export class UI {
       { duration: 280, easing: "ease-out" },
     );
   }
-  extraGame(boost: number, sonic: boolean) {
+  extraGame(boost: number, sonic: boolean, ballMode = false) {
     for (const id of [
       "menu",
       "brand",
@@ -74,7 +74,7 @@ export class UI {
     (document.querySelector(".scoreboard") as HTMLElement).hidden = true;
     document.getElementById("countdown")!.textContent = "";
     document.getElementById("notice")!.textContent = "";
-    document.getElementById("camera-mode")!.textContent = "CAR CAMERA";
+    document.getElementById("camera-mode")!.textContent = ballMode ? "BALL CAMERA" : "CAR CAMERA";
     document.getElementById("boost")!.textContent = String(Math.ceil(boost));
     document.getElementById("boost-fill")!.style.strokeDasharray =
       `${boost} 100`;

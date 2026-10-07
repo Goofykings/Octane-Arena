@@ -1,5 +1,5 @@
 import * as T from "three";
-import type RAPIER from "@dimforge/rapier3d-compat";
+import RAPIER from "@dimforge/rapier3d-compat";
 import { defaults, type CameraSettings } from "../game/settings";
 import { P } from "../config/physics";
 import { CameraClearance } from "./collision";
@@ -21,6 +21,12 @@ export interface CameraWorld {
  * All spatial inputs are render poses; physics supplies only arena queries and
  * whether the ball is enabled. Body rotation never defines the camera's up. */
 export class GameCamera {
+  reverseHeld = false;
+  private reverseApplied = false;
+  private normalPosition = new T.Vector3();
+  private normalRotation = new T.Quaternion();
+  private normalFov = 110;
+  private reverseOffset = new T.Vector3();
   mouseLook?: MouseLook;
   settings: CameraSettings = defaults().camera;
   ballMode = true;
@@ -81,9 +87,73 @@ export class GameCamera {
     this.settings.fov = value;
   }
   reset() {
+    this.restoreNormal();
     this.ready = false;
     this.zoom = 0;
     this.clearance.reset();
+  }
+  private restoreNormal() {
+    if (!this.reverseApplied) return;
+    this.camera.position.copy(this.normalPosition);
+    this.camera.quaternion.copy(this.normalRotation);
+    this.camera.fov = this.normalFov;
+    this.reverseApplied = false;
+  }
+  private reverseView(car: T.Object3D, simulation: CameraWorld) {
+    const c = this.camera;
+    this.normalPosition.copy(c.position);
+    this.normalRotation.copy(c.quaternion);
+    this.normalFov = c.fov;
+    this.reverseOffset
+      .set(0, 0, -1)
+      .applyQuaternion(car.quaternion)
+      .normalize();
+    this.reverseOffset
+      .multiplyScalar(this.settings.distance)
+      .addScaledVector(worldUp, this.settings.height);
+    const cast = () =>
+      simulation.world.castRay(
+        new RAPIER.Ray(car.position, this.reverseOffset.clone().normalize()),
+        this.reverseOffset.length(),
+        true,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        simulation.cameraObstacles ??
+          ((collider) => collider.parent() === null),
+      );
+    let hit = cast();
+    if (hit && hit.timeOfImpact < 1) {
+      this.reverseOffset
+        .set(-Math.sin(this.heading), 0, -Math.cos(this.heading))
+        .multiplyScalar(this.settings.distance)
+        .addScaledVector(worldUp, this.settings.height);
+      hit = cast();
+    }
+    if (hit)
+      this.reverseOffset.setLength(Math.max(0.1, hit.timeOfImpact - 0.2));
+    c.position.copy(car.position).add(this.reverseOffset);
+    const look = car.position
+      .clone()
+      .addScaledVector(worldUp, 0.3)
+      .sub(c.position)
+      .normalize();
+    const horizontal = Math.hypot(look.x, look.z);
+    const yaw =
+      horizontal > 0.03 ? Math.atan2(-look.x, -look.z) : this.heading + Math.PI;
+    c.rotation.set(
+      T.MathUtils.clamp(Math.atan2(look.y, horizontal), -1.48, 1.48),
+      yaw,
+      0,
+      "YXZ",
+    );
+    c.fov = this.settings.fov;
+    c.updateProjectionMatrix();
+    c.updateMatrixWorld(true);
+    this.lookDirection.set(0, 0, -1).applyQuaternion(c.quaternion);
+    this.debug.mode = "Reverse Cam";
+    this.reverseApplied = true;
   }
 
   private continuousAngle(from: number, to: number) {
@@ -137,6 +207,7 @@ export class GameCamera {
   ) {
     const c = this.camera,
       p = this.settings;
+    this.restoreNormal();
     dt = T.MathUtils.clamp(dt, 0, 0.1);
     if (home) {
       c.position.set(9 + Math.sin(time * 0.06) * 1.5, 2.7, 19);
@@ -553,5 +624,6 @@ export class GameCamera {
       this.framing.feasible && c.fov >= this.framing.requiredFov - 0.001;
     this.ready = true;
     this.mouseLook?.apply(c);
+    if (this.reverseHeld) this.reverseView(car, simulation);
   }
 }

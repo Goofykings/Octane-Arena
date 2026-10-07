@@ -1,3 +1,16 @@
+async function selectFormat(page, target) {
+  for (let i = 0; i < 3; i++) {
+    await page.waitForFunction(() => !window.__arena.party.busy);
+    const before = await page.evaluate(() => window.__arena.party.state.mode);
+    if (before === target) return;
+    await page.locator('[data-cycle="mode"][data-direction="1"]').click();
+    await page.waitForFunction(
+      (mode) => window.__arena.party.state.mode !== mode,
+      before,
+    );
+  }
+  throw Error("Could not select player format " + target);
+}
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
 const assert = require("node:assert/strict");
 const { resolve } = require("node:path"),
@@ -235,7 +248,7 @@ const { resolve } = require("node:path"),
       null,
       { polling: 50 },
     );
-    await host.locator('[data-mode="2v2bots"]').click();
+    await selectFormat(host, "2v2bots");
     await host.waitForFunction(
       () =>
         window.__arena.party.state.mode === "2v2bots" &&
@@ -318,7 +331,7 @@ const { resolve } = require("node:path"),
       null,
       { polling: 50 },
     );
-    await host.locator('[data-mode="2v2"]').click();
+    await selectFormat(host, "2v2");
     await host.waitForFunction(
       () =>
         window.__arena.party.state.mode === "2v2" && !window.__arena.party.busy,

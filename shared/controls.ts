@@ -14,11 +14,14 @@ export const defaultBindings = {
   rollLeft: "KeyQ",
   rollRight: "KeyE",
   camera: "KeyC",
+  reverseCam: "KeyB",
   reset: "KeyR",
   trainingReset: "Digit1",
   possession: "Digit2",
   dribble: "Digit3",
   launch: "Digit4",
+  previousLevel: "BracketLeft",
+  nextLevel: "BracketRight",
   pause: "Escape",
   debug: "F3",
 };
@@ -40,11 +43,14 @@ export const actionLabels: Record<Action, string> = {
   rollLeft: "Air roll left",
   rollRight: "Air roll right",
   camera: "Ball camera",
+  reverseCam: "Reverse Cam (hold)",
   reset: "Reset point",
   trainingReset: "Free Play - Reset",
   possession: "Free Play - Take Possession",
   dribble: "Free Play - Start Dribble",
   launch: "Free Play - Launch Ball",
+  previousLevel: "Challenge - Previous Level",
+  nextLevel: "Challenge - Next Level",
   pause: "Pause",
   debug: "Physics diagnostics",
 };
@@ -56,7 +62,7 @@ export const trainingActions = [
 ] as const;
 export type TrainingAction = (typeof trainingActions)[number];
 export const keyName = (code: string) =>
-  code
+  (({ BracketLeft: "[", BracketRight: "]" })[code] ?? code)
     .replace(/^Key|^Digit/, "")
     .replace("Arrow", "")
     .replace("Left", " L")

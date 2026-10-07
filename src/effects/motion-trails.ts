@@ -111,8 +111,9 @@ export class BallTrails extends MotionTrails {
     dt: number,
     active: boolean,
     camera?: T.Vector3,
+    heat = 0,
   ) {
-    const strength = T.MathUtils.smoothstep(speed, 3, 24) * 0.65;
+    const strength = T.MathUtils.smoothstep(speed, 3, 24) * (0.65 + heat * 0.2);
     const points = Array.from({ length: 4 }, (_, i) => {
       const angle = (i * Math.PI) / 2;
       return new T.Vector3(

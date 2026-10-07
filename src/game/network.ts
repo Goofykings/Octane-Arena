@@ -214,7 +214,8 @@ export class NetworkClient {
             this.desired,
             roster.map((p) => p.id),
           );
-          if (!parsed || parsed.arenaId !== party.matchArenaId) return;
+          if (!parsed || parsed.arenaId !== party.matchArenaId ||
+            (parsed.gameMode ?? "soccar") !== (party.gameMode ?? "soccar")) return;
           parsed.players = roster;
           this.receive(parsed);
           return;
@@ -300,6 +301,7 @@ export class NetworkClient {
           type: "start",
           matchId: this.desired,
           arenaId: party.matchArenaId!,
+          gameMode: party.gameMode ?? "soccar",
           players: partyRoster(party),
         });
       } catch {

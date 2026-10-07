@@ -77,6 +77,20 @@ const snapshot = z
     type: z.literal("snapshot"),
     matchId: z.string().uuid(),
     arenaId: z.enum(arenaIds),
+    gameMode: z.enum(["soccar", "heatseeker"]).optional(),
+    heatseeker: z
+      .object({
+        active: z.boolean(),
+        ownerTeam: z.union([z.literal(0), z.literal(1)]).nullable(),
+        targetTeam: z.union([z.literal(0), z.literal(1)]).nullable(),
+        lastTouchPlayerId: z.string().max(80).nullable(),
+        tier: z.number().int().nonnegative(),
+        speed: finite.nonnegative(),
+        kickoffTeam: z.union([z.literal(0), z.literal(1)]),
+        backboardSequence: z.number().int().nonnegative(),
+      })
+      .nullable()
+      .optional(),
     tick: z.number().int().nonnegative(),
     time: finite,
     reset: z.number().int().nonnegative(),

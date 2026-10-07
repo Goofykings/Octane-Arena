@@ -1,3 +1,4 @@
+import { AirSpeedEffect } from "./effects/air-speed";
 import { PartyClient } from "./game/party";
 import { NetworkClient } from "./game/network";
 import { NetworkMatchView } from "./render/network-match";
@@ -67,6 +68,7 @@ async function boot() {
   const settings = new Settings(),
     garage = new Garage(),
     ui = new UI(),
+    airSpeed = new AirSpeedEffect(ui.root),
     simulation = new Simulation(),
     input = new Input(settings.value.bindings),
     opponent = new Opponent(),
@@ -375,7 +377,12 @@ async function boot() {
   };
   ui.on("play", () => {
     audio.unlock();
-    ui.modes(true);
+    if (party.state) {
+      if (party.state.hostId === party.playerId)
+        void party.action("stage", { stage: "mode" });
+      else partyPanel.flow.openSetup();
+      input.clear();
+    } else ui.modes(true);
   });
   ui.on("bot-mode", () => start("bot"));
   ui.on("freeplay-mode", () => {
@@ -406,6 +413,8 @@ async function boot() {
         camera,
         preset: garage.current,
         arenaId: arena.mapId,
+        profile: accounts.profile,
+        mouseLook,
       });
       extraSession.vehicle.displayName = accounts.displayName;
       const restart = () => {
@@ -506,19 +515,41 @@ async function boot() {
   const mouseLook = new MouseLook();
   cameraControl.mouseLook = preview.mouseLook = mouseLook;
   const cameraDrag = new CameraDrag(ui.root, mouseLook, () => {
-    if (document.hidden || document.querySelector("dialog[open]") || ui.leaveConfirmation) return null;
+    if (
+      document.hidden ||
+      document.querySelector("dialog[open]") ||
+      ui.leaveConfirmation
+    )
+      return null;
     if (party.state?.stage === "match")
-      return !networkPaused && ["countdown", "playing", "goal"].includes(network.latest?.phase ?? "") ? "network" : null;
-    if (extraSession) return null; // Dedicated extra-mode cameras are preserved.
+      return !networkPaused &&
+        ["countdown", "playing", "goal"].includes(network.latest?.phase ?? "")
+        ? "network"
+        : null;
+    if (extraSession)
+      return extraSession.supportsBallCam &&
+        !extraSession.paused &&
+        !extraSession.complete
+        ? "dribble"
+        : null;
     if (match.phase === "home") {
       if (party.state && party.state.stage !== "home") return null;
       if (ui.screen === "home") return "home";
-      if (ui.screen === "garage" && (!garagePanel.customizing || garagePanel.category !== "explosion")) return "garage";
+      if (
+        ui.screen === "garage" &&
+        (!garagePanel.customizing || garagePanel.category !== "explosion")
+      )
+        return "garage";
       return null;
     }
-    return ["countdown", "playing", "goal"].includes(match.phase) ? "game" : null;
+    return ["countdown", "playing", "goal"].includes(match.phase)
+      ? "game"
+      : null;
   });
-  const versionPanel = new VersionPanel(ui.root, () => { cameraDrag.stop(); input.clear(); });
+  const versionPanel = new VersionPanel(ui.root, () => {
+    cameraDrag.stop();
+    input.clear();
+  });
   function updatePadVisuals(dt: number, replayPads?: Float32Array | null) {
     pads.items.forEach((livePad, i) => {
       const cooldown = replayPads?.[i];
@@ -550,8 +581,17 @@ async function boot() {
     previous = now;
     cameraDrag.sync();
     mouseLook.update(dt, settings.value.camera);
-    versionPanel.show(match.phase === "home" && ui.screen === "home" && !extraSession && party.state?.stage !== "match" && (!party.state || party.state.stage === "home"));
+    versionPanel.show(
+      match.phase === "home" &&
+        ui.screen === "home" &&
+        !extraSession &&
+        party.state?.stage !== "match" &&
+        (!party.state || party.state.stage === "home"),
+    );
     const controls = input.sample();
+    const reverseHeld = input.isHeld("reverseCam");
+    cameraControl.reverseHeld =
+      reverseHeld && match.active && !match.replayActive;
     if (party.state?.stage === "match") {
       if (!networkActive) {
         home();
@@ -606,7 +646,26 @@ async function boot() {
       partyPanel.flow.updateVisibility(false);
       document.getElementById("bot-tag")!.hidden = true;
       hitboxes.update(simulation, false);
+      if (networkView)
+        networkView.camera.reverseHeld =
+          reverseHeld && !networkPaused && network.latest?.phase !== "replay";
       networkView?.update(network, dt, now / 1000, settings.value.camera);
+      const localNetCar = networkView?.simulation.cars[0];
+      airSpeed.update(
+        dt,
+        localNetCar
+          ? new T.Vector3().copy(localNetCar.body.linvel()).length()
+          : 0,
+        localNetCar?.supersonic ?? false,
+        localNetCar?.grounded ?? true,
+        settings.value.quality,
+        !networkPaused &&
+          (network.latest?.phase === "playing" ||
+            network.latest?.phase === "goal"),
+        networkView?.ball,
+        camera,
+        localNetCar?.body.linvel(),
+      );
       if (input.takeAction("debug")) debug.enabled = !debug.enabled;
       if (networkView)
         debug.update(
@@ -726,7 +785,12 @@ async function boot() {
       home();
     }
     if (extraSession) {
-      input.takeAction("camera"); // Ball Cam is unavailable in open courses.
+      if (input.takeAction("camera")) extraSession.toggleCamera?.();
+      const previousLevel = input.takeAction("previousLevel"),
+        nextLevel = input.takeAction("nextLevel");
+      if (previousLevel || nextLevel) {
+        if (extraSession.navigate?.(previousLevel ? -1 : 1)) input.clear();
+      }
       if (
         input.takeAction("pause") &&
         !document.querySelector("dialog[open]")
@@ -743,6 +807,9 @@ async function boot() {
         extraSession.reset();
         input.clear();
       }
+      if (extraSession.cameraControl)
+        extraSession.cameraControl.reverseHeld =
+          reverseHeld && !extraSession.paused && !extraSession.complete;
       const sequence = extraSession.resetSequence;
       extraSession.frame(
         restart || extraSession.paused ? neutral() : controls,
@@ -759,7 +826,11 @@ async function boot() {
         accounts.profile.addPlayTime(dt);
       if (sequence !== extraSession.resetSequence) input.clear();
       input.takeAction("jump");
-      ui.extraGame(extraSession.vehicle.boost, extraSession.vehicle.supersonic);
+      ui.extraGame(
+        extraSession.vehicle.boost,
+        extraSession.vehicle.supersonic,
+        extraSession.supportsBallCam && !!extraSession.cameraControl?.ballMode,
+      );
       extraPanel!.update(now);
       partyPanel.host.hidden = true;
       partyPanel.flow.updateVisibility(false);
@@ -779,6 +850,17 @@ async function boot() {
         controls.throttle,
         false,
         c.skidIntensity,
+      );
+      airSpeed.update(
+        dt,
+        new T.Vector3().copy(c.body.linvel()).length(),
+        c.supersonic,
+        c.grounded,
+        settings.value.quality,
+        !extraSession.paused && !extraSession.complete,
+        extraSession.ball,
+        camera,
+        c.body.linvel(),
       );
       graphics.render(extraSession.scene, camera);
       requestAnimationFrame(frame);
@@ -938,6 +1020,7 @@ async function boot() {
     )
       accounts.profile.addPlayTime(dt);
     if (match.replayActive && match.replay) {
+      airSpeed.update(dt, 0, false, true, settings.value.quality, false);
       if (!replayView.active) {
         resetEffects();
         input.clear();
@@ -1086,6 +1169,18 @@ async function boot() {
         now / 1000,
         match.phase === "goal" ? match.goalFocus : null,
       );
+    const localCar = simulation.cars[0];
+    airSpeed.update(
+      dt,
+      new T.Vector3().copy(localCar.body.linvel()).length(),
+      localCar.supersonic,
+      localCar.grounded,
+      settings.value.quality,
+      match.phase === "playing" || match.phase === "goal",
+      ball,
+      camera,
+      localCar.body.linvel(),
+    );
     const lobbyVisible = match.phase === "home" && ui.screen === "home";
     const partySetup =
       match.phase === "home" && !!party.state && party.state.stage !== "home";
