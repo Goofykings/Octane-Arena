@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { Vector3 } from "three";
 import { initializeSimulation, Simulation } from "../src/physics/simulation";
 import { Match } from "../src/game/match";
-import { Heatseeker, isBackboard } from "../src/game/heatseeker";
+import {
+  Heatseeker,
+  isBackboard,
+  heatseekerServeSpawn,
+} from "../src/game/heatseeker";
 import { HEATSEEKER as H } from "../src/config/heatseeker";
 import { P, UU } from "../src/config/physics";
 import { neutralInput } from "../shared/player";
@@ -61,10 +65,16 @@ try {
       assert.equal(m.countdown, 3);
       const receiver = value < 0.5 ? 0 : 1;
       assert.equal(s.heatseeker!.state.kickoffTeam, receiver);
+      assert.equal(s.ball.translation().z, heatseekerServeSpawn(receiver).z);
+      assert.equal(s.ball.translation().x, heatseekerServeSpawn(receiver).x);
+      const serve = s.ball.translation(),
+        sign = receiver === 0 ? 1 : -1;
+      assert.equal(serve.x * sign, H.kickoffBallSpawn.right);
       assert.equal(
-        s.ball.translation().z,
-        (receiver === 0 ? 1 : -1) * H.kickoffBallDistance,
+        H.kickoffCarDistance - serve.z * sign,
+        H.kickoffBallSpawn.forward,
       );
+      assert.ok(H.kickoffBallSpawn.forward > 10);
       assert.equal(s.heatseeker!.state.active, false);
       assert.equal(s.ball.linvel().z, 0);
       assert.ok(

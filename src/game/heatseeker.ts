@@ -3,6 +3,14 @@ import type RAPIER from "@dimforge/rapier3d-compat";
 import type { HeatseekerState } from "../../shared/soccer";
 import { HEATSEEKER as H } from "../config/heatseeker";
 import { P } from "../config/physics";
+export function heatseekerServeSpawn(team: 0 | 1) {
+  const side = team === 0 ? 1 : -1;
+  return {
+    x: side * H.kickoffBallSpawn.right,
+    y: P.ball.radius + 0.02,
+    z: side * (H.kickoffCarDistance - H.kickoffBallSpawn.forward),
+  };
+}
 export function isBackboard(
   point: RAPIER.Vector,
   normal: RAPIER.Vector,

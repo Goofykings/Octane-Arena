@@ -402,6 +402,8 @@ export function ballModel() {
   g.userData.lamps = lamps;
   g.userData.radius = r;
   g.userData.panelMaterial = panels.material;
+  g.userData.coreMaterial = core.material;
+  g.userData.panelGeometry = geo;
   return g;
 }
 export function animateBall(ball: T.Group, time: number) {

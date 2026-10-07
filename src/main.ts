@@ -1278,6 +1278,10 @@ async function boot() {
     );
     requestAnimationFrame(frame);
   }
+  Object.defineProperty(window, "octaneArenaNetwork", {
+    configurable: true,
+    value: Object.freeze({ diagnostics: () => network.rtc.diagnostics() }),
+  });
   if (import.meta.env.DEV || new URLSearchParams(location.search).has("test"))
     Object.assign(window, {
       __arena: {

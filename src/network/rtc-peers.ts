@@ -9,6 +9,23 @@ import {
 } from "../../shared/rtc";
 
 interface Peer {
+  trace: {
+    offerCreated: boolean;
+    offerReceived: boolean;
+    answerCreated: boolean;
+    answerReceived: boolean;
+    iceCreated: number;
+    iceSent: number;
+    iceReceived: number;
+    probesSent: number;
+    probesReceived: number;
+    repliesSent: number;
+    repliesReceived: number;
+    nonce: string;
+    probeAt: number;
+    roundTripMs: number | null;
+    events: { event: string; time: number }[];
+  };
   id: string;
   connectionId: string;
   pc: RTCPeerConnection;
@@ -26,6 +43,69 @@ interface Peer {
 /** Star topology: every guest connects to the party host. Signaling never
  * transports game inputs or snapshots. Peer identity comes from party sessions. */
 export class RtcPeers {
+  private closed: ReturnType<RtcPeers["describe"]>[] = [];
+  private event(p: Peer, event: string) {
+    p.trace.events.push({ event, time: performance.now() });
+    if (p.trace.events.length > 32) p.trace.events.shift();
+  }
+  private channelsOpen(p: Peer) {
+    return (
+      p.control?.readyState === "open" &&
+      p.state?.readyState === "open" &&
+      p.bulk?.readyState === "open"
+    );
+  }
+  private describe(p: Peer) {
+    const { nonce, probeAt, ...trace } = p.trace;
+    return {
+      peerId: p.id,
+      connectionId: p.connectionId,
+      connectionState: p.pc.connectionState,
+      iceConnectionState: p.pc.iceConnectionState,
+      signalingState: p.pc.signalingState,
+      channels: {
+        control: p.control?.readyState ?? "not-created",
+        state: p.state?.readyState ?? "not-created",
+        replay: p.bulk?.readyState ?? "not-created",
+      },
+      bidirectionalVerified:
+        p.trace.repliesReceived > 0 && p.trace.probesReceived > 0,
+      ...trace,
+      events: trace.events.map((e) => ({ ...e })),
+    };
+  }
+  diagnostics() {
+    return {
+      partyConnection: this.party.connection,
+      playerId: this.party.playerId,
+      role: !this.party.state
+        ? "none"
+        : this.party.state.hostId === this.party.playerId
+          ? "host"
+          : "guest",
+      status: this.status,
+      peers: [...this.peers.values()].map((p) => this.describe(p)),
+      closedPeers: this.closed.map((p) => ({
+        ...p,
+        channels: { ...p.channels },
+        events: p.events.map((e) => ({ ...e })),
+      })),
+    };
+  }
+  private probe(p: Peer) {
+    if (
+      p.trace.nonce ||
+      !this.channelsOpen(p) ||
+      p.pc.connectionState !== "connected"
+    )
+      return;
+    p.trace.nonce = crypto.randomUUID();
+    p.trace.probeAt = performance.now();
+    if (this.send(p.id, { type: "rtc-probe", nonce: p.trace.nonce })) {
+      p.trace.probesSent++;
+      this.event(p, "probe sent");
+    } else p.trace.nonce = "";
+  }
   readonly peers = new Map<string, Peer>();
   status = "CONNECTING TO PLAYERS";
   private context = "";
@@ -52,9 +132,10 @@ export class RtcPeers {
     const p = this.peers.get(id);
     return (
       !!p &&
-      p.control?.readyState === "open" &&
-      p.state?.readyState === "open" &&
-      p.bulk?.readyState === "open"
+      this.channelsOpen(p) &&
+      p.pc.connectionState === "connected" &&
+      p.trace.repliesReceived > 0 &&
+      p.trace.probesReceived > 0
     );
   }
   send(id: string, data: unknown, fast = false) {
@@ -96,6 +177,9 @@ export class RtcPeers {
     p.state?.close();
     p.bulk?.close();
     p.pc.close();
+    this.event(p, "connection closed");
+    this.closed.push(this.describe(p));
+    if (this.closed.length > 8) this.closed.shift();
     this.onClose(id);
   }
   private bind(p: Peer, channel: RTCDataChannel) {
@@ -115,6 +199,8 @@ export class RtcPeers {
     channel.onopen = () => {
       p.seen = performance.now();
       this.status = "";
+      this.event(p, channel.label + " channel open");
+      this.probe(p);
     };
     channel.onmessage = (event) => {
       if (
@@ -126,6 +212,32 @@ export class RtcPeers {
       try {
         let data = JSON.parse(event.data);
         p.seen = performance.now();
+        if (
+          channel.label === "control" &&
+          data.type === "rtc-probe" &&
+          typeof data.nonce === "string" &&
+          data.nonce.length > 0 &&
+          data.nonce.length <= 80
+        ) {
+          p.trace.probesReceived++;
+          this.event(p, "probe received");
+          if (this.send(p.id, { type: "rtc-probe-reply", nonce: data.nonce })) {
+            p.trace.repliesSent++;
+            this.event(p, "probe reply sent");
+          }
+          return;
+        }
+        if (
+          channel.label === "control" &&
+          data.type === "rtc-probe-reply" &&
+          p.trace.nonce &&
+          data.nonce === p.trace.nonce
+        ) {
+          p.trace.repliesReceived++;
+          p.trace.roundTripMs = performance.now() - p.trace.probeAt;
+          this.event(p, "probe reply received");
+          return;
+        }
         if (channel.label === "replay") {
           const payload = p.receiver.accept(data);
           if (!payload) return;
@@ -151,6 +263,23 @@ export class RtcPeers {
       iceTransportPolicy: config.iceTransportPolicy,
     });
     const p: Peer = {
+      trace: {
+        offerCreated: false,
+        offerReceived: false,
+        answerCreated: false,
+        answerReceived: false,
+        iceCreated: 0,
+        iceSent: 0,
+        iceReceived: 0,
+        probesSent: 0,
+        probesReceived: 0,
+        repliesSent: 0,
+        repliesReceived: 0,
+        nonce: "",
+        probeAt: 0,
+        roundTripMs: null,
+        events: [],
+      },
       id,
       connectionId,
       pc,
@@ -164,7 +293,8 @@ export class RtcPeers {
     };
     this.peers.set(id, p);
     pc.onicecandidate = (event) => {
-      if (event.candidate)
+      if (event.candidate) {
+        p.trace.iceCreated++;
         this.sendSignal(p, {
           kind: "candidate",
           candidate: {
@@ -172,13 +302,18 @@ export class RtcPeers {
             candidate: event.candidate.candidate,
           },
         });
+      }
     };
     pc.ondatachannel = (event) => this.bind(p, event.channel);
     pc.onconnectionstatechange = () => {
       if (this.peers.get(id) !== p) return;
+      this.event(p, "peer " + pc.connectionState);
+      this.probe(p);
       if (pc.connectionState === "failed" || pc.connectionState === "closed")
         this.remove(id);
     };
+    pc.oniceconnectionstatechange = () =>
+      this.event(p, "ICE " + pc.iceConnectionState);
     if (offer) {
       this.bind(p, pc.createDataChannel("control", { ordered: true }));
       this.bind(
@@ -198,6 +333,7 @@ export class RtcPeers {
           connectionId: p.connectionId,
           data,
         });
+        if (data.kind === "candidate") p.trace.iceSent++;
       })
       .catch(() => {
         this.status = "CONNECTION SETUP FAILED — RETRYING";
@@ -230,10 +366,14 @@ export class RtcPeers {
         return;
       if (!p || p.connectionId !== signal.connectionId)
         p = this.create(signal.from, signal.connectionId, false);
+      p.trace.offerReceived = true;
+      this.event(p, "offer received");
       await p.pc.setRemoteDescription(signal.data.description);
       for (const candidate of p.candidates.splice(0))
         await p.pc.addIceCandidate(candidate);
       await p.pc.setLocalDescription(await p.pc.createAnswer());
+      p.trace.answerCreated = true;
+      this.event(p, "answer created");
       this.sendSignal(p, {
         kind: "description",
         description: { type: "answer", sdp: p.pc.localDescription!.sdp },
@@ -247,6 +387,8 @@ export class RtcPeers {
       )
         return;
       await p.pc.setRemoteDescription(signal.data.description);
+      p.trace.answerReceived = true;
+      this.event(p, "answer received");
       for (const candidate of p.candidates.splice(0))
         await p.pc.addIceCandidate(candidate);
     } else {
@@ -258,6 +400,7 @@ export class RtcPeers {
       )
         p = this.create(signal.from, signal.connectionId, false);
       if (!p || p.connectionId !== signal.connectionId) return;
+      p.trace.iceReceived++;
       if (p.pc.remoteDescription)
         await p.pc.addIceCandidate(signal.data.candidate);
       else if (p.candidates.length < 64)
@@ -334,6 +477,8 @@ export class RtcPeers {
           const p = this.create(id, crypto.randomUUID(), true);
           void (async () => {
             await p.pc.setLocalDescription(await p.pc.createOffer());
+            p.trace.offerCreated = true;
+            this.event(p, "offer created");
             if (this.peers.get(id) !== p) return;
             this.sendSignal(p, {
               kind: "description",

@@ -93,6 +93,38 @@ const { pathToFileURL } = require("node:url");
     console.log(
       "PASS actual browser WebRTC channels connect through existing Create/Join Party",
     );
+    for (const p of [host, guest]) {
+      const report = await p.evaluate(() =>
+        window.octaneArenaNetwork.diagnostics(),
+      );
+      assert.equal(report.peers.length, 1);
+      const peer = report.peers[0];
+      assert.equal(peer.connectionState, "connected");
+      assert.ok(["connected", "completed"].includes(peer.iceConnectionState));
+      assert.ok(
+        Object.values(peer.channels).every((state) => state === "open"),
+      );
+      assert.ok(
+        peer.probesSent > 0 &&
+          peer.probesReceived > 0 &&
+          peer.repliesSent > 0 &&
+          peer.repliesReceived > 0,
+      );
+      assert.equal(peer.bidirectionalVerified, true);
+      assert.ok(
+        peer.roundTripMs >= 0 && peer.iceCreated > 0 && peer.iceReceived > 0,
+      );
+      assert.ok(peer.offerCreated || peer.offerReceived);
+      assert.ok(peer.answerCreated || peer.answerReceived);
+      assert.equal(
+        await p.evaluate(() => window.__arena.network.latest),
+        null,
+        "Verify connection before loading gameplay",
+      );
+    }
+    console.log(
+      "PASS connected peers, open channels, both-direction probe/reply, SDP/ICE counters and public diagnostics before match start",
+    );
     const launch = async (pages, mode, teams) => {
       await action(host, "stage", { stage: "mode" });
       await action(host, "mode", { mode });

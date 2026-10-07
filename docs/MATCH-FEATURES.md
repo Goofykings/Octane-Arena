@@ -36,7 +36,9 @@ Tune **src/config/heatseeker.ts**:
 All physics in this project uses SI internally; **100 uu = 1 metre**.
 
 Each kickoff chooses its receiving side on the authority, places a neutral ball
-28 m from midfield on that side, and places cars 38 m from midfield facing in.
+18 m forward and 10 m right of that team's formation center. Cars remain 38 m
+from midfield facing in; world ball coordinates are (10, 0.97, 20) for Blue and
+(-10, 0.97, -20) for Orange. This is a team-local 180-degree mirrored serve.
 The normal 3-2-1-GO countdown locks chassis physics. Homing remains inactive until
 a real car/ball solver contact; there is no automatic launch.
 
@@ -63,7 +65,9 @@ snapshots include gamemode and active/owner/target/player/tier/speed/kickoff-sid
 backboard-sequence state, alongside the existing ball state. The RTC receiver
 validates mode against the party's chosen configuration. No guest homing runs.
 
-Ball panels/lamps receive a team tint and mild emission; the existing trail uses
+Before a touch, Heatseeker uses metallic gray panels, dark gray seams and faint
+neutral lights. After a touch, panels, core/seams and lamps all receive strong
+team color with dimensional shading; the existing trail uses
 the authoritative owner (including backboard reversals) with stronger intensity
 at higher tiers. Soccar's ball materials and trails retain their normal look.
 Replay clips store a compact history of Heatseeker ownership/tier changes, so
@@ -116,3 +120,46 @@ share the same gameplay rig and hold action.
 Internet deployment still uses the project's existing signaling/API/TURN setup;
 these checks use independent sessions on one machine, not a new public backend.
 Both frontend and backend must be updated for the new gamemode endpoint.
+
+## Heatseeker visual/spawn polish calibration
+
+Original ball meshes/materials are used; no proprietary Heatseeker texture is
+copied. The neutral finish remaps existing panel colors to varied grayscale,
+adds metallic shading and faint gray emission, and colors both core and lamps
+neutrally. Touch ownership applies saturated blue/orange to panels, seam core and
+lamps. Backboard ownership follows the existing state. Kickoff returns to gray.
+Removing Heatseeker restores exact original Soccar vertex colors and materials.
+A per-model cache avoids rewriting the vertex buffer each frame.
+
+Team-local spawn uses **right / forward from the serving formation center**:
+
+| Spawn                  | Old              | New                |
+| ---------------------- | ---------------- | ------------------ |
+| Local right / forward  | 0 / 10 m         | 10 / 18 m          |
+| Blue world X / Y / Z   | 0 / 0.97 / 28 m  | 10 / 0.97 / 20 m   |
+| Orange world X / Y / Z | 0 / 0.97 / −28 m | −10 / 0.97 / −20 m |
+
+The single-car approach grows from 10 m to approximately 20.6 m. The same
+transform mirrors each team's right and forward axes, and serve choice remains
+random on the authority. Car spawns and ground clearance are unchanged.
+
+Measurements use real contacts at 120 Hz, with 25% throttle/no boost or full
+throttle/boost. They are repeatable automated input trials, not official values.
+
+| Trial                       | Before touch    | Physical hit | First homing tick | Time to at least 98% of 70 km/h |
+| --------------------------- | --------------- | ------------ | ----------------- | ------------------------------- |
+| Old centered serve, gentle  | 0 km/h          | 38.96 km/h   | 40.22 km/h        | 0.200 s                         |
+| Old centered serve, boosted | approximately 0 | 84.83 km/h   | 83.35 km/h        | Already above target            |
+| New offset serve, gentle    | 0 km/h          | 52.50 km/h   | 53.74 km/h        | 0.108 s                         |
+| New offset serve, boosted   | 0 km/h          | 87.52 km/h   | 86.04 km/h        | Already above target            |
+
+The desired initial speed stays **70 km/h** and acceleration stays **45 m/s²**.
+The longer approach naturally produces a stronger car hit; no acceleration,
+speed tier, cap, homing strength, turn rate or car/ball collision change was made.
+A faster-than-target hit keeps its initial impulse and decelerates continuously.
+
+`npm run test:heatseeker-polish` covers both mirrored serves, gray/team/reset
+materials, exact Soccar restoration, existing Heatseeker behavior and measured
+first-touch acceleration. Browser tests steer through normal input actions to
+reach the newly offset ball in both server and WebRTC matches. A rendered
+comparison is saved in `docs/heatseeker-ball-polish.png`.

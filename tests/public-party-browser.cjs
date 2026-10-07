@@ -122,7 +122,7 @@ const { execFileSync } = require("node:child_process");
       ],
     });
     const errors = [];
-    const page = async () => {
+    const page = async (normalPath = false) => {
       const context = await browser.newContext({
         ignoreHTTPSErrors: true,
         viewport: { width: 1280, height: 720 },
@@ -172,7 +172,15 @@ const { execFileSync } = require("node:child_process");
       });
       const p = await context.newPage();
       p.on("pageerror", (e) => errors.push(e.message));
-      await p.goto(origin + "/Octane-Arena/?test");
+      await p.goto(origin + "/Octane-Arena/" + (normalPath ? "" : "?test"));
+      if (normalPath) {
+        await p.waitForFunction(
+          () =>
+            window.octaneArenaNetwork?.diagnostics().partyConnection ===
+            "connected",
+        );
+        return p;
+      }
       await p.waitForFunction(
         () =>
           window.__arena?.party.connection === "connected" &&
@@ -384,6 +392,73 @@ const { execFileSync } = require("node:child_process");
     );
     console.log(
       "PASS lost-connection retry preserves party; HTTP snapshot fallback works when SSE is unavailable",
+    );
+    blockStreams = false;
+    const normalHost = await page(true),
+      normalGuest = await page(true);
+    assert.equal(new URL(normalHost.url()).search, "");
+    assert.equal(
+      await normalHost.evaluate(() => typeof window.__arena),
+      "undefined",
+    );
+    await normalHost.locator("#party-create").click();
+    await normalHost.waitForFunction(
+      () => !document.getElementById("party-code").hidden,
+    );
+    const normalCode = (await normalHost.locator("#party-code").textContent())
+      .trim()
+      .split(/\s+/)
+      .pop();
+    const joinNormal = async () => {
+      await normalGuest.locator("#party-join-open").click();
+      await normalGuest.locator("#party-input").fill(normalCode);
+      await normalGuest.locator("#party-join button[type=submit]").click();
+      for (const p of [normalHost, normalGuest])
+        await p.waitForFunction(() =>
+          window.octaneArenaNetwork
+            .diagnostics()
+            .peers.some(
+              (peer) =>
+                peer.connectionState === "connected" &&
+                peer.bidirectionalVerified &&
+                Object.values(peer.channels).every((s) => s === "open"),
+            ),
+        );
+    };
+    await joinNormal();
+    const generation = await normalHost.evaluate(
+      () => window.octaneArenaNetwork.diagnostics().peers[0].connectionId,
+    );
+    for (const p of [normalHost, normalGuest]) {
+      assert.equal(await p.locator("#party-members .party-avatar").count(), 2);
+      const trace = await p.evaluate(
+        () => window.octaneArenaNetwork.diagnostics().peers[0],
+      );
+      assert.ok(
+        trace.probesSent &&
+          trace.probesReceived &&
+          trace.repliesSent &&
+          trace.repliesReceived,
+      );
+    }
+    await normalGuest.locator("#party-leave").click();
+    for (const p of [normalHost, normalGuest])
+      await p.waitForFunction(
+        () =>
+          window.octaneArenaNetwork.diagnostics().peers.length === 0 &&
+          window.octaneArenaNetwork
+            .diagnostics()
+            .closedPeers.some((peer) => peer.connectionState === "closed"),
+      );
+    await joinNormal();
+    assert.notEqual(
+      await normalHost.evaluate(
+        () => window.octaneArenaNetwork.diagnostics().peers[0].connectionId,
+      ),
+      generation,
+    );
+    console.log(
+      "PASS normal Pages URL without test query: connected peer/open channels, bidirectional ping/reply before gameplay, member UI, leave cleanup and fresh-generation reconnect (two contexts on one machine)",
     );
     assert.deepEqual(errors, []);
     console.log(

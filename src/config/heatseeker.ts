@@ -9,7 +9,7 @@ export const HEATSEEKER = {
   homingStrength: 2.8,
   touchCooldown: 0.15,
   targetDepth: 3,
-  kickoffBallDistance: 28,
+  kickoffBallSpawn: { right: 10, forward: 18 }, // Relative to the serving formation center.
   kickoffCarDistance: 38,
   backboardWidth: P.arena.goalHalf + 12,
   backboardHeight: P.arena.goalHeight + 8,

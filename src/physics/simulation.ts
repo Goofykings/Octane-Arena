@@ -14,7 +14,11 @@ import { canDemolish, respawnLocations } from "../game/demolition";
 import { bodies } from "../game/inventory";
 import { kickoffSpawn, type KickoffFormation } from "../../shared/kickoff";
 import { CarBallContact } from "./car-ball";
-import { Heatseeker, isBackboard } from "../game/heatseeker";
+import {
+  Heatseeker,
+  isBackboard,
+  heatseekerServeSpawn,
+} from "../game/heatseeker";
 import type { SoccerMode } from "../../shared/soccer";
 import { HEATSEEKER as H } from "../config/heatseeker";
 // Initialize the same Rapier module used by the simulation, including in Node.
@@ -152,7 +156,6 @@ export class Simulation {
     if (this.heatseeker) {
       const receiver = Math.random() < 0.5 ? 0 : 1;
       this.heatseeker.reset(receiver);
-      const direction = receiver === 0 ? 1 : -1;
       this.cars.forEach((c) => {
         const team = this.cars.filter((p) => p.team === c.team),
           slot = team.indexOf(c);
@@ -162,10 +165,7 @@ export class Simulation {
           c.team === 0 ? 0 : Math.PI,
         );
       });
-      this.ball.setTranslation(
-        { x: 0, y: P.ball.radius + 0.02, z: direction * H.kickoffBallDistance },
-        true,
-      );
+      this.ball.setTranslation(heatseekerServeSpawn(receiver), true);
       this.ballPose.snap();
     }
   }

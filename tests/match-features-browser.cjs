@@ -223,11 +223,47 @@ const { pathToFileURL } = require("node:url");
         await driver.bringToFront();
         await driver.keyboard.down("KeyW");
         await driver.keyboard.down("ShiftLeft");
-        await guest.waitForFunction(
-          () => window.__arena.network.latest.heatseeker.active,
-          null,
-          { timeout: 15000 },
+        for (let i = 0; i < 150; i++) {
+          if (
+            await guest.evaluate(
+              () => window.__arena.network.latest.heatseeker.active,
+            )
+          )
+            break;
+          await driver.evaluate(() => {
+            const a = window.__arena,
+              s = a.network.latest,
+              c = s.cars.find((c) => c.id === a.party.playerId),
+              q = c.rotation;
+            const dx = s.ball.position.x - c.position.x,
+              dz = s.ball.position.z - c.position.z;
+            const forwardX = -2 * (q.x * q.z + q.y * q.w),
+              forwardZ = -(1 - 2 * (q.x * q.x + q.y * q.y));
+            const rightX = 1 - 2 * (q.y * q.y + q.z * q.z),
+              rightZ = 2 * (q.x * q.z - q.y * q.w);
+            const error = Math.atan2(
+              dx * rightX + dz * rightZ,
+              dx * forwardX + dz * forwardZ,
+            );
+            a.input.keys.delete(a.input.bindings.left);
+            a.input.keys.delete(a.input.bindings.right);
+            if (Math.abs(error) > 0.06)
+              a.input.keys.add(
+                error > 0 ? a.input.bindings.right : a.input.bindings.left,
+              );
+          });
+          await driver.waitForTimeout(80);
+        }
+        assert.ok(
+          await guest.evaluate(
+            () => window.__arena.network.latest.heatseeker.active,
+          ),
         );
+        await driver.evaluate(() => {
+          const a = window.__arena;
+          a.input.keys.delete(a.input.bindings.left);
+          a.input.keys.delete(a.input.bindings.right);
+        });
         await driver.keyboard.up("KeyW");
         await driver.keyboard.up("ShiftLeft");
         const state = await guest.evaluate(
