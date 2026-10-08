@@ -16,9 +16,11 @@ import type { Car } from "../car/car";
 import { DribbleSession } from "./dribble/session";
 import type { LocalProfile } from "../game/local-profile";
 import type { MouseLook } from "../camera/mouse-look";
+import { TrainingSession } from "./training/session";
+import { trainingPacks } from "./training/packs";
 
 export interface ExtraReadout {
-  phase: "ready" | "running" | "paused" | "complete";
+  phase: "ready" | "running" | "paused" | "complete" | "countdown" | "replay";
   progress: number;
   total: number;
   bestProgress: number;
@@ -26,9 +28,18 @@ export interface ExtraReadout {
   bestTime: number | null;
   unlocked?: number;
   message?: string;
+  successes?: number;
+  packName?: string;
+  outcomeSequence?: number;
+  countdownText?: string;
 }
 
 export interface ExtraSession {
+  readonly replayActive?: boolean;
+  readonly replayClip?: import("../../shared/replay").ReplayClip | null;
+  readonly replayState?: import("../../shared/replay").ReplayState | null;
+  readonly replayPlayers?: import("../../shared/player").PlayerEntity[];
+  skipReplay?(): boolean;
   readonly ball?: T.Object3D;
   readonly id: string;
   readonly scene: T.Scene;
@@ -224,6 +235,13 @@ export class RingsSession implements ExtraSession {
   }
 }
 export const extraModes = [
+  {
+    id: "training",
+    name: "TRAINING PACKS",
+    icon: "freeplay",
+    create: (options: ExtraSessionOptions) =>
+      new TrainingSession(options, trainingPacks[0]),
+  },
   {
     id: "rings",
     name: "RINGS",

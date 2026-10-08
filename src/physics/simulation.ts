@@ -21,6 +21,8 @@ import {
 } from "../game/heatseeker";
 import type { SoccerMode } from "../../shared/soccer";
 import { HEATSEEKER as H } from "../config/heatseeker";
+import type { StatTouch } from "../game/match-stats";
+import type { BallSample } from "../game/ball-prediction";
 // Initialize the same Rapier module used by the simulation, including in Node.
 export const initializeSimulation = () => RAPIER.init();
 export interface Hit {
@@ -32,6 +34,15 @@ export interface Hit {
   age: number;
 }
 export class Simulation {
+  readonly statTouches: StatTouch[] = [];
+  private statContacts = new Set<string>();
+  private ballSample(): BallSample {
+    return {
+      position: { ...this.ball.translation() },
+      velocity: { ...this.ball.linvel() },
+      heat: this.heatseeker ? { ...this.heatseeker.state } : null,
+    };
+  }
   gameMode: SoccerMode = "soccar";
   heatseeker: Heatseeker | null = null;
   private heatContacts = new Set<string>();
@@ -121,6 +132,8 @@ export class Simulation {
     this.ballPose.snap();
   }
   reset(formation?: KickoffFormation) {
+    this.statContacts.clear();
+    this.statTouches.length = 0;
     for (const c of this.cars)
       if (c.demolitionState !== "active") {
         c.body.setEnabled(true);
@@ -194,6 +207,7 @@ export class Simulation {
     }
   }
   step(inputs: Controls[] | ReadonlyMap<string, PlayerInput>, passive = false) {
+    this.statTouches.length = 0;
     this.clock += P.dt;
     this.touchEvents.length = 0;
     this.demolitions = this.demolitions.filter((e) => (e.age += P.dt) < 1);
@@ -239,6 +253,7 @@ export class Simulation {
     });
     this.ballPose.before();
     this.heatseeker?.steer(this.ball, P.dt);
+    const statBefore = this.ballSample();
     this.world.step(this.events);
     this.events.drainCollisionEvents((a, b, started) => {
       if (
@@ -284,6 +299,7 @@ export class Simulation {
       }
     });
     const heatContacts = new Set<string>();
+    const statContacts = new Set<string>();
     this.cars.forEach((car, i) => {
       const response = this.ballContacts[i];
       let touched = false;
@@ -301,10 +317,23 @@ export class Simulation {
             touched = true;
             this.recordTouch(car.id);
             response.resolve(car, this.ball, point, normal);
+            statContacts.add(car.id);
             if (this.heatseeker) {
               heatContacts.add(car.id);
               if (!this.heatContacts.has(car.id))
                 this.heatseeker.touch(car.id, car.team as 0 | 1, this.clock);
+            }
+            if (!this.statContacts.has(car.id)) {
+              let normalImpulse = 0;
+              for (let k = 0; k < manifold.numContacts(); k++)
+                normalImpulse += manifold.contactImpulse(k);
+              this.statTouches.push({
+                playerId: car.id,
+                before: statBefore,
+                after: this.ballSample(),
+                impulseSpeed:
+                  (normalImpulse + response.impulse.length()) / P.ball.mass,
+              });
             }
             if (response.impulse.lengthSq() > 0)
               this.hits.push({
@@ -320,6 +349,7 @@ export class Simulation {
       if (!touched) response.separate();
     });
     this.heatContacts = heatContacts;
+    this.statContacts = statContacts;
     if (this.heatseeker && this.arenaCollider && this.ball.isEnabled()) {
       let board: 0 | 1 | null = null;
       this.world.contactPair(
@@ -376,6 +406,7 @@ export class Simulation {
       this.ballPose.snap();
       this.containmentRecoveries++;
     }
+    for (const touch of this.statTouches) touch.after = this.ballSample();
     this.ballPose.after();
   }
   private bump(first: number, second: number) {

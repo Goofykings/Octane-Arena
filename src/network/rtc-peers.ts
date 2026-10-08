@@ -24,6 +24,8 @@ interface Peer {
     nonce: string;
     probeAt: number;
     roundTripMs: number | null;
+    pending: boolean;
+    measuredAt: number;
     events: { event: string; time: number }[];
   };
   id: string;
@@ -94,7 +96,7 @@ export class RtcPeers {
   }
   private probe(p: Peer) {
     if (
-      p.trace.nonce ||
+      p.trace.pending ||
       !this.channelsOpen(p) ||
       p.pc.connectionState !== "connected"
     )
@@ -103,10 +105,16 @@ export class RtcPeers {
     p.trace.probeAt = performance.now();
     if (this.send(p.id, { type: "rtc-probe", nonce: p.trace.nonce })) {
       p.trace.probesSent++;
+      p.trace.pending = true;
       this.event(p, "probe sent");
     } else p.trace.nonce = "";
   }
   readonly peers = new Map<string, Peer>();
+  latency(id: string) {
+    const p = this.peers.get(id);
+    if (!p || performance.now() - p.trace.measuredAt >= 5000) return null;
+    return p.trace.roundTripMs;
+  }
   status = "CONNECTING TO PLAYERS";
   private context = "";
   private configuration: IceConfig | null = null;
@@ -231,10 +239,13 @@ export class RtcPeers {
           channel.label === "control" &&
           data.type === "rtc-probe-reply" &&
           p.trace.nonce &&
+          p.trace.pending &&
           data.nonce === p.trace.nonce
         ) {
           p.trace.repliesReceived++;
           p.trace.roundTripMs = performance.now() - p.trace.probeAt;
+          p.trace.measuredAt = performance.now();
+          p.trace.pending = false;
           this.event(p, "probe reply received");
           return;
         }
@@ -278,6 +289,8 @@ export class RtcPeers {
         nonce: "",
         probeAt: 0,
         roundTripMs: null,
+        pending: false,
+        measuredAt: 0,
         events: [],
       },
       id,
@@ -458,7 +471,9 @@ export class RtcPeers {
       }
       if (this.ready(id)) {
         if (now - p.pingAt > 1000) {
-          this.send(id, { type: "ping" });
+          if (p.trace.pending && now - p.trace.probeAt > 4000)
+            p.trace.pending = false;
+          this.probe(p);
           p.pingAt = now;
         }
         while (p.queue.length && p.bulk!.bufferedAmount < 32768) {

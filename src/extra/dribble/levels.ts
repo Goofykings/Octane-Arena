@@ -4,7 +4,15 @@ export type DribblePiece =
   | { kind: "straight" | "narrow"; length: number; width?: number }
   | { kind: "turn"; degrees: number; radius: number; width?: number }
   | { kind: "ramp" | "descent"; length: number; rise: number; width?: number }
-  | { kind: "gap"; length: number };
+  | { kind: "gap"; length: number }
+  | { kind: "wall"; height: number; depth: number }
+  | {
+      kind: "spinner";
+      radius: number;
+      armWidth: number;
+      depth: number;
+      angularSpeed: number;
+    };
 export interface DribbleLevel {
   id: number;
   name: string;
@@ -27,6 +35,20 @@ const ramp = (length: number, rise: number): DribblePiece => ({
   rise,
 });
 const gap = (length: number): DribblePiece => ({ kind: "gap", length });
+const wall = (height = 0.8): DribblePiece => ({
+  kind: "wall",
+  height,
+  depth: 0.45,
+});
+// Radians/second; intentionally readable timing, not a random moving hazard.
+export const DRIBBLE_SPINNER_SPEED = 0.42;
+const spinner = (): DribblePiece => ({
+  kind: "spinner",
+  radius: 1.8,
+  armWidth: 0.28,
+  depth: 0.55,
+  angularSpeed: DRIBBLE_SPINNER_SPEED,
+});
 // Original courses: generous introductions, then measured combinations of the
 // same readable pieces. Add another definition here to extend the challenge.
 export const dribbleLevels: DribbleLevel[] = [
@@ -34,103 +56,94 @@ export const dribbleLevels: DribbleLevel[] = [
     id: 1,
     name: "First Carry",
     width: 10,
-    pieces: [straight(16), turn(8, 45), straight(5)],
+    pieces: [straight(10)],
   },
   {
     id: 2,
-    name: "Wide Bend",
-    width: 10,
-    pieces: [straight(9), turn(25, 25), straight(9)],
+    name: "Narrow Carry",
+    width: 7,
+    pieces: [straight(24)],
   },
   {
     id: 3,
-    name: "Left and Right",
-    width: 9,
-    pieces: [
-      straight(6),
-      turn(30, 22),
-      turn(-60, 22),
-      turn(30, 22),
-      straight(5),
-    ],
+    name: "Right Angle",
+    width: 10,
+    pieces: [straight(6), turn(90, 13), straight(5)],
   },
   {
     id: 4,
-    name: "Gentle Rise",
-    width: 9,
-    pieces: [straight(6), ramp(14, 0.35), straight(5), ramp(12, -0.35)],
-  },
-  {
-    id: 5,
-    name: "Wide S",
-    width: 8.5,
+    name: "Close S",
+    width: 7,
     pieces: [
       straight(6),
-      turn(35, 20),
-      turn(-60, 20),
-      turn(25, 20),
+      turn(90, 10),
+      straight(2),
+      turn(-90, 10),
       straight(5),
     ],
   },
   {
+    id: 5,
+    name: "Left Hairpin",
+    width: 9,
+    pieces: [straight(4), turn(-180, 11), straight(3)],
+  },
+  {
     id: 6,
-    name: "Find Your Line",
-    width: 7,
-    pieces: [straight(10, 5.8), turn(-25, 22), straight(10, 7)],
+    name: "First Wall",
+    width: 10,
+    pieces: [straight(9), wall(), straight(14)],
   },
   {
     id: 7,
-    name: "Rolling Hill",
-    width: 7.5,
-    pieces: [straight(5), ramp(14, 1), straight(4), ramp(14, -1), turn(18, 24)],
+    name: "Double Wall",
+    width: 9,
+    pieces: [straight(9), wall(1), straight(19), wall(1), straight(14)],
   },
   {
     id: 8,
-    name: "First Hop",
-    width: 7,
+    name: "Turn and Hop",
+    width: 8,
     pieces: [
-      straight(9),
-      ramp(4, 0.12),
-      gap(0.9),
-      straight(6),
-      ramp(5, -0.12),
-      straight(6),
+      straight(5),
+      turn(90, 12),
+      straight(7),
+      wall(0.85),
+      straight(16),
+      turn(-90, 12),
+      straight(7),
+      wall(0.85),
+      straight(14),
     ],
   },
   {
     id: 9,
-    name: "Rise and Turn",
-    width: 6.5,
-    pieces: [
-      straight(6),
-      ramp(12, 0.8),
-      turn(30, 20),
-      ramp(12, -0.8),
-      straight(5),
-    ],
+    name: "Rotating Door",
+    width: 4.5,
+    pieces: [straight(10), spinner(), straight(17)],
   },
   {
     id: 10,
-    name: "Changing Heights",
-    width: 6.5,
-    pieces: [
-      ramp(12, 0.7),
-      ramp(10, -0.4),
-      turn(-25, 20),
-      ramp(10, 0.5),
-      ramp(12, -0.8),
-    ],
+    name: "Long Jump",
+    width: 9,
+    pieces: [straight(20), gap(4.3), straight(14)],
   },
   {
     id: 11,
-    name: "Closer S",
-    width: 5.5,
+    name: "Mixed Carry",
+    width: 8,
     pieces: [
-      straight(7),
-      turn(35, 17),
-      turn(-65, 17),
-      turn(30, 17),
-      straight(7),
+      straight(10),
+      wall(0.9),
+      straight(14),
+      turn(90, 12),
+      straight(14),
+      gap(3.8),
+      straight(15),
+      turn(-90, 12),
+      straight(8),
+      wall(0.9),
+      straight(14),
     ],
   },
   {
@@ -271,9 +284,18 @@ export interface DribbleCourse {
   start: { center: Vector3; width: number; length: number };
   finish: { center: Vector3; heading: number; width: number; height: number };
   failHeight: number;
+  obstacles: DribbleObstacle[];
+}
+export interface DribbleObstacle {
+  piece: Extract<DribblePiece, { kind: "wall" | "spinner" }>;
+  center: Vector3;
+  heading: number;
+  width: number;
+  distance: number;
 }
 const ease = (t: number) => t * t * (3 - 2 * t);
 export function buildDribbleCourse(definition: DribbleLevel): DribbleCourse {
+  const obstacles: DribbleObstacle[] = [];
   const nodes: PathNode[] = [
     {
       center: new Vector3(0, 2, 12),
@@ -285,6 +307,16 @@ export function buildDribbleCourse(definition: DribbleLevel): DribbleCourse {
   ];
   const append = (piece: DribblePiece) => {
     const previous = nodes[nodes.length - 1];
+    if (piece.kind === "wall" || piece.kind === "spinner") {
+      obstacles.push({
+        piece,
+        center: previous.center.clone(),
+        heading: previous.heading,
+        width: previous.width,
+        distance: previous.distance,
+      });
+      return;
+    }
     const length =
       piece.kind === "turn"
         ? ((Math.abs(piece.degrees) * Math.PI) / 180) * piece.radius
@@ -342,6 +374,7 @@ export function buildDribbleCourse(definition: DribbleLevel): DribbleCourse {
     );
   return {
     definition,
+    obstacles,
     nodes,
     spawn: new Vector3(0, 2.34, 8),
     start: { center: new Vector3(0, 2, 7), width: 5, length: 6 },

@@ -87,6 +87,7 @@ export class ReplayScenePlayback {
     return !!this.sampler;
   }
   resetEffects() {
+    heatseekerBall(this.ball, null);
     const e = this.effects;
     e.vehicles.forEach((v) => v.reset());
     e.ball.reset();
@@ -126,7 +127,7 @@ export class ReplayScenePlayback {
     let heat: import("../../shared/soccer").HeatseekerState | undefined;
     for (const entry of clip.heatseeker ?? [])
       if (entry.time <= time) heat = entry.state;
-    heatseekerBall(this.ball, heat);
+    heatseekerBall(this.ball, heat, effectDt);
     this.sources.forEach((source, i) => {
       const index = clip.carIds.indexOf(source.id);
       if (index < 0) {
@@ -225,6 +226,7 @@ export class ReplayScenePlayback {
       this.ball.visible,
       this.director.camera.position,
       heatIntensity(heat),
+      heat,
     );
     if (time >= clip.goal.time && !this.goalShown) {
       this.effects.explosion.trigger(

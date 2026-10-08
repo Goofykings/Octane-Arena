@@ -3,8 +3,36 @@ import { ribbonGeometry } from "./geometry";
 import type { DribbleCourse } from "./levels";
 export class DribbleView {
   readonly group = new T.Group();
+  readonly spinners: { mesh: T.Group; obstacleIndex: number }[] = [];
   constructor(readonly course: DribbleCourse) {
     this.group.name = "dribble-course";
+    course.obstacles.forEach((obstacle, obstacleIndex) => {
+      const { piece, center, heading, width } = obstacle;
+      const group = new T.Group();
+      group.name = `dribble-${piece.kind}-${obstacleIndex}`;
+      group.position.copy(center);
+      group.rotation.y = -heading;
+      const material = new T.MeshStandardMaterial({
+        color: 0xe9aa51,
+        roughness: 0.45,
+        metalness: 0.25,
+      });
+      const add = (x: number, y: number, z: number) => {
+        const mesh = new T.Mesh(new T.BoxGeometry(x, y, z), material);
+        mesh.castShadow = mesh.receiveShadow = true;
+        group.add(mesh);
+      };
+      if (piece.kind === "wall") {
+        group.position.y += piece.height / 2;
+        add(width, piece.height, piece.depth);
+      } else {
+        group.position.y += piece.radius;
+        add(piece.radius * 2, piece.armWidth, piece.depth);
+        add(piece.armWidth, piece.radius * 2, piece.depth);
+        this.spinners.push({ mesh: group, obstacleIndex });
+      }
+      this.group.add(group);
+    });
     const size = 64,
       pixels = new Uint8Array(size * size * 4);
     for (let y = 0; y < size; y++)

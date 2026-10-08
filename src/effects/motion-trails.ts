@@ -2,6 +2,9 @@ import * as T from "three";
 import { P } from "../config/physics";
 import { wheelMount } from "../car/wheels";
 import type { Car } from "../car/car";
+import type { HeatseekerState } from "../../shared/soccer";
+import type { Quality } from "../../shared/settings";
+import { HeatseekerTrail } from "./heatseeker-trail";
 
 /** Short world-space histories; one fixed buffer per effect, never new meshes per tick. */
 export class MotionTrails {
@@ -101,8 +104,15 @@ export class MotionTrails {
   }
 }
 export class BallTrails extends MotionTrails {
+  readonly heatseeker: HeatseekerTrail;
+  quality: Quality = "high";
   constructor(scene: T.Scene) {
     super(scene, 4, 0.22);
+    this.heatseeker = new HeatseekerTrail(scene);
+  }
+  reset() {
+    super.reset();
+    this.heatseeker.reset();
   }
   updateBall(
     ball: T.Object3D,
@@ -112,7 +122,22 @@ export class BallTrails extends MotionTrails {
     active: boolean,
     camera?: T.Vector3,
     heat = 0,
+    state?: HeatseekerState | null,
   ) {
+    if (state) {
+      this.mesh.visible = false;
+      this.tracks.forEach((t) => (t.length = 0));
+      this.heatseeker.update(
+        ball.position,
+        dt,
+        active,
+        state,
+        camera,
+        this.quality,
+      );
+      return;
+    }
+    if (this.heatseeker.count) this.heatseeker.reset();
     const strength = T.MathUtils.smoothstep(speed, 3, 24) * (0.65 + heat * 0.2);
     const points = Array.from({ length: 4 }, (_, i) => {
       const angle = (i * Math.PI) / 2;

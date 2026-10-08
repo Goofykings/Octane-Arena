@@ -3,6 +3,8 @@ import type { Preset } from "./catalog";
 import type { ArenaId } from "./arenas";
 import type { ReplayMessage, ReplayState } from "./replay";
 import type { SoccerMode, HeatseekerState } from "./soccer";
+import type { PlayerMatchStats, MatchStatEvent } from "./match-stats";
+import type { ChatMessage } from "./chat";
 export type Vec = { x: number; y: number; z: number };
 export type Rotation = Vec & { w: number };
 export type NetPlayer = PlayerEntity & { preset: Preset };
@@ -34,6 +36,9 @@ export interface MatchSnapshot {
   arenaId: ArenaId;
   gameMode?: SoccerMode;
   heatseeker?: HeatseekerState | null;
+  stats?: PlayerMatchStats[];
+  statEvents?: MatchStatEvent[];
+  chat?: ChatMessage[];
   tick: number;
   time: number;
   reset: number;
@@ -64,9 +69,15 @@ export type ClientMessage =
   | { type: "auth"; token: string }
   | { type: "input"; matchId: string; sequence: number; input: PlayerInput }
   | { type: "REPLAY_SKIP_REQUEST"; matchId: string; replayId: string }
+  | { type: "chat-send"; matchId: string; text: string }
+  | { type: "latency-reply"; nonce: string }
   | { type: "ping" };
 export type ServerMessage =
   | MatchSnapshot
   | ReplayMessage
+  | { type: "chat-message"; matchId: string; message: ChatMessage }
+  | { type: "chat-history"; matchId: string; messages: ChatMessage[] }
+  | { type: "chat-error"; matchId: string; playerId: string; message: string }
+  | { type: "latency-probe"; nonce: string }
   | { type: "connected" }
   | { type: "error"; message: string };

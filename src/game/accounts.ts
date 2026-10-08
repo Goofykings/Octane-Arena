@@ -51,6 +51,9 @@ export class Accounts {
       ["WINS", stats.wins],
       ["LOSSES", stats.losses],
       ["GOALS", stats.goals],
+      ["ASSISTS", stats.assists],
+      ["SAVES", stats.saves],
+      ["SHOTS", stats.shots],
       ["PLAY TIME", `${Math.floor(stats.playTime / 60)} MIN`],
       ["RINGS BEST", `${rings.bestRings} / 40`],
       [

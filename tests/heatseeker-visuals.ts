@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import * as T from "three";
 import { ballModel, animateBall, disposeModel } from "../src/render/models";
-import { heatseekerBall } from "../src/effects/heatseeker-ball";
+import {
+  heatseekerBall,
+  heatColor,
+  HEAT_VISUAL,
+} from "../src/effects/heatseeker-ball";
 import { Heatseeker, heatseekerServeSpawn } from "../src/game/heatseeker";
 import { HEATSEEKER as H } from "../src/config/heatseeker";
 import { P } from "../src/config/physics";
@@ -17,10 +21,10 @@ const original = new Float32Array(attribute.array);
 try {
   animateBall(ball, 1);
   heatseekerBall(ball, h.state);
-  assert.equal(panel.color.getHex(), 0xb1b8c0);
-  assert.ok(panel.metalness >= 0.65);
-  assert.ok(panel.roughness <= 0.35 && panel.emissiveIntensity < 0.05);
-  assert.equal(core.color.getHex(), 0x4a5057);
+  assert.equal(panel.color.getHex(), HEAT_VISUAL.neutral);
+  assert.ok(panel.metalness <= 0.3);
+  assert.ok(panel.roughness <= 0.5 && panel.emissiveIntensity < 0.1);
+  assert.ok(core.color.r > 0.6 && core.color.g > 0.6 && core.color.b > 0.6);
   const gray = new Float32Array(attribute.array);
   for (let i = 0; i < gray.length; i += 3)
     assert.ok(gray[i] === gray[i + 1] && gray[i + 1] === gray[i + 2]);
@@ -28,7 +32,15 @@ try {
   for (const team of [0, 1] as const) {
     h.touch("player-" + team, team, team + 1);
     animateBall(ball, 2);
-    heatseekerBall(ball, h.state);
+    const before = panel.color.clone();
+    heatseekerBall(ball, h.state, 1 / 60);
+    assert.ok(
+      panel.color.getHex() !== heatColor(h.state),
+      "Color transitions rather than flashing immediately",
+    );
+    assert.notEqual(panel.color.getHex(), before.getHex());
+    for (let frame = 0; frame < 20; frame++)
+      heatseekerBall(ball, h.state, 1 / 60);
     const color = team === 0 ? 0x399cff : 0xff8b32;
     assert.equal(panel.color.getHex(), color);
     assert.equal(panel.emissive.getHex(), color);
@@ -39,16 +51,32 @@ try {
     }
   }
   assert.ok(h.backboard(0));
-  heatseekerBall(ball, h.state);
+  heatseekerBall(ball, h.state, 0.2);
   assert.equal(
     panel.color.getHex(),
     0x399cff,
     "Backboard ownership also changes the full ball",
   );
+  while (h.state.speed < H.maxSpeed) {
+    h.touch("max-player", h.state.ownerTeam === 0 ? 1 : 0, h.state.tier + 10);
+  }
+  const owner = h.state.ownerTeam,
+    target = h.state.targetTeam;
+  heatseekerBall(ball, h.state, 0.2);
+  assert.equal(panel.color.getHex(), HEAT_VISUAL.maximum);
+  assert.equal(core.emissive.getHex(), HEAT_VISUAL.maximum);
+  h.touch("other-at-max", owner === 0 ? 1 : 0, 999);
+  heatseekerBall(ball, h.state, 0.2);
+  assert.equal(panel.color.getHex(), HEAT_VISUAL.maximum);
+  assert.notEqual(h.state.ownerTeam, owner);
+  assert.notEqual(h.state.targetTeam, target);
+  const immutable = JSON.stringify(h.state);
+  heatseekerBall(ball, h.state);
+  assert.equal(JSON.stringify(h.state), immutable);
   h.reset(1);
   animateBall(ball, 3);
   heatseekerBall(ball, h.state);
-  assert.equal(panel.color.getHex(), 0xb1b8c0);
+  assert.equal(panel.color.getHex(), HEAT_VISUAL.neutral);
   assert.deepEqual(new Float32Array(attribute.array), gray);
   animateBall(ball, 4);
   heatseekerBall(ball, null);
@@ -85,5 +113,5 @@ try {
   disposeModel(soccar);
 }
 console.log(
-  "PASS metallic neutral, full panel/core/lamp coloring, backboard color, neutral kickoff reset, exact Soccar restoration, mirrored local serve and unchanged speed/curvature",
+  "PASS detailed white neutral, smooth team and max-speed pink transitions, full panel/core/lamp coloring, backboard color, neutral kickoff reset, exact Soccar restoration, mirrored local serve and unchanged speed/curvature",
 );

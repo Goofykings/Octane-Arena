@@ -45,7 +45,7 @@ const { pathToFileURL } = require("node:url");
     ]) {
       await page.setViewportSize({ width, height });
       const version = page.locator("#game-version");
-      assert.equal(await version.textContent(), "V0.1.4");
+      assert.equal(await version.textContent(), "V0.1.5");
       const bounds = await version.boundingBox();
       assert.ok(
         bounds.x > width / 2 &&

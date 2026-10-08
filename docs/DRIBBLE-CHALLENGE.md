@@ -8,21 +8,38 @@ online account requirement or timer objective. Boost is unlimited, as in Rings.
 
 ## Levels and progression
 
-| Levels | Introduction                                                                                       |
-| ------ | -------------------------------------------------------------------------------------------------- |
-| 1–4    | Wide short carry, gentle bend, left/right combination, shallow 0.35 m rise                         |
-| 5–7    | Wider S, varying width and a low hill                                                              |
-| 8–12   | First 0.9 m gap, ramp into turn, mixed elevations, narrower S, two hops                            |
-| 13–17  | Sharper direction changes, elevated narrower paths, climb/turn/descent, 1.4 m gap and narrow turns |
-| 18–20  | Ramps plus gaps, changing widths and the final mixed course                                        |
+| Level | Layout                                                               |
+| ----- | -------------------------------------------------------------------- |
+| 1     | Wide, short straight with no obstacles                               |
+| 2     | Longer 7 m straight, narrower than Level 1                           |
+| 3     | Wide straight, smooth 90-degree right turn, short finish             |
+| 4     | 7 m S: right 90, short link, left 90                                 |
+| 5     | 9 m left hairpin, radius 11 m, short exit                            |
+| 6     | Wide straight with one 0.8 m jump wall                               |
+| 7     | Two 1 m walls separated by 19 m recovery space                       |
+| 8     | Right 90, wall, recovery straight, left 90, wall                     |
+| 9     | 4.5 m track and a timed rotating plus                                |
+| 10    | Wide straight with a 4.3 m gap and landing buffer                    |
+| 11    | Wall, turn, 3.8 m gap, turn, second wall                             |
+| 12-20 | Previous double hops, ramps, narrow bends and mixed courses retained |
 
-Widths decrease from 9–10 m to 4.2–5.5 m. Turns stay visible on open floating
-platforms. Ramps use a smooth height profile; every jump is a real gap, marked
-with an amber edge. The largest gap is 1.5 m. The floor has an original blue
-panel pattern and turquoise edges/directional chevrons. A compact gray starting
-patch supports the ball; a translucent pale grid wall marks the finish.
+Courses remain open floating platforms with the original blue panel pattern,
+turquoise edges, arrows, gray starting patch and transparent grid finish.
+Wall heights are 0.8-1 m; both starter cars can clear them while carrying a ball
+using one held jump. The 4.3 m gap is 3.64 Ion car lengths. It needs more approach
+speed than the original small gaps (tests use 7 m/s and a 0.2 s held jump).
 
-Every level starts on a compact 5 ? 6 m gray area inset into the existing
+Walls and rotating arms use collision membership 16 and collide with both car
+and ball. The ordinary road still excludes the ball. A single kinematic body
+supports the plus's two crossing arms; fixed-step next-rotation updates generate
+physical angular velocity. Rendering reads that body's solved rotation rather
+than running a second animation clock. Its radius is 1.8 m (3.6 m tall), arm width 0.28 m,
+depth 0.55 m, and speed 0.42 rad/s. The scale leaves room for the carried ball in
+the lower side openings while preventing driving around the tips. Tune
+`DRIBBLE_SPINNER_SPEED` and piece dimensions in `src/extra/dribble/levels.ts`.
+Reset restarts its clock; level changes remove its body and colliders.
+
+Every level starts on a compact 5 x 6 m gray area inset into the existing
 approach. The ball rests directly on that flat surface. The previous rounded
 prongs/holders are removed; no ramp, pedestal, lift, or catch assistance exists.
 This deliberately lets the player experiment with the existing car/ball contact
@@ -46,12 +63,13 @@ garage and Rings records are preserved. Unavailable storage permits session play
 
 Rapier membership/filter pairs isolate this mode:
 
-| Object                     | Membership bit | Collides with                      |
-| -------------------------- | -------------- | ---------------------------------- |
-| Road                       | 1              | Car                                |
-| Car                        | 2              | Road and ball                      |
-| Ball                       | 4              | Car and gray starting-area support |
-| Starting-area ball support | 8              | Ball only                          |
+| Object                     | Membership bit | Collides with                 |
+| -------------------------- | -------------- | ----------------------------- |
+| Road                       | 1              | Car                           |
+| Car                        | 2              | Road, ball and obstacles      |
+| Ball                       | 4              | Car, gray start and obstacles |
+| Starting-area ball support | 8              | Ball only                     |
+| Walls and rotating arms    | 16             | Car and ball                  |
 
 The gray area supports **both** objects. Its car support is the unchanged
 continuous road collider beneath it; a coplanar ball-only slab adds ball support
@@ -60,7 +78,7 @@ supports the ball. There are no floor-overlap sensors or finish colliders.
 
 Failure uses the exact two top triangles of each connected ribbon segment.
 For the sphere center, project onto a triangle's plane; if the projection lies
-inside that triangle and signed normal distance is less than **?ball radius**,
+inside that triangle and signed normal distance is less than **negative ball radius**,
 the whole sphere is below that local surface and the attempt resets. This works
 for elevated/sloped sections instead of assuming one world height. The gray
 area is excluded. Real gaps have no floor triangles. The off-course lower height
@@ -110,8 +128,11 @@ and unchanged soccer floor support. Both car bodies drive across the gray
 boundary without vertical launches; an unassisted rolling ball leaves the safe
 area, visibly falls through, then fails. The previous guaranteed holder-pickup
 test no longer applies because this update intentionally removes those holders.
-The car-only traversal still drives every unchanged course and all eight isolated
-roof-carry jumps still test gap geometry, not whole-course player skill.
+The car-only traversal drives all twenty current courses, including wall jumps
+and timed spinner passage. Nine isolated carried-ball jumps test the old and
+new gap geometry at 4.5-7 m/s. The obstacle suite separately verifies fourteen
+both-body wall carries and real rotating-arm contacts/passage. These checks
+verify mechanical feasibility, not whole-course player skill.
 
 `tests/dribble-browser.cjs` verifies menu/HUD, visible gray start and transparent
 grid wall, Ball Cam/manual look, fast reset, ball-only flick completion, automatic

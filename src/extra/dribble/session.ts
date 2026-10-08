@@ -174,6 +174,12 @@ export class DribbleSession implements ExtraSession {
         : { alpha: 1, steps: 0 };
     if (sequence !== this.run.resetSequence) this.resetView();
     const alpha = sequence === this.run.resetSequence ? result.alpha : 1;
+    for (const { mesh, obstacleIndex } of this.level.spinners) {
+      const spinner = this.physics.spinners.find(
+        (s) => s.obstacleIndex === obstacleIndex,
+      );
+      if (spinner) mesh.quaternion.copy(spinner.body.rotation());
+    }
     this.vehicle.pose.render(this.car, alpha);
     this.physics.ballPose.render(this.ball, alpha);
     const active = !this.paused && this.run.phase !== "complete",

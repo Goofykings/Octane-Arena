@@ -19,7 +19,10 @@ export type AuthorityCommand =
     }
   | { type: "input"; id: string; sequence: number; input: PlayerInput }
   | { type: "connected" | "disconnected"; id: string }
-  | { type: "skip"; id: string; replayId: string };
+  | { type: "skip"; id: string; replayId: string }
+  | { type: "chat"; id: string; text: unknown }
+  | { type: "ping"; id: string; value: number | null }
+  | { type: "stats-debug"; enabled: boolean };
 let game: NetworkMatch | null = null;
 let timer: ReturnType<typeof setInterval> | undefined;
 const scope = self as unknown as {
@@ -73,6 +76,28 @@ scope.onmessage = (event) => {
     return;
   }
   if (!game) return;
+  if (message.type === "chat") {
+    const result = game.acceptChat(message.id, message.text);
+    scope.postMessage(
+      result.message
+        ? { type: "chat-message", matchId: game.id, message: result.message }
+        : {
+            type: "chat-error",
+            matchId: game.id,
+            playerId: message.id,
+            message: result.error,
+          },
+    );
+    return;
+  }
+  if (message.type === "ping") {
+    game.ping(message.id, message.value);
+    return;
+  }
+  if (message.type === "stats-debug") {
+    if (game.match.stats) game.match.stats.debug = message.enabled;
+    return;
+  }
   if (message.type === "input")
     game.accept(message.id, message.sequence, message.input);
   else if (message.type === "connected") game.connected(message.id);

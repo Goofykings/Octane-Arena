@@ -10,8 +10,74 @@ import { RtcPeers } from "../network/rtc-peers";
 import { partyRoster } from "../../shared/match-roster";
 import type { AuthorityCommand } from "../network/authority-worker";
 import { peerSnapshot } from "../../shared/rtc";
+import {
+  CHAT,
+  chatText,
+  chatMessageSchema,
+  type ChatMessage,
+} from "../../shared/chat";
 
 export class NetworkClient {
+  readonly chatLog: ChatMessage[] = [];
+  chatError = "";
+  private chatSent = -Infinity;
+  private pingAt = 0;
+  sendChat(raw: string) {
+    const text = chatText(raw),
+      now = performance.now();
+    if (!this.latest || !text) {
+      this.chatError = "Enter a message of up to 180 characters.";
+      return false;
+    }
+    if (now - this.chatSent < CHAT.intervalMs) {
+      this.chatError = "Please wait before sending another message.";
+      return false;
+    }
+    if (this.party.state?.transport === "webrtc") {
+      const host = this.party.state.matchHostId ?? this.party.state.hostId;
+      if (
+        host === this.party.playerId ? !this.authority : !this.rtc.ready(host)
+      ) {
+        this.chatError = "Chat connection unavailable.";
+        return false;
+      }
+    }
+    if (
+      this.party.state?.transport !== "webrtc" &&
+      this.socket?.readyState !== WebSocket.OPEN
+    ) {
+      this.chatError = "Chat connection unavailable.";
+      return false;
+    }
+    if (!this.send({ type: "chat-send", matchId: this.desired, text })) {
+      this.chatError = "Chat connection unavailable.";
+      return false;
+    }
+    this.chatError = "";
+    this.chatSent = now;
+    return true;
+  }
+  setStatsDebug(enabled: boolean) {
+    if (this.party.state?.hostId === this.party.playerId)
+      this.command({ type: "stats-debug", enabled });
+  }
+  private addChat(raw: unknown) {
+    const parsed = chatMessageSchema.safeParse(raw);
+    if (!parsed.success) return;
+    const msg = parsed.data;
+    if (
+      !(
+        this.latest?.players ??
+        (this.party.state ? partyRoster(this.party.state) : [])
+      ).some((p) => p.id === msg.playerId)
+    )
+      return;
+    if (this.chatLog.some((m) => m.id === msg.id)) return;
+    this.chatLog.push(msg);
+    this.chatLog.sort((a, b) => a.id - b.id);
+    if (this.chatLog.length > CHAT.history)
+      this.chatLog.splice(0, this.chatLog.length - CHAT.history);
+  }
   snapshots: MatchSnapshot[] = [];
   latest: MatchSnapshot | null = null;
   replayClip: ReplayClip | null = null;
@@ -84,14 +150,17 @@ export class NetworkClient {
     if (this.party.state?.transport === "webrtc") {
       const host = this.party.state.matchHostId ?? this.party.state.hostId;
       if (host === this.party.playerId) this.peerData(host, message);
-      else this.rtc.send(host, message);
-      return;
+      else return this.rtc.send(host, message);
+      return true;
     }
     if (
       this.socket?.readyState === WebSocket.OPEN &&
       this.socket.bufferedAmount < 16000
-    )
+    ) {
       this.socket.send(JSON.stringify(message));
+      return true;
+    }
+    return false;
   }
   private sendInput() {
     if (!this.latest) return;
@@ -155,6 +224,23 @@ export class NetworkClient {
     };
   }
   private receive(message: ServerMessage) {
+    if (message.type === "latency-probe") {
+      this.send({ type: "latency-reply", nonce: message.nonce });
+      return;
+    }
+    if (message.type === "chat-message" && message.matchId === this.desired) {
+      this.addChat(message.message);
+      return;
+    }
+    if (message.type === "chat-history" && message.matchId === this.desired) {
+      for (const m of message.messages.slice(-CHAT.history)) this.addChat(m);
+      return;
+    }
+    if (message.type === "chat-error" && message.matchId === this.desired) {
+      if (message.playerId === this.party.playerId)
+        this.chatError = message.message;
+      return;
+    }
     if (message.type === "replay" && message.matchId === this.desired) {
       this.replayClip = decodeReplay(message);
     } else if (
@@ -165,6 +251,7 @@ export class NetworkClient {
       if (this.latest && message.reset !== this.latest.reset)
         this.snapshots = [];
       this.latest = message;
+      for (const m of message.chat ?? []) this.addChat(m);
       if (!message.replay) {
         this.replayClip = null;
         this.skipSent = "";
@@ -193,9 +280,18 @@ export class NetworkClient {
     if (host === this.party.playerId) {
       if (!party.members.some((m) => m.id === id)) return;
       if ((value as { type: string }).type === "match-ready") {
-        if (!this.readyPeers.has(id)) this.command({ type: "connected", id });
+        if (!this.readyPeers.has(id)) {
+          this.command({ type: "connected", id });
+          this.rtc.send(id, {
+            type: "chat-history",
+            matchId: this.desired,
+            messages: this.chatLog,
+          });
+        }
         this.readyPeers.add(id);
-      } else if (message.type === "input")
+      } else if (message.type === "chat-send")
+        this.command({ type: "chat", id, text: message.text });
+      else if (message.type === "input")
         this.command({
           type: "input",
           id,
@@ -214,8 +310,12 @@ export class NetworkClient {
             this.desired,
             roster.map((p) => p.id),
           );
-          if (!parsed || parsed.arenaId !== party.matchArenaId ||
-            (parsed.gameMode ?? "soccar") !== (party.gameMode ?? "soccar")) return;
+          if (
+            !parsed ||
+            parsed.arenaId !== party.matchArenaId ||
+            (parsed.gameMode ?? "soccar") !== (party.gameMode ?? "soccar")
+          )
+            return;
           parsed.players = roster;
           this.receive(parsed);
           return;
@@ -255,6 +355,15 @@ export class NetworkClient {
       return;
     }
     const guests = party.members.filter((m) => m.id !== host);
+    if (now - this.pingAt > 1000) {
+      this.pingAt = now;
+      for (const guest of guests)
+        this.command({
+          type: "ping",
+          id: guest.id,
+          value: this.rtc.latency(guest.id),
+        });
+    }
     for (const guest of guests)
       if (this.rtc.ready(guest.id)) {
         if (
@@ -291,6 +400,11 @@ export class NetworkClient {
             for (const guest of this.party.state?.members ?? [])
               if (guest.id !== host && this.readyPeers.has(guest.id))
                 this.rtc.send(guest.id, message, true);
+          if (message.type === "chat-message")
+            for (const guest of this.party.state?.members ?? [])
+              if (guest.id !== host) this.rtc.send(guest.id, message);
+          if (message.type === "chat-error" && message.playerId !== host)
+            this.rtc.send(message.playerId, message);
           if (message.type === "error") this.reportEnd("disconnect");
         };
         authority.onerror = () => {
@@ -336,6 +450,10 @@ export class NetworkClient {
       socket.close();
     }
     this.latest = null;
+    this.chatLog.length = 0;
+    this.chatError = "";
+    this.chatSent = -Infinity;
+    this.pingAt = 0;
     this.replayClip = null;
     this.skipSent = "";
     this.snapshots = [];

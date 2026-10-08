@@ -11,6 +11,8 @@ import {
 } from "../../shared/replay";
 import type { Pads } from "./pads";
 import type { SoccerMode } from "../../shared/soccer";
+import { MatchStats } from "./match-stats";
+import { advanceKickoffCountdown, KICKOFF_GO_TIME } from "../../shared/kickoff-countdown";
 export type Phase =
   | "home"
   | "countdown"
@@ -20,6 +22,7 @@ export type Phase =
   | "paused"
   | "finished";
 export class Match {
+  stats: MatchStats | null = null;
   gameMode: SoccerMode = "soccar";
   readonly recorder = new ReplayRecorder();
   replay: {
@@ -72,6 +75,7 @@ export class Match {
   start(s: Simulation, mode: Mode = this.mode) {
     this.mode = mode;
     s.setGameMode(this.gameMode);
+    this.stats = this.rules.training ? null : new MatchStats(s.players);
     this.practiceKickoff = 0;
     // Explicit collision participation also removes already-registered broadphase pairs.
     this.score = [0, 0];
@@ -84,6 +88,7 @@ export class Match {
     }
   }
   kickoff(s: Simulation) {
+    this.stats?.kickoff();
     const formation =
       this.gameMode === "heatseeker"
         ? undefined
@@ -125,11 +130,11 @@ export class Match {
       return;
     }
     if (this.phase === "countdown") {
-      this.countdown = Math.max(0, this.countdown - P.dt);
-      if (this.countdown < 1e-8) {
+      this.countdown = advanceKickoffCountdown(this.countdown, P.dt);
+      if (this.countdown === 0) {
         this.countdown = 0;
         this.phase = "playing";
-        this.goTime = 0.7;
+        this.goTime = KICKOFF_GO_TIME;
       }
       return;
     }
@@ -142,6 +147,7 @@ export class Match {
       return;
     }
     if (this.phase !== "playing") return;
+    this.stats?.observe(s);
     if (!this.rules.training)
       this.recorder.capture(s, this.resetSequence, pads);
     this.goTime = Math.max(0, this.goTime - P.dt);
@@ -192,6 +198,7 @@ export class Match {
         focus: { ...this.goalFocus },
       };
       const clip = this.recorder.clip(goal);
+      this.stats?.goal(goal, s.clock);
       this.replay = {
         clip,
         clock: new ReplayClock(clip),

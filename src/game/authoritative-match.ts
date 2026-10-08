@@ -9,6 +9,7 @@ import type { MatchSnapshot, NetPlayer } from "../../shared/network";
 import type { ArenaId } from "../../shared/arenas";
 import { displayIdentity } from "../../shared/local-profile";
 import type { SoccerMode } from "../../shared/soccer";
+import { MatchChat, type ChatMessage } from "../../shared/chat";
 
 let initialized: Promise<void> | undefined;
 export const initializeMatchPhysics = () =>
@@ -33,6 +34,22 @@ export class NetworkMatch {
   readonly simulation: Simulation;
   readonly match = new Match();
   readonly pads = new Pads();
+  readonly chat = new MatchChat();
+  acceptChat(
+    id: string,
+    text: unknown,
+    now = performance.now(),
+  ): { message?: ChatMessage; error?: string } {
+    if (
+      this.disconnected.has(id) ||
+      !this.players.some((p) => p.id === id && p.controller !== "bot")
+    )
+      return { error: "Player is not in this match." };
+    return this.chat.accept(id, text, now);
+  }
+  ping(id: string, value: number | null) {
+    this.match.stats?.setPing(id, value);
+  }
   tick = 0;
   private bots = new Map<string, Opponent>();
   private disconnected = new Set<string>();
@@ -84,6 +101,7 @@ export class NetworkMatch {
     const reset = this.match.resetSequence;
     this.inputs.delete(id);
     this.disconnected.add(id);
+    this.ping(id, null);
     this.match.replayDisconnected(id, this.simulation);
     if (this.match.resetSequence !== reset) this.pads.reset();
   }
@@ -145,6 +163,9 @@ export class NetworkMatch {
       arenaId: this.arenaId,
       gameMode: this.gameMode,
       heatseeker: s.heatseeker ? { ...s.heatseeker.state } : null,
+      stats: m.stats?.snapshot(),
+      statEvents: m.stats?.events.map((e) => ({ ...e })),
+      chat: this.chat.messages.slice(-8),
       lastGoal: m.lastGoal,
       replay: m.replayState,
       tick: this.tick,

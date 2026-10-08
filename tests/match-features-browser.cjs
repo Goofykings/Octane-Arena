@@ -203,6 +203,11 @@ const { pathToFileURL } = require("node:url");
           () => window.__arena.network.latest,
         );
         assert.equal(snapshot.heatseeker.active, false);
+        await host.waitForFunction(
+          () =>
+            window.__arena.networkView.ball.userData.panelMaterial.color.getHex() ===
+            0xf5f8ff,
+        );
         assert.notEqual(snapshot.ball.position.z, 0);
         const peer = await guest.evaluate(() => window.__arena.network.latest);
         assert.equal(peer.matchId, snapshot.matchId);
@@ -277,11 +282,17 @@ const { pathToFileURL } = require("node:url");
           (tier) => window.__arena.network.latest.heatseeker.tier >= tier,
           state.tier,
         );
-        assert.equal(
-          await host.evaluate(() =>
-            window.__arena.networkView.ball.userData.panelMaterial.emissive.getHex(),
-          ),
+        await host.waitForFunction(
+          (color) =>
+            window.__arena.networkView.ball.userData.panelMaterial.emissive.getHex() ===
+            color,
           state.ownerTeam === 0 ? 0x399cff : 0xff8b32,
+        );
+        await host.waitForFunction(
+          () =>
+            window.__arena.networkView.group.getObjectByName(
+              "heatseeker-history-trail",
+            ).visible,
         );
         if (transport === "webrtc") assert.equal(partyMatches.matches.size, 0);
         assert.deepEqual(errors, []);

@@ -124,12 +124,12 @@ Both frontend and backend must be updated for the new gamemode endpoint.
 ## Heatseeker visual/spawn polish calibration
 
 Original ball meshes/materials are used; no proprietary Heatseeker texture is
-copied. The neutral finish remaps existing panel colors to varied grayscale,
-adds metallic shading and faint gray emission, and colors both core and lamps
-neutrally. Touch ownership applies saturated blue/orange to panels, seam core and
-lamps. Backboard ownership follows the existing state. Kickoff returns to gray.
-Removing Heatseeker restores exact original Soccar vertex colors and materials.
-A per-model cache avoids rewriting the vertex buffer each frame.
+copied. The current neutral finish is bright white with subtle panel variation,
+recessed seams and faint emission. Ownership colors the whole ball blue/orange;
+the existing maximum-speed progression overrides presentation with pink/purple.
+Kickoff restores white. Removing Heatseeker restores exact original Soccar
+vertex colors and materials. See [HEATSEEKER-EFFECTS.md](HEATSEEKER-EFFECTS.md)
+for the bounded long history trail, quality budgets and smooth color transitions.
 
 Team-local spawn uses **right / forward from the serving formation center**:
 
@@ -158,7 +158,7 @@ The longer approach naturally produces a stronger car hit; no acceleration,
 speed tier, cap, homing strength, turn rate or car/ball collision change was made.
 A faster-than-target hit keeps its initial impulse and decelerates continuously.
 
-`npm run test:heatseeker-polish` covers both mirrored serves, gray/team/reset
+`npm run test:heatseeker-polish` covers both mirrored serves, white/team/max/reset
 materials, exact Soccar restoration, existing Heatseeker behavior and measured
 first-touch acceleration. Browser tests steer through normal input actions to
 reach the newly offset ball in both server and WebRTC matches. A rendered

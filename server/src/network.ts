@@ -14,7 +14,14 @@ export class NetworkMatches {
   matches = new Map<string, NetworkMatch>();
   private sockets = new Map<
     string,
-    { socket: WebSocket; seen: number; replayId?: string }
+    {
+      socket: WebSocket;
+      seen: number;
+      replayId?: string;
+      probeNonce?: string;
+      probeAt?: number;
+      probeLast?: number;
+    }
   >();
   private replayPayloads = new Map<string, { id: string; payload: string }>();
   private missing = new Map<string, number>();
@@ -52,11 +59,27 @@ export class NetworkMatches {
       const now = performance.now(),
         dt = (now - previous) / 1000;
       previous = now;
-      for (const [id, connection] of this.sockets)
+      for (const [id, connection] of this.sockets) {
         if (now - connection.seen > 5000) {
           connection.socket.terminate();
           this.sockets.delete(id);
+        } else if (
+          now - (connection.probeLast ?? 0) > 1000 &&
+          (!connection.probeNonce || now - (connection.probeAt ?? 0) > 4000)
+        ) {
+          if (connection.probeNonce)
+            for (const game of this.matches.values()) game.ping(id, null);
+          connection.probeNonce = crypto.randomUUID();
+          connection.probeAt = connection.probeLast = now;
+          if (connection.socket.readyState === WebSocket.OPEN)
+            connection.socket.send(
+              JSON.stringify({
+                type: "latency-probe",
+                nonce: connection.probeNonce,
+              }),
+            );
         }
+      }
       for (const [code, game] of this.matches) {
         let lost = false;
         for (const p of game.players.filter((p) => p.controller !== "bot")) {
@@ -150,6 +173,15 @@ export class NetworkMatches {
           socket.send(
             JSON.stringify({ type: "connected" } satisfies ServerMessage),
           );
+          const game = player.code ? this.matches.get(player.code) : null;
+          if (game)
+            socket.send(
+              JSON.stringify({
+                type: "chat-history",
+                matchId: game.id,
+                messages: game.chat.messages,
+              }),
+            );
         } else {
           const current = this.identity(token);
           if (!current || current.id !== player.id) throw Error();
@@ -158,7 +190,42 @@ export class NetworkMatches {
           if (connection?.socket !== socket) throw Error();
           connection.seen = now;
           player.touch();
-          if (message.type === "input") {
+          if (message.type === "latency-reply") {
+            if (
+              message.nonce === connection.probeNonce &&
+              connection.probeAt !== undefined
+            ) {
+              const game = player.code ? this.matches.get(player.code) : null;
+              game?.ping(player.id, now - connection.probeAt);
+              connection.probeNonce = undefined;
+            }
+          } else if (message.type === "chat-send") {
+            const game = player.code ? this.matches.get(player.code) : null;
+            if (game && game.id === message.matchId) {
+              const result = game.acceptChat(player.id, message.text, now);
+              if (result.message)
+                for (const member of game.players) {
+                  const target = this.sockets.get(member.id)?.socket;
+                  if (target?.readyState === WebSocket.OPEN)
+                    target.send(
+                      JSON.stringify({
+                        type: "chat-message",
+                        matchId: game.id,
+                        message: result.message,
+                      }),
+                    );
+                }
+              else
+                socket.send(
+                  JSON.stringify({
+                    type: "chat-error",
+                    matchId: game.id,
+                    playerId: player.id,
+                    message: result.error,
+                  }),
+                );
+            }
+          } else if (message.type === "input") {
             const game = player.code ? this.matches.get(player.code) : null;
             if (game && game.id === message.matchId)
               game.accept(player.id, message.sequence, message.input, now);

@@ -6,12 +6,16 @@ import {
   avatarColorSchema,
   defaultAvatarColor,
 } from "../../shared/local-profile";
+import type { PlayerMatchStats } from "../../shared/match-stats";
 export const localProfileKey = "octane-arena-profile";
 const blankStats = () => ({
   matchesPlayed: 0,
   wins: 0,
   losses: 0,
   goals: 0,
+  assists: 0,
+  saves: 0,
+  shots: 0,
   playTime: 0,
 });
 export interface LocalProfileData {
@@ -145,8 +149,14 @@ export class LocalProfile {
     phase: string,
     score: number[],
     goal?: { scorerId: string; ownGoal: boolean } | null,
+    matchStats?: PlayerMatchStats,
   ) {
-    if (phase === "goal" && goal?.scorerId === localId && !goal.ownGoal)
+    if (
+      !matchStats &&
+      phase === "goal" &&
+      goal?.scorerId === localId &&
+      !goal.ownGoal
+    )
       this.event(
         `${id}:goal:${score.join(":")}`,
         () => this.value.stats.goals++,
@@ -154,6 +164,15 @@ export class LocalProfile {
     if (phase === "finished")
       this.event(`${id}:finished`, () => {
         this.value.stats.matchesPlayed++;
+        if (matchStats && matchStats.playerId === localId) {
+          const credited = this.value.recentEvents.filter((key) =>
+            key.startsWith(id + ":goal:"),
+          ).length;
+          this.value.stats.goals += Math.max(0, matchStats.goals - credited);
+          this.value.stats.assists += matchStats.assists;
+          this.value.stats.saves += matchStats.saves;
+          this.value.stats.shots += matchStats.shots;
+        }
         const difference = score[team] - score[1 - team];
         if (difference > 0) this.value.stats.wins++;
         if (difference < 0) this.value.stats.losses++;

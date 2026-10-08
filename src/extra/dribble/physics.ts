@@ -13,8 +13,9 @@ const group = (membership: number, filter: number) =>
   ((membership << 16) | filter) >>> 0;
 export const DRIBBLE_GROUPS = {
   road: group(1, 2),
-  car: group(2, 1 | 4 | 8),
-  ball: group(4, 2 | 8),
+  car: group(2, 1 | 4 | 8 | 16),
+  ball: group(4, 2 | 8 | 16),
+  obstacle: group(16, 2 | 4),
   // Car support comes from the coplanar road; avoid duplicate car contacts.
   safe: group(8, 4),
 };
@@ -29,6 +30,8 @@ export class DribblePhysics {
   readonly cameraObstacles = (col: RAPIER.Collider) =>
     this.obstacles.has(col.handle);
   private colliders: RAPIER.Collider[] = [];
+  readonly spinners: { body: RAPIER.RigidBody; obstacleIndex: number }[] = [];
+  obstacleTime = 0;
   private surfaces: { triangle: Triangle; normal: Vector3 }[] = [];
   private previousBall = new Vector3();
   private crossedFinish = false;
@@ -61,12 +64,60 @@ export class DribblePhysics {
     this.load(course);
   }
   load(course: DribbleCourse) {
+    for (const spinner of this.spinners)
+      this.world.removeRigidBody(spinner.body);
+    this.spinners.length = 0;
     for (const collider of this.colliders)
       this.world.removeCollider(collider, true);
     this.colliders = [];
     this.surfaces = [];
     this.obstacles.clear();
     this.course = course;
+    course.obstacles.forEach((obstacle, obstacleIndex) => {
+      const { piece, center, heading, width } = obstacle;
+      const rotation = new Quaternion().setFromAxisAngle(
+        new Vector3(0, 1, 0),
+        -heading,
+      );
+      if (piece.kind === "wall") {
+        const collider = this.world.createCollider(
+          RAPIER.ColliderDesc.cuboid(
+            width / 2,
+            piece.height / 2,
+            piece.depth / 2,
+          )
+            .setTranslation(center.x, center.y + piece.height / 2, center.z)
+            .setRotation(rotation)
+            .setCollisionGroups(DRIBBLE_GROUPS.obstacle)
+            .setFriction(0.35)
+            .setRestitution(0.05),
+        );
+        this.colliders.push(collider);
+        this.obstacles.add(collider.handle);
+      } else {
+        const body = this.world.createRigidBody(
+          RAPIER.RigidBodyDesc.kinematicPositionBased()
+            .setTranslation(center.x, center.y + piece.radius, center.z)
+            .setRotation(rotation)
+            .setCcdEnabled(true),
+        );
+        // Two orthogonal boxes form a single rigid plus, not four independent hinges.
+        for (const [x, y] of [
+          [piece.radius, piece.armWidth / 2],
+          [piece.armWidth / 2, piece.radius],
+        ]) {
+          const collider = this.world.createCollider(
+            RAPIER.ColliderDesc.cuboid(x, y, piece.depth / 2)
+              .setCollisionGroups(DRIBBLE_GROUPS.obstacle)
+              .setFriction(0.25)
+              .setRestitution(0.05),
+            body,
+          );
+          this.obstacles.add(collider.handle);
+        }
+        this.spinners.push({ body, obstacleIndex });
+      }
+    });
     for (const [nodes, groups] of [
       [course.nodes, DRIBBLE_GROUPS.road],
     ] as const) {
@@ -124,6 +175,16 @@ export class DribblePhysics {
     this.reset();
   }
   reset() {
+    this.obstacleTime = 0;
+    for (const { body, obstacleIndex } of this.spinners) {
+      const rotation = new Quaternion().setFromAxisAngle(
+        new Vector3(0, 1, 0),
+        -this.course.obstacles[obstacleIndex].heading,
+      );
+      body.setRotation(rotation, true);
+      body.setNextKinematicRotation(rotation);
+      body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    }
     const p = this.course.spawn;
     this.car.reset(p.x, p.z, 0, p.y);
     this.car.boost = 100;
@@ -148,6 +209,21 @@ export class DribblePhysics {
     this.ballPose.snap();
   }
   step(input: PlayerInput) {
+    this.obstacleTime += P.dt;
+    for (const { body, obstacleIndex } of this.spinners) {
+      const { piece, heading } = this.course.obstacles[obstacleIndex];
+      if (piece.kind !== "spinner") continue;
+      body.setNextKinematicRotation(
+        new Quaternion()
+          .setFromAxisAngle(new Vector3(0, 1, 0), -heading)
+          .multiply(
+            new Quaternion().setFromAxisAngle(
+              new Vector3(0, 0, 1),
+              this.obstacleTime * piece.angularSpeed,
+            ),
+          ),
+      );
+    }
     this.previousBall.copy(this.ball.translation());
     this.crossedFinish = false;
     this.car.pose.before();

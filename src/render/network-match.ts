@@ -1,4 +1,5 @@
 import { heatseekerBall, heatIntensity } from "../effects/heatseeker-ball";
+import type { Quality } from "../../shared/settings";
 import { displayIdentity } from "../../shared/local-profile";
 import * as T from "three";
 import { Simulation } from "../physics/simulation";
@@ -115,7 +116,9 @@ export class NetworkMatchView {
     dt: number,
     time: number,
     settings: CameraSettings,
+    quality: Quality = "high",
   ) {
+    this.ballTrails.quality = quality;
     const sample = client.sample();
     if (!sample || !client.latest) return;
     const { older, newer, alpha } = sample,
@@ -269,7 +272,7 @@ export class NetworkMatchView {
     this.simulation.ball.setEnabled(newer.ball.enabled);
     this.simulation.ball.setTranslation(this.ball.position, true);
     animateBall(this.ball, time);
-    heatseekerBall(this.ball, latest.heatseeker);
+    heatseekerBall(this.ball, latest.heatseeker, dt);
     const ballSpeed =
       new T.Vector3()
         .copy(newer.ball.position)
@@ -285,6 +288,7 @@ export class NetworkMatchView {
       newer.ball.enabled,
       this.camera.camera.position,
       heatIntensity(latest.heatseeker),
+      latest.heatseeker,
     );
     this.explosion.update(dt);
     this.ballHeight.update(this.ball, this.simulation);

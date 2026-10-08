@@ -2,6 +2,7 @@ import type { Match } from "../game/match";
 import type { Profile } from "../game/inventory";
 import { icon } from "./icons";
 import { extraModes } from "../extra/session";
+import { trainingPacks } from "../extra/training/packs";
 import {
   displayIdentity,
   defaultAvatarColor,
@@ -9,13 +10,15 @@ import {
 export class UI {
   leaveConfirmation = false;
   root = document.querySelector<HTMLDivElement>("#app")!;
-  screen: "home" | "modes" | "freeplay" | "extras" | "garage" = "home";
+  screen: "home" | "modes" | "freeplay" | "extras" | "training" | "garage" =
+    "home";
   constructor() {
     this.root.innerHTML = `<div id="viewport"></div><div id="home-shade"></div><header id="brand"><h1>OCTANE <span>ARENA</span></h1></header>
     <section id="menu" class="screen"><nav class="home-nav"><button id="play" class="nav-button primary">PLAY <span aria-hidden="true">↗</span></button><button id="garage-open" class="nav-button">GARAGE</button><button id="settings-open" class="nav-button">SETTINGS</button></nav></section>
     <button id="profile" aria-label="Open profile"><div class="avatar">${icon("profile")}</div><div><b id="profile-name">Guest</b><span id="profile-title">Rookie</span></div><div class="level"><small>LEVEL</small><b id="profile-level">1</b></div></button>
     <section id="modes" class="screen full-screen" hidden><h2>PLAY</h2><div class="mode-grid"><button id="bot-mode" class="mode-card">${icon("bot")}<strong>AGAINST A BOT</strong></button><button id="freeplay-mode" class="mode-card">${icon("freeplay")}<strong>FREE PLAY</strong></button><button id="friend-mode" class="mode-card">${icon("friend")}<strong>AGAINST A FRIEND</strong></button><button id="extra-mode" class="mode-card">${icon("extras")}<strong>EXTRA MODES</strong></button></div><footer class="screen-footer"><button id="modes-back" class="back-button">← BACK</button></footer></section>
     <section id="extras" class="screen full-screen" hidden><h2>EXTRA MODES</h2><div class="mode-grid extra-grid">${extraModes.map((mode) => `<button id="${mode.id}-mode" class="mode-card">${icon(mode.icon)}<strong>${mode.name}</strong></button>`).join("")}</div><footer class="screen-footer"><button id="extras-back" class="back-button">← BACK</button></footer></section>
+    <section id="training-menu" class="screen full-screen" hidden><h2>TRAINING PACKS</h2><div class="mode-grid extra-grid">${trainingPacks.map((pack) => `<button id="training-${pack.id}" class="mode-card">${icon(pack.type === "aerial" ? "boost" : pack.type === "goalie" ? "ranked" : "freeplay")}<strong>${pack.name}</strong><small>${pack.description}</small></button>`).join("")}</div><footer class="screen-footer"><button id="training-back" class="back-button">← BACK</button></footer></section>
     <section id="freeplay-setup" class="screen full-screen" hidden><h2>FREE PLAY</h2><footer class="screen-footer"><button id="freeplay-back" class="back-button">← BACK</button><button id="freeplay-launch" class="nav-button primary">ENTER FREE PLAY</button></footer></section>
     <section id="garage-screen" class="screen full-screen" hidden></section>
     <div id="hud" hidden><div class="scoreboard"><span id="score-cyan">0</span><time id="clock">5:00</time><span id="score-amber">0</span></div><div id="notice" aria-live="polite"></div><div id="countdown" aria-live="polite"></div><div class="camera-status"><i></i><b id="camera-mode">BALL CAMERA</b></div><div class="boost-hud"><svg viewBox="0 0 160 160" aria-hidden="true"><path class="boost-track" d="M128 128 A68 68 0 1 0 32 128" pathLength="100"/><path id="boost-fill" d="M32 128 A68 68 0 1 1 128 128" pathLength="100"/></svg><div id="boost">100</div><div id="boost-label">BOOST</div></div><div id="bot-tag" hidden></div></div>
@@ -64,6 +67,7 @@ export class UI {
       "modes",
       "freeplay-setup",
       "extras",
+      "training-menu",
       "garage-screen",
       "pause",
       "result",
@@ -74,7 +78,9 @@ export class UI {
     (document.querySelector(".scoreboard") as HTMLElement).hidden = true;
     document.getElementById("countdown")!.textContent = "";
     document.getElementById("notice")!.textContent = "";
-    document.getElementById("camera-mode")!.textContent = ballMode ? "BALL CAMERA" : "CAR CAMERA";
+    document.getElementById("camera-mode")!.textContent = ballMode
+      ? "BALL CAMERA"
+      : "CAR CAMERA";
     document.getElementById("boost")!.textContent = String(Math.ceil(boost));
     document.getElementById("boost-fill")!.style.strokeDasharray =
       `${boost} 100`;
@@ -114,6 +120,7 @@ export class UI {
       ["modes", home && this.screen === "modes"],
       ["freeplay-setup", home && this.screen === "freeplay"],
       ["extras", home && this.screen === "extras"],
+      ["training-menu", home && this.screen === "training"],
       ["garage-screen", home && this.screen === "garage"],
       ["hud", !home && m.phase !== "finished" && !m.replayActive],
       ["pause", m.phase === "paused" && !this.leaveConfirmation],

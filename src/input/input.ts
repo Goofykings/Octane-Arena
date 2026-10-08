@@ -5,6 +5,8 @@ export class Input {
   actions = new Set<string>();
   private padPrevious = new Set<number>();
   capturing = false;
+  typing = false;
+  scoreboardActive = false;
   constructor(public bindings: Bindings = { ...defaultBindings }) {
     window.addEventListener("keydown", (e) => {
       if (
@@ -13,8 +15,17 @@ export class Input {
         )
       )
         return;
-      if (this.capturing || document.querySelector("dialog[open]")) return;
-      if (Object.values(this.bindings).includes(e.code)) e.preventDefault();
+      if (
+        this.capturing ||
+        this.typing ||
+        document.querySelector("dialog[open]")
+      )
+        return;
+      if (
+        Object.values(this.bindings).includes(e.code) &&
+        (e.code !== this.bindings.scoreboard || this.scoreboardActive)
+      )
+        e.preventDefault();
       if (!e.repeat) this.actions.add(e.code);
       this.keys.add(e.code);
     });
@@ -36,6 +47,7 @@ export class Input {
   isHeld(action: Action) {
     if (
       this.capturing ||
+      this.typing ||
       document.querySelector("dialog[open]") ||
       document.hidden
     )
@@ -45,13 +57,15 @@ export class Input {
     );
     return (
       this.keys.has(this.bindings[action]) ||
-      (action === "reverseCam" && !!pad?.buttons[11]?.pressed)
+      (action === "reverseCam" && !!pad?.buttons[11]?.pressed) ||
+      (action === "scoreboard" && !!pad?.buttons[8]?.pressed)
     );
   }
   sample(): Controls {
     const c = neutral(),
       down = (action: Action) => this.keys.has(this.bindings[action]);
-    if (this.capturing || document.querySelector("dialog[open]")) return c;
+    if (this.capturing || this.typing || document.querySelector("dialog[open]"))
+      return c;
     c.throttle = Number(down("throttle")) - Number(down("reverse"));
     c.steer = Number(down("right")) - Number(down("left"));
     c.pitch =

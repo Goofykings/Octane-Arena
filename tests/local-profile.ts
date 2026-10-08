@@ -65,6 +65,9 @@ assert.deepEqual(loaded.value.stats, {
   wins: 1,
   losses: 1,
   goals: 1,
+  assists: 0,
+  saves: 0,
+  shots: 0,
   playTime: 61,
 });
 loaded.observeMatch("match-1", id, 0, "finished", [1, 0]);

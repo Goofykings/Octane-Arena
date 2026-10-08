@@ -1672,3 +1672,28 @@ output {
 .setup-selection{overflow:hidden;text-align:center}.setup-selection strong{display:block;font-size:clamp(21px,3vw,48px);text-shadow:0 0 14px #71c6f44d;white-space:nowrap}
 #party-setup-launch{width:100%;margin-top:clamp(18px,4vh,40px);min-height:60px;font-size:clamp(20px,2vw,30px)}
 @media(max-width:640px){.match-setup-grid{grid-template-columns:1fr;gap:22px;margin:20px 0}.setup-selector{min-height:100px}.setup-selection strong{font-size:clamp(24px,7vw,36px)}#party-setup-launch{margin-top:20px}}
+#match-chat{position:fixed;left:clamp(12px,2vw,32px);top:clamp(12px,2vh,24px);width:min(360px,80vw);z-index:90;background:#081724bd;border-left:2px solid #527887;padding:8px 12px;opacity:0;transition:opacity .22s ease;pointer-events:none;text-shadow:none;font-size:clamp(12px,1vw,16px)}
+#match-chat.shown{opacity:1}#match-chat.typing{pointer-events:auto;background:#081724eb}.chat-lines{max-height:150px;overflow:auto;overflow-wrap:anywhere;line-height:1.45}.chat-lines b[data-team="0"]{color:#74c8ff}.chat-lines b[data-team="1"]{color:#ffb15f}.chat-lines span{color:#edf3f6}#chat-input{width:100%;margin-top:8px;font:inherit;font-weight:700;background:#132b3e;border:1px solid #527887;color:#fff;padding:6px}#match-chat small{display:block;color:#ffcf91;font-size:11px}
+#match-board{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(960px,92vw);z-index:calc(var(--layer-countdown) + 10);padding:clamp(10px,2vw,24px);background:#071420f5;border:1px solid #476375;box-shadow:0 14px 70px #0008;pointer-events:none;max-height:85dvh;overflow:auto;text-shadow:none}
+#match-board section+section{margin-top:clamp(12px,3vh,28px)}#match-board header{display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid currentColor;padding:4px 10px;font-size:clamp(17px,2vw,28px)}#match-board header strong{font-size:clamp(26px,3vw,40px)}#match-board [data-team="0"]{color:#76caff}#match-board [data-team="1"]{color:#ffb26b}.stat-row{display:grid;grid-template-columns:minmax(75px,2fr) repeat(6,minmax(26px,.6fr));align-items:center;gap:clamp(2px,1vw,12px);padding:clamp(5px,1vh,11px) 8px;font-size:clamp(11px,1.2vw,18px)}.stat-row span:not(:first-child){text-align:right;color:#eaf4fa}.stat-row span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.stat-columns{font-size:clamp(9px,.8vw,12px);color:#a3bdcd}.local-player{background:#d8ecf514;border-left:2px solid currentColor}
+#match-award{position:fixed;left:50%;top:clamp(85px,12vh,140px);z-index:35;display:flex;align-items:center;gap:10px;color:#ffd791;font-size:clamp(17px,2vw,26px);text-shadow:0 0 12px #fbbd5a44;pointer-events:none}#match-award svg{width:30px;height:30px}#match-award span{font-size:.8em;color:#fff}
+@media(max-width:600px){.stat-columns span{font-size:0}.stat-columns span:after{content:attr(data-compact);font-size:9px}#match-board{padding:8px}.stat-row{padding:7px 3px;gap:2px}}
+@media(max-width:600px){#match-chat{top:120px;width:min(300px,78vw)}.chat-lines{max-height:96px}}
+/* Training shares the existing cards, camera and lightweight practice HUD. */
+#training-menu {display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:clamp(12px,2vh,24px);}
+#extras .extra-grid, #training-menu .extra-grid {grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(10px,2vw,28px);align-items:center;}
+#extras .mode-card, #training-menu .mode-card {min-width:0;height:clamp(180px,32vh,350px);padding:clamp(12px,2vw,28px);}
+#training-menu .mode-card small {font-size:clamp(12px,1vw,16px);color:#b9d5e3;text-shadow:none;}
+#training-mode {background:radial-gradient(ellipse at 50% 30%,#80bceb44,transparent 65%),linear-gradient(145deg,#244154ee,#101f32ee);}
+#training-ui {position:absolute;inset:0;z-index:var(--layer-hud);pointer-events:none;}
+#training-ui button,#training-ui .modal-card {pointer-events:auto;}
+#training-hud {position:absolute;top:24px;left:28px;padding:15px 20px;background:#112737dd;border-left:3px solid #80bceb;}
+#training-hud small,#training-hud b {display:block;}
+#training-hud small {font-size:12px;color:#c2dce7;}
+#training-shot {font-size:clamp(20px,2vw,30px);margin:5px 0;}
+#training-message {position:absolute;top:24%;left:50%;transform:translateX(-50%);font-size:clamp(22px,3vw,38px);color:#e1eeff;text-shadow:0 2px 12px #102330;}
+#training-result {text-align:center;font-size:30px;margin-bottom:16px;}
+@media(max-width:640px){#app:has(#training-ui) .camera-status{bottom:125px;}}
+@media(max-width:640px){#extras .extra-grid,#training-menu .extra-grid{grid-template-columns:repeat(2,minmax(0,1fr));}#extras .mode-card,#training-menu .mode-card{height:clamp(120px,23vh,220px);}#training-hud{left:15px;top:15px;padding:12px;}#training-menu .mode-card small{font-size:12px;}}
+/* Competitive scoreboard keeps the field visible behind the stat rows. */
+#match-board{background:rgba(7,20,32,.76);border-radius:12px;border-color:#7695aa66;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);}

@@ -3,6 +3,7 @@ import type { ExtraSession } from "../extra/session";
 
 export class ExtraModePanel {
   readonly root = document.createElement("section");
+  private outcomeSequence = 0;
   constructor(
     root: HTMLElement,
     private session: ExtraSession,
@@ -11,8 +12,26 @@ export class ExtraModePanel {
       exit(): void;
       resume(): void;
       settings(): void;
+      outcome?(success: boolean): void;
     },
   ) {
+    this.actions = actions;
+    if (session.id === "training") {
+      this.root.id = "training-ui";
+      this.root.innerHTML = `<aside id="training-hud"><small id="training-name"></small><b id="training-shot"></b><small id="training-score"></small></aside><div id="training-message" role="status"></div><div class="dribble-actions"><button id="training-previous" class="back-button">PREVIOUS SHOT</button><button id="training-next" class="back-button">NEXT SHOT</button><button id="training-reset" class="back-button">RESET SHOT</button><button id="training-pause" class="back-button">MENU</button></div><section id="training-modal" class="modal" hidden><div class="modal-card"><h2 id="training-title">PAUSED</h2><b id="training-result" hidden></b><button id="training-resume" class="nav-button primary">RESUME</button><button id="training-retry" class="nav-button">RETRY SHOT</button><button id="training-settings" class="nav-button">SETTINGS</button><button id="training-exit" class="nav-button">EXIT</button></div></section>`;
+      root.append(this.root);
+      const on = (id: string, work: () => void) =>
+        (this.root.querySelector<HTMLButtonElement>(`#${id}`)!.onclick = work);
+      on("training-previous", () => session.navigate?.(-1));
+      on("training-next", () => session.navigate?.(1));
+      on("training-reset", actions.restart);
+      on("training-retry", actions.restart);
+      on("training-pause", actions.resume);
+      on("training-resume", actions.resume);
+      on("training-settings", actions.settings);
+      on("training-exit", actions.exit);
+      return;
+    }
     this.root.id = "rings-ui";
     if (session.id === "dribble") {
       this.root.id = "dribble-ui";
@@ -46,8 +65,46 @@ export class ExtraModePanel {
     on("rings-exit", actions.exit);
     on("rings-settings", actions.settings);
   }
+  private actions: { outcome?(success: boolean): void };
   update(now: number) {
     const run = this.session.readout(now);
+    if (this.session.id === "training") {
+      const set = (id: string, text: string) => {
+        this.root.querySelector(`#${id}`)!.textContent = text;
+      };
+      set("training-name", run.packName ?? "TRAINING PACKS");
+      set("training-shot", `SHOT ${run.progress} / ${run.total}`);
+      set(
+        "training-score",
+        `${run.successes ?? 0} SUCCESSFUL · BEST ${run.bestProgress}`,
+      );
+      set("training-message", run.message ?? "");
+      document.getElementById("countdown")!.textContent=this.session.replayActive?"":run.countdownText??"";
+      document.getElementById("hud")!.hidden=!!this.session.replayActive;
+      this.root.querySelector<HTMLElement>("#training-modal")!.hidden =
+        !this.session.paused && !this.session.complete;
+      this.root.querySelector<HTMLElement>("#training-result")!.hidden =
+        !this.session.complete;
+      this.root.querySelector<HTMLElement>("#training-resume")!.hidden =
+        this.session.complete;
+      set(
+        "training-title",
+        this.session.complete ? "TRAINING COMPLETE" : "PAUSED",
+      );
+      set("training-result", `${run.successes ?? 0} / ${run.total}`);
+      this.root.querySelector<HTMLButtonElement>(
+        "#training-previous",
+      )!.disabled = run.progress <= 1;
+      this.root.querySelector<HTMLButtonElement>("#training-next")!.disabled =
+        run.progress >= run.total || !!this.session.replayActive;
+      this.root.querySelector<HTMLButtonElement>("#training-previous")!.disabled = run.progress<=1 || !!this.session.replayActive;
+      // Attempt IDs survive navigation/retries; each outcome plays once.
+      if (run.message && (run.outcomeSequence ?? 0) > this.outcomeSequence) {
+        this.actions.outcome?.(run.message === "SUCCESS");
+        this.outcomeSequence = run.outcomeSequence ?? 0;
+      }
+      return;
+    }
     if (this.session.id === "dribble") {
       this.root.querySelector("#dribble-level")!.textContent =
         `${run.progress} / ${run.total}`;

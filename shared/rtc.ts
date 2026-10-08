@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { MatchSnapshot } from "./network";
 import { arenaIds } from "./arenas";
+import { playerStatsSchema, statEventSchema } from "./match-stats";
+import { chatMessageSchema } from "./chat";
 
 const description = z
   .object({
@@ -78,6 +80,9 @@ const snapshot = z
     matchId: z.string().uuid(),
     arenaId: z.enum(arenaIds),
     gameMode: z.enum(["soccar", "heatseeker"]).optional(),
+    stats: z.array(playerStatsSchema).max(4).optional(),
+    statEvents: z.array(statEventSchema).max(24).optional(),
+    chat: z.array(chatMessageSchema).max(8).optional(),
     heatseeker: z
       .object({
         active: z.boolean(),
@@ -145,7 +150,10 @@ export function peerSnapshot(
     result.data.matchId !== matchId ||
     result.data.cars.length !== playerIds.length ||
     new Set(result.data.cars.map((c) => c.id)).size !== playerIds.length ||
-    result.data.cars.some((c) => !playerIds.includes(c.id))
+    result.data.cars.some((c) => !playerIds.includes(c.id)) ||
+    result.data.stats?.some((p) => !playerIds.includes(p.playerId)) ||
+    result.data.statEvents?.some((p) => !playerIds.includes(p.playerId)) ||
+    result.data.chat?.some((p) => !playerIds.includes(p.playerId))
   )
     return null;
   return result.data as unknown as MatchSnapshot;
