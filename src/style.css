@@ -1697,3 +1697,16 @@ output {
 @media(max-width:640px){#extras .extra-grid,#training-menu .extra-grid{grid-template-columns:repeat(2,minmax(0,1fr));}#extras .mode-card,#training-menu .mode-card{height:clamp(120px,23vh,220px);}#training-hud{left:15px;top:15px;padding:12px;}#training-menu .mode-card small{font-size:12px;}}
 /* Competitive scoreboard keeps the field visible behind the stat rows. */
 #match-board{background:rgba(7,20,32,.76);border-radius:12px;border-color:#7695aa66;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);}
+
+/* Now-playing box, bottom corner, auto-hides after a couple seconds. */
+#now-playing{position:fixed;left:18px;bottom:18px;z-index:150;display:flex;align-items:center;gap:12px;min-width:230px;max-width:min(340px,80vw);padding:10px 16px 10px 10px;background:linear-gradient(120deg,#0e2233f2,#132c42e8);border:1px solid #4f7d99;border-left:4px solid #7cebf2;box-shadow:0 10px 34px #000a;transform:translateY(16px);opacity:0;pointer-events:none;transition:opacity .35s ease,transform .35s ease;}
+#now-playing.show{opacity:1;transform:none;}
+#now-playing .disc{width:42px;height:42px;flex:none;border-radius:50%;background:conic-gradient(from 0deg,#20394f,#7cebf2,#20394f);border:2px solid #0a1622;position:relative;animation:spin-disc 3s linear infinite;}
+#now-playing .disc::after{content:"";position:absolute;inset:14px;border-radius:50%;background:#0a1622;border:1px solid #7cebf288;}
+#now-playing .meta{min-width:0;}
+#now-playing small{display:block;font-size:10px;letter-spacing:.22em;color:#8fd8e6;}
+#now-playing strong{display:block;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#now-playing span{display:block;font-size:12px;color:#a9c3d4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+@keyframes spin-disc{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){#now-playing .disc{animation:none}}
+

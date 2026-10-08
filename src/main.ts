@@ -66,6 +66,8 @@ import { MouseLook } from "./camera/mouse-look";
 import { CameraDrag } from "./input/camera-drag";
 import { VersionPanel } from "./ui/version-panel";
 import { MatchOverlay } from "./ui/match-overlay";
+import { MusicManager } from "./audio/music";
+import { NowPlaying } from "./ui/start-screen";
 
 async function boot() {
   await RAPIER.init();
@@ -78,8 +80,32 @@ async function boot() {
     opponent = new Opponent(),
     match = new Match(),
     pads = new Pads(),
-    audio = new GameAudio();
+    audio = new GameAudio(),
+    music = new MusicManager(),
+    nowPlaying = new NowPlaying();
+  music.onTrack = (track) => nowPlaying.show(track);
+  music.setVolume(settings.value.audio.music);
   ui.setProfile(garage.profile);
+  let audioUnlocked = false;
+  const unlockAudio = () => {
+    if (audioUnlocked) return;
+    audioUnlocked = true;
+    audio.unlock();
+    music.unlock();
+    input.clear();
+  };
+  window.addEventListener("keydown", unlockAudio, { capture: true });
+  window.addEventListener("pointerdown", unlockAudio, { capture: true });
+  const padPoll = window.setInterval(() => {
+    for (const p of navigator.getGamepads?.() ?? []) {
+      if (p?.connected && p.buttons.some((b) => b.pressed)) {
+        unlockAudio();
+        break;
+      }
+    }
+    if (audioUnlocked) window.clearInterval(padPoll);
+  }, 120);
+  void music.playContext("menu");
   const renderer = new T.WebGLRenderer({
     antialias: false,
     powerPreference: "high-performance",
@@ -254,6 +280,7 @@ async function boot() {
   const applySettings = () => {
     audio.settings = settings.value.audio;
     audio.apply();
+    music.setVolume(settings.value.audio.music);
     cameraControl.settings = settings.value.camera;
     effects.density = qualities[settings.value.quality].particles;
     graphics.apply(settings.value.quality);
@@ -335,6 +362,8 @@ async function boot() {
     extraSession = null;
     cameraControl.reset();
     input.clear();
+    music.resumeLoop();
+    if (match.phase === "home") void music.playContext("menu");
   };
   const start = (
     mode: "bot" | "freeplay" = match.mode === "freeplay" ? "freeplay" : "bot",
@@ -366,6 +395,8 @@ async function boot() {
     loop.accumulator = 0;
     cameraControl.reset();
     audio.tone(420, 0.12, 0.08, "sine");
+    // In-game soundtrack: Slushii - LUV U NEED U (loops until the match ends).
+    void music.playContext("game");
   };
   const home = () => {
     replayView.stop();
@@ -381,6 +412,9 @@ async function boot() {
     simulation.reset();
     input.clear();
     audio.update(0, false, false);
+    music.resumeLoop();
+    // Back to the menu soundtrack: Slushii - All I Need.
+    void music.playContext("menu");
   };
   ui.on("play", () => {
     audio.unlock();
@@ -460,6 +494,8 @@ async function boot() {
     partyPanel.flow.updateVisibility(false);
     hitboxes.update(simulation, false);
     ui.extraGame(100, false);
+    // Extra modes share the in-game soundtrack.
+    void music.playContext("game");
   };
   for (const mode of extraModes)
     ui.on(`${mode.id}-mode`, () => {
@@ -1071,6 +1107,8 @@ async function boot() {
             audio.tone(100, 1.3, 0.2, "sawtooth"),
             audio.tone(660, 0.9, 0.1, "triangle"),
           ].filter((stop): stop is () => void => !!stop);
+          // Goal song: best bit of "We Speak Chinese" (drop at GOAL_STINGER_OFFSET).
+          void music.goalStinger();
           const origin = new T.Vector3().copy(simulation.ball.translation()),
             color = match.rules.training
               ? 0xa8a8a8
@@ -1410,6 +1448,7 @@ async function boot() {
         camera,
         graphics,
         audio,
+        music,
         ui,
         visuals,
         hitboxes,
