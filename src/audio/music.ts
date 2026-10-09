@@ -32,8 +32,8 @@ export const GOAL_TRACK: TrackInfo & { src: string } = {
 
 /** Best bit of "We Speak Chinese": skip the slow intro straight to the drop.
  *  Tweak this number if you want an earlier/later cue. */
-export const GOAL_STINGER_OFFSET = 44;
-export const GOAL_STINGER_LENGTH = 3.4;
+export const GOAL_STINGER_OFFSET = 45.5;
+export const GOAL_STINGER_LENGTH = 4;
 
 export type MusicContext = "menu" | "game";
 

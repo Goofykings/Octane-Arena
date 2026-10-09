@@ -1119,6 +1119,9 @@ async function boot() {
           effects.burst(origin, color);
           vehicleEffects.forEach((e) => e.reset());
         }
+        if (phase === "goal" && match.phase === "replay") {
+          void music.goalStinger();
+        }
         if (phase !== "countdown" && match.phase === "countdown") {
           resetEffects();
           audio.tone(420, 0.12, 0.08, "sine");
