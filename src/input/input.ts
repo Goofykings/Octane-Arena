@@ -154,6 +154,10 @@ export class Input {
       this.isHeld("jump") ||
       this.actions.has(this.bindings.jump) ||
       this.controllerActions.has("jump");
+    c.usePowerup =
+      this.isHeld("usePowerup") ||
+      this.actions.has(this.bindings.usePowerup) ||
+      this.controllerActions.has("usePowerup");
     c.boost = this.isHeld("boost");
     c.slide = this.isHeld("slide");
     c.dodgeX = c.yaw || c.roll;

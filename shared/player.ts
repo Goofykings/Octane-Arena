@@ -11,6 +11,7 @@ export interface PlayerInput {
   slide: boolean;
   dodgeX?: number;
   dodgeY?: number;
+  usePowerup?: boolean;
 }
 export type TeamId = 0 | 1;
 export interface PlayerEntity {

@@ -110,7 +110,7 @@ export class NetworkClient {
     });
   }
   input(value: PlayerInput) {
-    const edge = value.jump !== this.lastInput.jump;
+    const edge = value.jump !== this.lastInput.jump || !!value.usePowerup !== !!this.lastInput.usePowerup;
     this.lastInput = { ...value };
     this.inputTime = performance.now();
     if (edge) this.sendInput();

@@ -1,6 +1,7 @@
 export const soccerModes = [
   { id: "soccar", label: "SOCCAR" },
   { id: "heatseeker", label: "HEATSEEKER" },
+  { id: "rumble", label: "RUMBLE" },
 ] as const;
 export type SoccerMode = (typeof soccerModes)[number]["id"];
 export interface HeatseekerState {

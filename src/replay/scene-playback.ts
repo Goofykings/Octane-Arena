@@ -18,7 +18,9 @@ import {
 } from "../../shared/replay";
 import { ReplayDirectorCamera } from "./director-camera";
 
+import type { RumbleEffects } from "../effects/rumble";
 export interface ReplayEffects {
+  rumble?: RumbleEffects;
   vehicles: VehicleEffects[];
   ball: BallTrails;
   flips: FlipTrails[];
@@ -91,6 +93,7 @@ export class ReplayScenePlayback {
     const e = this.effects;
     e.vehicles.forEach((v) => v.reset());
     e.ball.reset();
+    e.rumble?.reset();
     e.flips.forEach((v) => v.reset());
     e.jumps.forEach((v) => v.reset());
     e.skids.forEach((v) => v.reset());
@@ -196,6 +199,18 @@ export class ReplayScenePlayback {
       this.effects.skids[i].update(c, effectDt, model.visible);
       this.effects.demos[i].update(effectDt);
     });
+    let rumble: import("../../shared/rumble").RumbleSnapshot | undefined;
+    for (const entry of clip.rumble ?? [])
+      if (entry.time <= time) rumble = entry.state;
+    this.effects.rumble?.update(
+      rumble,
+      (id) => this.models[this.sources.findIndex((c) => c.id === id)],
+      this.ball,
+      this.director.camera,
+      effectDt,
+      time,
+      true,
+    );
     const scorer =
       this.models[this.sources.findIndex((c) => c.id === clip.goal.scorerId)] ??
       this.ball;

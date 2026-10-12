@@ -31,12 +31,14 @@ export interface CarSnapshot {
   normalJump?: { sequence: number; age: number; origin: Vec; normal: Vec };
   enabled: boolean;
 }
+import type { RumbleSnapshot } from "./rumble";
 export interface MatchSnapshot {
   type: "snapshot";
   matchId: string;
   arenaId: ArenaId;
   gameMode?: SoccerMode;
   heatseeker?: HeatseekerState | null;
+  rumble?: RumbleSnapshot | null;
   stats?: PlayerMatchStats[];
   statEvents?: MatchStatEvent[];
   chat?: ChatMessage[];

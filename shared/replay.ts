@@ -56,6 +56,7 @@ export interface ReplayEvent {
   index?: number;
 }
 export interface ReplayClip {
+  rumble?: { time: number; state: import("./rumble").RumbleSnapshot }[];
   heatseeker?: { time: number; state: HeatseekerState }[];
   goal: ReplayGoal;
   carIds: string[];

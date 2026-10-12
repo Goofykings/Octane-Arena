@@ -86,6 +86,7 @@ export function controllerDefaults(): ControllerSettings {
     right: axis(0, 1),
     pitchForward: axis(1, -1),
     pitchBack: axis(1, 1),
+    usePowerup: { type: "button", button: 10 },
     jump: { type: "button", button: PAD.jump },
     boost: { type: "button", button: PAD.boost },
     slide: { type: "button", button: PAD.slide },

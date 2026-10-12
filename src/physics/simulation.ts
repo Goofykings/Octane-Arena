@@ -34,6 +34,7 @@ export interface Hit {
   strength: number;
   age: number;
 }
+import { Rumble } from "../game/rumble";
 export class Simulation {
   readonly statTouches: StatTouch[] = [];
   private statContacts = new Set<string>();
@@ -46,10 +47,13 @@ export class Simulation {
   }
   gameMode: SoccerMode = "soccar";
   heatseeker: Heatseeker | null = null;
+  rumble: Rumble | null = null;
   private heatContacts = new Set<string>();
   private backboardContact: number | null = null;
   setGameMode(mode: SoccerMode) {
+    this.rumble?.dispose();
     this.gameMode = mode;
+    this.rumble = mode === "rumble" ? new Rumble(this) : null;
     this.heatseeker = mode === "heatseeker" ? new Heatseeker() : null;
     this.heatContacts.clear();
     this.backboardContact = null;
@@ -140,6 +144,7 @@ export class Simulation {
     this.ballPose.snap();
   }
   reset(formation?: KickoffFormation) {
+    this.rumble?.reset();
     this.ballGround.reset();
     this.statContacts.clear();
     this.statTouches.length = 0;
@@ -193,6 +198,8 @@ export class Simulation {
   }
   /** Entity lifecycle only: reuse the world, arena, ball and vehicle forces. */
   configurePlayers(players: PlayerEntity[]) {
+    this.rumble?.dispose();
+    this.rumble = null;
     if (
       !players.length ||
       players.length > 6 ||
@@ -291,6 +298,7 @@ export class Simulation {
       this.relative[i].copy(c.body.linvel()).sub(this.ball.linvel());
     });
     this.ballPose.before();
+    this.rumble?.beforeStep(inputs);
     this.heatseeker?.steer(this.ball, P.dt);
     // Sample the actual pre-solver velocity, including this tick's homing force.
     this.cars.forEach((c, i) => this.ballContacts[i].sample(c, this.ball));
@@ -359,13 +367,26 @@ export class Simulation {
             touched = true;
             this.recordTouch(car.id);
             response.resolve(car, this.ball, point, normal);
+            let solverImpulse = 0;
+            for (let k = 0; k < manifold.numContacts(); k++)
+              solverImpulse += Math.abs(manifold.contactImpulse(k));
+            this.rumble?.contact(
+              car,
+              point,
+              normal,
+              Math.max(0, solverImpulse + response.impulse.dot(normal)),
+              !this.statContacts.has(car.id),
+            );
             statContacts.add(car.id);
             if (this.heatseeker) {
               heatContacts.add(car.id);
               if (!this.heatContacts.has(car.id))
                 this.heatseeker.touch(car.id, car.team as 0 | 1, this.clock);
             }
-            if (!this.statContacts.has(car.id)) {
+            if (
+              !this.statContacts.has(car.id) &&
+              !this.statTouches.some((t) => t.playerId === car.id)
+            ) {
               let normalImpulse = 0;
               for (let k = 0; k < manifold.numContacts(); k++)
                 normalImpulse += manifold.contactImpulse(k);
@@ -391,6 +412,7 @@ export class Simulation {
         );
       if (!touched) response.separate(car, this.ball);
     });
+    this.rumble?.afterStep();
     this.heatContacts = heatContacts;
     this.statContacts = statContacts;
     if (this.heatseeker && this.arenaCollider && this.ball.isEnabled()) {
@@ -427,6 +449,7 @@ export class Simulation {
         !insideArena(this.arenaCollider, c.body.translation())
       ) {
         const boost = c.boost;
+        this.rumble?.end(c.id);
         c.reset(
           (this.cars.indexOf(c) - 1.5) * 4,
           c.team === 0 ? 26 : -26,
@@ -442,6 +465,7 @@ export class Simulation {
       this.ball.isEnabled() &&
       !insideArena(this.arenaCollider, this.ball.translation())
     ) {
+      this.rumble?.recoverBall();
       this.ball.setTranslation({ x: 0, y: P.ball.radius + 0.1, z: 0 }, true);
       this.ball.setLinvel({ x: 0, y: 0, z: 0 }, true);
       this.ball.setAngvel({ x: 0, y: 0, z: 0 }, true);
@@ -452,9 +476,77 @@ export class Simulation {
     for (const touch of this.statTouches) touch.after = this.ballSample();
     this.ballPose.after();
   }
+  demolish(attacker: Car, victim: Car) {
+    this.rumble?.end(victim.id);
+    victim.demolitionState = "demolished";
+    victim.respawnTimer = P.demolition.respawn;
+    victim.boosting = victim.supersonic = false;
+    victim.skidIntensity = 0;
+    victim.wheelContact.fill(false);
+    victim.collider.setCollisionGroups(0);
+    victim.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    victim.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    victim.body.setEnabled(false);
+    this.demolitions.push({
+      attackerId: attacker.id,
+      victimId: victim.id,
+      position: new Vector3().copy(victim.body.translation()),
+      age: 0,
+    });
+  }
+  powerTouch(id: string, action: () => void, impulseSpeed: number) {
+    const before = this.ballSample();
+    action();
+    this.recordTouch(id);
+    this.statTouches.push({
+      playerId: id,
+      before,
+      after: this.ballSample(),
+      impulseSpeed,
+    });
+  }
   private bump(first: number, second: number) {
     const a = this.cars[first],
       b = this.cars[second];
+    if (
+      a.team !== b.team &&
+      (this.rumble?.powerHitter(a.id) || this.rumble?.powerHitter(b.id))
+    ) {
+      const normalDemo = (attacker: Car, victim: Car, i: number, j: number) => {
+        if (
+          !canDemolish(attacker, victim, this.velocities[i], this.velocities[j])
+        )
+          return false;
+        let bumper = false;
+        this.world.contactPair(
+          attacker.collider,
+          victim.collider,
+          (m, flipped) => {
+            for (let k = 0; k < m.numContacts(); k++) {
+              const point = flipped
+                ? m.localContactPoint2(k)
+                : m.localContactPoint1(k);
+              if (
+                point &&
+                point.z < -bodies[attacker.bodyId].halfLength * 0.8 &&
+                m.contactDist(k) < 0.03
+              )
+                bumper = true;
+            }
+          },
+        );
+        return bumper;
+      };
+      const firstDemo =
+        !!this.rumble?.powerHitter(a.id) || normalDemo(a, b, first, second);
+      const secondDemo =
+        !!this.rumble?.powerHitter(b.id) || normalDemo(b, a, second, first);
+      // Decide both outcomes before changing either body: the powered player
+      // still takes a legitimate ordinary supersonic demo (mutual contact).
+      if (firstDemo) this.demolish(a, b);
+      if (secondDemo) this.demolish(b, a);
+      if (firstDemo || secondDemo) return;
+    }
     for (const [i, j] of [
       [first, second],
       [second, first],
@@ -462,6 +554,12 @@ export class Simulation {
       const attacker = this.cars[i],
         victim = this.cars[j];
       if (
+        !(
+          this.rumble?.powerHitter(attacker.id) &&
+          attacker.team !== victim.team &&
+          attacker.body.isEnabled() &&
+          victim.body.isEnabled()
+        ) &&
         !canDemolish(attacker, victim, this.velocities[i], this.velocities[j])
       )
         continue;
@@ -483,22 +581,8 @@ export class Simulation {
           }
         },
       );
-      if (!bumperContact) continue;
-      victim.demolitionState = "demolished";
-      victim.respawnTimer = P.demolition.respawn;
-      victim.boosting = victim.supersonic = false;
-      victim.skidIntensity = 0;
-      victim.wheelContact.fill(false);
-      victim.collider.setCollisionGroups(0);
-      victim.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-      victim.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
-      victim.body.setEnabled(false);
-      this.demolitions.push({
-        attackerId: attacker.id,
-        victimId: victim.id,
-        position: new Vector3().copy(victim.body.translation()),
-        age: 0,
-      });
+      if (!bumperContact && !this.rumble?.powerHitter(attacker.id)) continue;
+      this.demolish(attacker, victim);
       return;
     }
     const normal = new Vector3()
@@ -535,6 +619,7 @@ export class Simulation {
     this.lastTouchTime = this.clock;
   }
   dispose() {
+    this.rumble?.dispose();
     this.events.free();
     this.world.free();
   }

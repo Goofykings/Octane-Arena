@@ -70,6 +70,12 @@ import { MouseLook } from "./camera/mouse-look";
 import { CameraDrag } from "./input/camera-drag";
 import { VersionPanel } from "./ui/version-panel";
 import { MatchOverlay } from "./ui/match-overlay";
+import { RumbleEffects } from "./effects/rumble";
+import { RumbleHud } from "./ui/rumble-hud";
+import { RUMBLE_CONFIG as R } from "./config/rumble";
+import { keyName } from "./input/bindings";
+import type { RumbleItem } from "../shared/rumble";
+import { controllerName } from "../shared/controller";
 
 async function boot() {
   await RAPIER.init();
@@ -140,6 +146,12 @@ async function boot() {
     ball = ballModel();
   scene.add(...cars, ball);
   const goalPlanes = new GoalPlanes(scene, ball);
+  const rumbleSound = (item: RumbleItem, attached = false) => {
+    const cue = attached ? R.attachmentAudio : R.audio[item];
+    audio.tone(cue[0], cue[1], cue[2], cue[3], "sfx");
+  };
+  const rumbleEffects = new RumbleEffects(scene, rumbleSound);
+  const rumbleHud = new RumbleHud(ui.root);
   const ballTrails = new BallTrails(scene);
   const flipTrails = cars.map(() => new FlipTrails(scene));
   const jumpBursts = cars.map(() => new JumpBurst(scene));
@@ -206,6 +218,7 @@ async function boot() {
       skids: skidMarks,
       demos: demoFlashes,
       explosion,
+      rumble: rumbleEffects,
     },
   );
   const replayPanel = new ReplayPanel(ui.root, () => {
@@ -253,6 +266,8 @@ async function boot() {
     skidMarks.forEach((e) => e.reset());
     demoFlashes.forEach((e) => e.reset());
     explosion.reset();
+    rumbleEffects.reset();
+    rumbleHud.hide();
     ballTrails.reset();
     flipTrails.forEach((e) => e.reset());
     jumpBursts.forEach((e) => e.reset());
@@ -419,8 +434,10 @@ async function boot() {
         skids: skidMarks.slice(0, roster.length),
         demos: demoFlashes.slice(0, roster.length),
         explosion,
+        rumble: rumbleEffects,
       },
     );
+    match.gameMode = mode === "bot" ? botSetup.gameMode : "soccar";
     match.start(simulation, mode);
     localMatchId = newLocalPlayerId();
     simulation.cars[0].displayName = accounts.displayName;
@@ -803,6 +820,7 @@ async function boot() {
           camera,
           network.latest,
           party.playerId,
+          rumbleSound,
         );
         networkView.camera.mouseLook = mouseLook;
       }
@@ -827,6 +845,7 @@ async function boot() {
       )
         network.skipReplay();
       input.takeAction("jump");
+      input.takeAction("usePowerup");
       cars.forEach((c) => (c.visible = false));
       ball.visible = false;
       ballHeight.group.visible = false;
@@ -986,6 +1005,20 @@ async function boot() {
         networkPhase = netMatch.phase;
       }
       if (networkView) goalPlanes.update(networkView.ball);
+      if (networkView)
+        rumbleHud.update(
+          network.latest?.rumble,
+          party.playerId,
+          networkView.cars[0],
+          networkView.ball,
+          camera,
+          dt,
+          !networkPaused &&
+            ["countdown", "playing"].includes(network.latest?.phase ?? ""),
+          keyName(input.bindings.usePowerup) +
+            " / " +
+            controllerName(settings.value.controller.bindings.usePowerup),
+        );
       graphics.render(scene, camera);
       requestAnimationFrame(frame);
       return;
@@ -1099,6 +1132,7 @@ async function boot() {
         camera,
         c.body.linvel(),
       );
+      rumbleHud.hide();
       graphics.render(extraSession.scene, camera);
       requestAnimationFrame(frame);
       return;
@@ -1251,7 +1285,10 @@ async function boot() {
           cameraControl.reset();
         }
       });
-      if (result.steps > 0) input.takeAction("jump");
+      if (result.steps > 0) {
+        input.takeAction("jump");
+        input.takeAction("usePowerup");
+      }
       alpha = match.phase === "countdown" ? 1 : result.alpha;
       tickCount += result.steps;
     } else loop.accumulator = 0;
@@ -1388,6 +1425,26 @@ async function boot() {
           effects.emit(cars[i].position, new T.Vector3(0, 0.2, 0), 0x9bbaab, 1);
       });
     const effectDt = match.phase === "paused" ? 0 : dt;
+    rumbleEffects.update(
+      simulation.rumble?.state,
+      (id) => cars[simulation.cars.findIndex((c) => c.id === id)],
+      ball,
+      camera,
+      effectDt,
+      simulation.clock,
+    );
+    rumbleHud.update(
+      simulation.rumble?.state,
+      simulation.cars[0].id,
+      cars[0],
+      ball,
+      camera,
+      dt,
+      ["countdown", "playing"].includes(match.phase),
+      keyName(input.bindings.usePowerup) +
+        " / " +
+        controllerName(settings.value.controller.bindings.usePowerup),
+    );
     const touched = simulation.cars.find(
       (c) => c.id === simulation.lastTouchId,
     );
@@ -1596,6 +1653,8 @@ async function boot() {
         },
         explosion,
         effects,
+        rumbleEffects,
+        rumbleHud,
         ballTrails,
         flipTrails,
         jumpBursts,

@@ -73,10 +73,12 @@ export class Match {
   lastGoal: { scorerId: string; team: number; ownGoal: boolean } | null = null;
   goalFocus: { x: number; y: number; z: number } | null = null;
   private resumePhase: Phase = "playing";
+  private simulation: Simulation | null = null;
   get active() {
     return ["countdown", "playing", "goal", "replay"].includes(this.phase);
   }
   start(s: Simulation, mode: Mode = this.mode) {
+    this.simulation = s;
     this.mode = mode;
     s.setGameMode(this.gameMode);
     this.stats = this.rules.training ? null : new MatchStats(s.players);
@@ -121,6 +123,10 @@ export class Match {
     this.resetSequence++;
     this.message = "";
     this.goTime = 0;
+    s.rumble?.setPhase(
+      this.phase === "playing",
+      this.remaining > 0 || this.overtime,
+    );
   }
   pause() {
     if (this.phase === "paused") this.phase = this.resumePhase;
@@ -128,8 +134,16 @@ export class Match {
       this.resumePhase = this.phase;
       this.phase = "paused";
     }
+    this.simulation?.rumble?.setPhase(
+      this.phase === "playing",
+      this.remaining > 0 || this.overtime,
+    );
   }
   tick(s: Simulation, pads?: Pads) {
+    s.rumble?.setPhase(
+      this.phase === "playing",
+      this.remaining > 0 || this.overtime,
+    );
     if (this.phase === "replay") {
       this.replay!.clock.advance(P.dt);
       if (this.replay!.clock.done) this.endReplay(s);
@@ -140,6 +154,7 @@ export class Match {
       if (this.countdown === 0) {
         this.countdown = 0;
         this.phase = "playing";
+        s.rumble?.setPhase(true, this.remaining > 0 || this.overtime);
         this.goTime = KICKOFF_GO_TIME;
       }
       return;
@@ -170,6 +185,7 @@ export class Match {
       this.recorder.capture(s, this.resetSequence, pads);
     this.goTime = Math.max(0, this.goTime - P.dt);
     if (this.rules.clock) this.remaining = Math.max(0, this.remaining - P.dt);
+    s.rumble?.setPhase(true, this.remaining > 0 || this.overtime);
     const p = s.ball.translation();
     const scoring = scoringTeam(p);
     if (scoring !== null) {
@@ -180,6 +196,8 @@ export class Match {
       };
       if (this.rules.goal === "practice") {
         this.phase = "goal";
+        s.rumble?.reset();
+        s.rumble?.setPhase(false, false);
         this.freeze = P.match.celebration;
         this.message = "";
         s.explode(p);
@@ -222,6 +240,8 @@ export class Match {
       );
       this.message = `${scorer.displayName.toUpperCase()} SCORED`;
       this.phase = "goal";
+      s.rumble?.reset();
+      s.rumble?.setPhase(false, false);
       this.freeze = P.match.celebration;
       s.explode(p);
       return;
@@ -236,6 +256,8 @@ export class Match {
     }
   }
   finish() {
+    this.simulation?.rumble?.reset();
+    this.simulation?.rumble?.setPhase(false, false);
     this.phase = "finished";
     this.message =
       this.score[0] > this.score[1]

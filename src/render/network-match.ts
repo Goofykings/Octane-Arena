@@ -25,7 +25,10 @@ import type { CameraSettings } from "../game/settings";
 import { ReplayScenePlayback } from "../replay/scene-playback";
 
 /** Snapshot-only visual world. This never advances client-side match physics. */
+import { RumbleEffects } from "../effects/rumble";
+import type { RumbleItem } from "../../shared/rumble";
 export class NetworkMatchView {
+  readonly rumbleEffects: RumbleEffects;
   simulation: Simulation;
   match = new Match();
   group = new T.Scene();
@@ -51,6 +54,7 @@ export class NetworkMatchView {
     camera: T.PerspectiveCamera,
     initial: MatchSnapshot,
     localId: string,
+    onPowerSound?: (item: RumbleItem) => void,
   ) {
     const players = [...initial.players].sort((a, b) =>
       a.id === localId ? -1 : b.id === localId ? 1 : 0,
@@ -81,6 +85,7 @@ export class NetworkMatchView {
     this.jumps = players.map(() => new JumpBurst(this.group));
     this.skids = players.map(() => new SkidMarks(this.group));
     this.demos = players.map(() => new DemolitionFlash(this.group));
+    this.rumbleEffects = new RumbleEffects(this.group, onPowerSound);
     this.group.add(this.ball);
     scene.add(this.group);
     this.camera = new GameCamera(camera);
@@ -98,6 +103,7 @@ export class NetworkMatchView {
         skids: this.skids,
         demos: this.demos,
         explosion: this.explosion,
+        rumble: this.rumbleEffects,
       },
     );
     this.match.mode = "network";
@@ -132,6 +138,7 @@ export class NetworkMatchView {
       this.explosion.reset();
       this.effects.forEach((e) => e.reset());
       this.ballTrails.reset();
+      this.rumbleEffects.reset();
       this.flips.forEach((e) => e.reset());
       this.jumps.forEach((e) => e.reset());
       this.skids.forEach((e) => e.reset());
@@ -312,6 +319,14 @@ export class NetworkMatchView {
       message: latest.message,
       goalFocus: latest.goalFocus,
     });
+    this.rumbleEffects.update(
+      latest.rumble,
+      (id) => this.cars[this.simulation.cars.findIndex((c) => c.id === id)],
+      this.ball,
+      this.camera.camera,
+      dt,
+      latest.time,
+    );
     this.camera.settings = settings;
     this.camera.camera.clearViewOffset();
     this.camera.update(
@@ -343,6 +358,7 @@ export class NetworkMatchView {
   }
   dispose() {
     this.replayView.stop();
+    this.rumbleEffects.dispose();
     this.effects.forEach((e) => e.dispose());
     this.group.removeFromParent();
     disposeModel(this.group);

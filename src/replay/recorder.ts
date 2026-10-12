@@ -11,7 +11,11 @@ import {
 } from "../../shared/replay";
 import type { Vec } from "../../shared/network";
 
+import { RUMBLE_CONFIG as R } from "../config/rumble";
 export class ReplayRecorder {
+  private rumbleHistory: NonNullable<
+    import("../../shared/replay").ReplayClip["rumble"]
+  > = [];
   pendingGoal: ReplayGoal | null = null;
   private recordedGoalId: string | null = null;
   private resetSequences: number[] = [];
@@ -23,6 +27,7 @@ export class ReplayRecorder {
   private wheelStates = new Float64Array(4 * 6);
   private padCooldowns = new Float32Array(20);
   reset() {
+    this.rumbleHistory = [];
     this.pendingGoal = null;
     this.recordedGoalId = null;
     this.resetSequences = [];
@@ -161,6 +166,20 @@ export class ReplayRecorder {
       for (const event of s.touchEvents)
         if (event.time === s.clock) b.event({ kind: "touch", ...event });
     this.touchSequence = s.touchSequence;
+    if (
+      s.rumble &&
+      (s.clock - (this.rumbleHistory.at(-1)?.time ?? -Infinity) >=
+        1 / R.history.hz - 1e-8 ||
+        s.rumble.events.at(-1)?.id !==
+          this.rumbleHistory.at(-1)?.state.events.at(-1)?.id)
+    ) {
+      this.rumbleHistory.push({ time: s.clock, state: s.rumble.snapshot() });
+      while (
+        this.rumbleHistory.length > 1 &&
+        this.rumbleHistory[1].time < s.clock - R.history.seconds
+      )
+        this.rumbleHistory.shift();
+    }
     if (s.heatseeker) {
       const previous = this.heatHistory.at(-1)?.state,
         state = s.heatseeker.state;
@@ -205,6 +224,11 @@ export class ReplayRecorder {
       clip.heatseeker = this.heatHistory.map((entry) => ({
         time: entry.time,
         state: { ...entry.state },
+      }));
+    if (this.rumbleHistory.length)
+      clip.rumble = this.rumbleHistory.map((e) => ({
+        time: e.time,
+        state: structuredClone(e.state),
       }));
     return clip;
   }

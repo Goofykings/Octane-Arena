@@ -25,6 +25,7 @@ export const networkInputSchema = z
     roll: axis,
     directionalRoll: axis.optional(),
     jump: z.boolean(),
+    usePowerup: z.boolean().optional(),
     boost: z.boolean(),
     slide: z.boolean(),
     dodgeX: axis.optional(),
@@ -58,7 +59,13 @@ export class NetworkMatch {
   private disconnected = new Set<string>();
   private inputs = new Map<
     string,
-    { value: PlayerInput; sequence: number; received: number; jump: boolean }
+    {
+      value: PlayerInput;
+      sequence: number;
+      received: number;
+      jump: boolean;
+      powerup: boolean;
+    }
   >();
   constructor(
     public readonly players: NetPlayer[],
@@ -97,6 +104,9 @@ export class NetworkMatch {
       sequence,
       received: now,
       jump: !!previous?.jump || (parsed.data.jump && !previous?.value.jump),
+      powerup:
+        !!previous?.powerup ||
+        (!!parsed.data.usePowerup && !previous?.value.usePowerup),
     });
     return true;
   }
@@ -104,6 +114,7 @@ export class NetworkMatch {
     const reset = this.match.resetSequence;
     this.inputs.delete(id);
     this.disconnected.add(id);
+    this.simulation.rumble?.suspend(id);
     this.ping(id, null);
     this.match.replayDisconnected(id, this.simulation);
     if (this.match.resetSequence !== reset) this.pads.reset();
@@ -111,6 +122,7 @@ export class NetworkMatch {
   connected(id: string) {
     this.inputs.delete(id);
     this.disconnected.delete(id);
+    this.simulation.rumble?.suspend(id, false);
     if (
       this.match.replay &&
       this.players.some((p) => p.id === id && p.controller !== "bot")
@@ -146,9 +158,16 @@ export class NetworkMatch {
       const input = bot
         ? (botInputs.get(p.id) ?? neutralInput())
         : incoming && now - incoming.received < 300
-          ? { ...incoming.value, jump: incoming.value.jump || incoming.jump }
+          ? {
+              ...incoming.value,
+              jump: incoming.value.jump || incoming.jump,
+              usePowerup: incoming.powerup,
+            }
           : neutralInput();
-      if (incoming) incoming.jump = false;
+      if (incoming) {
+        incoming.jump = false;
+        incoming.powerup = false;
+      }
       inputs.set(p.id, input);
       if (m.phase === "countdown") car.steerAtKickoff(input);
     }
@@ -169,6 +188,7 @@ export class NetworkMatch {
       arenaId: this.arenaId,
       gameMode: this.gameMode,
       heatseeker: s.heatseeker ? { ...s.heatseeker.state } : null,
+      rumble: s.rumble?.snapshot() ?? null,
       stats: m.stats?.snapshot(),
       statEvents: m.stats?.events.map((e) => ({ ...e })),
       chat: this.chat.messages.slice(-8),

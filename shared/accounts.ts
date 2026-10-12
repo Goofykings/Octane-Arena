@@ -93,12 +93,16 @@ export const preferencesSchema = z
               .regex(
                 /^(Key[A-Z]|Digit[0-9]|Arrow(Up|Down|Left|Right)|[A-Za-z]{2,20}|F[1-9][0-2]?)?$/,
               );
-            // Only new look actions are optional in pre-controller payloads.
+            // New look/power actions acquire defaults in legacy preference payloads.
             return [
               k,
-              ["cameraLeft", "cameraRight", "cameraUp", "cameraDown"].includes(
-                k,
-              )
+              [
+                "cameraLeft",
+                "cameraRight",
+                "cameraUp",
+                "cameraDown",
+                "usePowerup",
+              ].includes(k)
                 ? binding.default(fallback)
                 : binding,
             ];
@@ -114,7 +118,11 @@ export const preferencesSchema = z
             Object.fromEntries(
               controllerActions.map((k) => [
                 k,
-                z.custom(validControllerBinding),
+                k === "usePowerup"
+                  ? z
+                      .custom(validControllerBinding)
+                      .default(() => controllerDefaults().bindings.usePowerup)
+                  : z.custom(validControllerBinding),
               ]),
             ),
           )

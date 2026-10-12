@@ -49,7 +49,7 @@ export const peerPartySchema = z
     maxPlayers: z.literal(4),
     members: z.array(memberSchema).min(1).max(4),
     mode: z.enum(["1v1", "2v2", "2v2bots"]),
-    gameMode: z.enum(["soccar", "heatseeker"]),
+    gameMode: z.enum(["soccar", "heatseeker", "rumble"]),
     stage: z.enum(["home", "mode", "teams", "match"]),
     transport: z.literal("webrtc"),
     matchId: z.string().uuid().optional(),
@@ -198,7 +198,7 @@ export class PeerPartyAuthority {
         }
         break;
       case "gamemode":
-        if (!["soccar", "heatseeker"].includes(data.gameMode))
+        if (!["soccar", "heatseeker", "rumble"].includes(data.gameMode))
           throw Error("INVALID GAMEMODE");
         if (s.stage === "teams") throw Error("RETURN TO MATCH SETUP FIRST");
         s.gameMode = data.gameMode;

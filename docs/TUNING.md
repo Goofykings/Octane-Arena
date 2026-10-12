@@ -52,3 +52,5 @@ Other locations:
 Leave `dt` and `maxSteps` alone for feel tuning: they control simulation timing.
 The 7 rad/s flip cap is intentional custom tuning requested after the original
 5.5 rad/s reference calibration; older calibration reports describe that earlier setting.
+
+Rumble power ranges, impulses, timers, bot use and effects live in **src/config/rumble.ts**. See [RUMBLE.md](RUMBLE.md) for units, current estimates, authority and tests.

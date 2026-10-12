@@ -1728,3 +1728,13 @@ output {
 
 [data-nav-cycle].gamepad-focus {background:#365c70;filter:brightness(1.12);}
 .controller-color-editor {width:110px;padding:8px;background:#183246;color:#e9ffff;border:1px solid #8acbd7;font:inherit;text-transform:uppercase;}
+
+/* Compact, original Rumble overlay. It never captures pointer/menu focus. */
+#rumble-hud {position:absolute;left:clamp(14px,3vw,48px);bottom:clamp(90px,12vh,120px);display:flex;align-items:center;gap:12px;min-width:170px;padding:12px 16px;background:#102b42df;border-left:3px solid #78e5f2;clip-path:polygon(0 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%);pointer-events:none;}
+#rumble-hud b {display:block;font-size:16px;}#rumble-hud span {display:block;font-size:22px;color:#bbeeff;}#rumble-hud kbd {font:inherit;font-size:11px;color:#afbdce;}.rumble-symbol svg {width:34px;height:34px;}.rumble-symbol>span {font-size:32px!important;}.rumble-meter {position:absolute;left:0;right:0;bottom:0;height:3px;background:#75e9ff;transform-origin:left;}
+#rumble-hud[data-state=ready] {border-color:#e1ffff;}#rumble-hud[data-state=active] {border-color:#ffbd62;}#rumble-hud[data-state=active] .rumble-meter {background:#ffbd62;}
+#rumble-target {position:absolute;width:44px;height:44px;border:2px solid #acffff;transform:translate(-50%,-50%);border-radius:12px;pointer-events:none;filter:drop-shadow(0 0 3px #48cde9);animation:rumble-lock 1s ease-in-out infinite;}
+#rumble-target i {position:absolute;inset:10px;border:1px solid #dfffff;border-radius:50%;}@keyframes rumble-lock {50% {rotate:6deg;scale:1.08;}}
+
+/* Three standard gamemode selectors remain visible alongside match setup. */
+@media(min-width:601px){#bot-setup .bot-selectors{grid-template-columns:repeat(3,minmax(0,1fr));width:min(1080px,94vw);gap:clamp(10px,2vw,30px)}#bot-setup .bot-cycle{grid-template-columns:32px minmax(0,1fr) 32px;gap:4px}#bot-setup .bot-cycle strong{font-size:clamp(15px,1.8vw,25px)}}

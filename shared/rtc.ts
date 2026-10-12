@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { rumbleSnapshotSchema } from "./rumble";
 import type { MatchSnapshot } from "./network";
 import { arenaIds } from "./arenas";
 import { playerStatsSchema, statEventSchema } from "./match-stats";
@@ -87,7 +88,8 @@ const snapshot = z
     type: z.literal("snapshot"),
     matchId: z.string().uuid(),
     arenaId: z.enum(arenaIds),
-    gameMode: z.enum(["soccar", "heatseeker"]).optional(),
+    gameMode: z.enum(["soccar", "heatseeker", "rumble"]).optional(),
+    rumble: rumbleSnapshotSchema.nullable().optional(),
     stats: z.array(playerStatsSchema).max(4).optional(),
     statEvents: z.array(statEventSchema).max(24).optional(),
     chat: z.array(chatMessageSchema).max(8).optional(),
@@ -161,7 +163,16 @@ export function peerSnapshot(
     result.data.cars.some((c) => !playerIds.includes(c.id)) ||
     result.data.stats?.some((p) => !playerIds.includes(p.playerId)) ||
     result.data.statEvents?.some((p) => !playerIds.includes(p.playerId)) ||
-    result.data.chat?.some((p) => !playerIds.includes(p.playerId))
+    result.data.chat?.some((p) => !playerIds.includes(p.playerId)) ||
+    (result.data.rumble &&
+      (result.data.gameMode !== "rumble" ||
+        result.data.rumble.players.length !== playerIds.length ||
+        new Set(result.data.rumble.players.map((p) => p.playerId)).size !==
+          playerIds.length ||
+        result.data.rumble.players.some(
+          (p) => !playerIds.includes(p.playerId),
+        ) ||
+        result.data.rumble.events.some((p) => !playerIds.includes(p.playerId))))
   )
     return null;
   return result.data as unknown as MatchSnapshot;
