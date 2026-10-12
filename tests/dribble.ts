@@ -68,8 +68,9 @@ for (const level of dribbleLevels) {
     // Keep the car well away from the finish. Both slow rolls and one-step
     // flicks must succeed without a roof contact or a car in the target.
     for (const speed of [2, P.ball.maxSpeed]) {
+      p.reset(); // Independent attempts: successful overlap now stays latched.
       shoot(p, 0, 3, speed === 2 ? 0.01 : 0.1, speed);
-      p.step(n);
+      for (let i = 0; i < 180 && !p.finished(); i++) p.step(n);
       assert.equal(
         p.finished(),
         true,
@@ -82,24 +83,30 @@ for (const level of dribbleLevels) {
         "Goal wall must not bounce the ball",
       );
     }
-    for (const [x, y, z, speed] of [
-      [p.course.finish.width / 2 + 0.1, 3, 0.1, 60],
-      [0, 8, 0.1, 60],
-      [0, 0.2, 0.1, 60],
-      [0, 3, -0.1, -60],
-      [0, 3, 1, 0],
+    for (const [x, y, z, speed, success] of [
+      [p.course.finish.width / 2 + 0.1, 3, 0.1, 60, false],
+      [0, 8, 0.1, 60, false],
+      [0, 0.2, 0.1, 60, true],
+      [0, 3, -0.1, -60, true],
+      [0, 3, 1, 0, true],
     ]) {
-      shoot(p, x, y, z, speed);
+      p.reset();
+      shoot(p, x as number, y as number, z as number, speed as number);
       p.step(n);
       assert.equal(
         p.finished(),
-        false,
-        "Outside, below, above, backward or no-crossing shot must fail",
+        success,
+        "Only actual opening-volume overlap counts; outside posts/over bar rejected",
       );
     }
+    p.reset();
     shoot(p, 0, 3, 0, 0);
     p.step(n);
-    assert.equal(p.finished(), false, "Touching the plane is not crossing");
+    assert.equal(
+      p.finished(),
+      true,
+      "Touching the goal trigger counts immediately",
+    );
     const f = p.course.finish;
     p.reset();
     p.car.reset(f.center.x, f.center.z, -f.heading, f.center.y + 0.34);
@@ -262,7 +269,7 @@ try {
   for (let level = 1; level <= 20; level++) {
     assert.equal(run.select(level), true);
     shoot(physics);
-    run.step(n);
+    for (let i = 0; i < 12 && run.phase !== "complete"; i++) run.step(n);
     assert.equal(run.phase, "complete");
     assert.equal(
       new LocalProfile(storage).challengeProgress("dribble", 20),

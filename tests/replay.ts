@@ -1,3 +1,4 @@
+import { captureGoalReplay } from "./replay-capture";
 import assert from "node:assert/strict";
 import { Quaternion, Vector3, PerspectiveCamera, Scene, Group } from "three";
 import {
@@ -190,6 +191,12 @@ const speed = Math.hypot(
 m.tick(s, pads);
 assert.equal(m.phase, "goal");
 assert.deepEqual(m.score, [1, 0]);
+assert.equal(
+  m.replay,
+  null,
+  "Goal begins post-goal capture before finalizing replay",
+);
+captureGoalReplay(m, s, pads);
 assert.equal(m.replay!.clip.goal.ballSpeed, speed);
 assert.equal(m.replay!.clip.goal.lastTouchId, s.cars[0].id);
 assert.ok(
@@ -281,6 +288,7 @@ own.ball.setTranslation({ x: 0, y: 1, z: -53 }, true);
 ownMatch.tick(own);
 assert.equal(ownMatch.lastGoal!.ownGoal, true);
 assert.equal(ownMatch.lastGoal!.scorerId, own.cars[0].id);
+captureGoalReplay(ownMatch, own);
 assert.equal(slowIntervals(ownMatch.replay!.clip).length, 1);
 ownMatch.freeze = 0;
 ownMatch.tick(own);

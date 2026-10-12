@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { Simulation } from "../src/physics/simulation";
 import { neutral } from "../src/input/types";
 import { P } from "../src/config/physics";
+import { goalRoofHeight } from "../src/arena/goal";
 import { bodies } from "../shared/catalog";
 import { carModel, animateWheels, disposeModel } from "../src/render/models";
 import { wheelRadius, wheelHalfWidth } from "../src/car/wheels";
@@ -294,13 +295,20 @@ for (const id of ["ion", "vector"] as const)
         c = s.cars[0];
       c.setBody(id);
       const a = P.arena,
-        n = new Vector3(-Math.SQRT1_2, -Math.SQRT1_2, 0),
+        n = new Vector3(
+          -Math.SQRT1_2,
+          -Math.SQRT1_2,
+          -sign * (a.goalRoofDrop / a.goalDepth) * Math.SQRT1_2,
+        ).normalize(),
         forward = new Vector3(0, 0, -sign);
+      forward.addScaledVector(n, -forward.dot(n)).normalize();
       const position = new Vector3(
         a.goalHalf - a.goalCurve + a.goalCurve * Math.SQRT1_2,
-        a.goalHeight - a.goalCurve + a.goalCurve * Math.SQRT1_2,
+        goalRoofHeight(3.5) - a.goalCurve + a.goalCurve * Math.SQRT1_2,
         sign * (a.halfLength + 3.5),
-      ).addScaledVector(n, 0.34);
+        // The tighter concave fillet needs extra initial clearance for the rigid
+        // car's full width; place the complete wheel envelope outside the shell.
+      ).addScaledVector(n, 0.42);
       orient(s, position, n, forward);
       c.body.setLinvel(forward.clone().multiplyScalar(8), true);
       const pose = new Group(),
@@ -330,7 +338,8 @@ for (const id of ["ion", "vector"] as const)
             (col) => col.parent() === null,
           );
           if (hit && up.dot(hit.normal) > 0.25) {
-            min = Math.min(min, (hit.timeOfImpact - 0.3) * up.dot(hit.normal));
+            const clearance = (hit.timeOfImpact - 0.3) * up.dot(hit.normal);
+            min = Math.min(min, clearance);
             samples++;
           }
         };

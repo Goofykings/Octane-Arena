@@ -4,15 +4,20 @@ import { defaults, type CameraSettings } from "../game/settings";
 import { P } from "../config/physics";
 import { CameraClearance } from "./collision";
 import { CameraFraming, MAX_FRAMING_FOV } from "./framing";
-import type { MouseLook } from "./mouse-look";
+import { MouseOrbit, type MouseLook } from "./mouse-look";
+import {
+  cameraCollisionPolicy,
+  cameraFloorClearance,
+  type CameraCollisionSpace,
+} from "./space";
+import type { CameraViewFrame } from "../render/camera-occlusion";
 
 const damp = (rate: number, dt: number) => 1 - Math.exp(-rate * dt);
 const delta = (a: number, b: number) =>
   Math.atan2(Math.sin(b - a), Math.cos(b - a));
 const worldUp = new T.Vector3(0, 1, 0);
 /** Camera queries work in both closed arenas and open extra-mode worlds. */
-export interface CameraWorld {
-  world: RAPIER.World;
+export interface CameraWorld extends CameraCollisionSpace {
   ball?: { isEnabled(): boolean };
   cameraObstacles?: (collider: RAPIER.Collider) => boolean;
 }
@@ -28,6 +33,14 @@ export class GameCamera {
   private normalFov = 110;
   private reverseOffset = new T.Vector3();
   mouseLook?: MouseLook;
+  private mouseOrbit = new MouseOrbit(-1, true);
+  private viewFrame: CameraViewFrame = {
+    car: new T.Vector3(),
+    ball: new T.Vector3(),
+    ballEnabled: false,
+    position: new T.Vector3(),
+    rotation: new T.Quaternion(),
+  };
   settings: CameraSettings = defaults().camera;
   ballMode = true;
   readonly referenceUp = new T.Vector3(0, 1, 0);
@@ -101,6 +114,7 @@ export class GameCamera {
   }
   private reverseView(car: T.Object3D, simulation: CameraWorld) {
     const c = this.camera;
+    const policy = cameraCollisionPolicy(simulation);
     this.normalPosition.copy(c.position);
     this.normalRotation.copy(c.quaternion);
     this.normalFov = c.fov;
@@ -111,6 +125,8 @@ export class GameCamera {
     this.reverseOffset
       .multiplyScalar(this.settings.distance)
       .addScaledVector(worldUp, this.settings.height);
+    if (policy.outsideArena)
+      cameraFloorClearance(this.reverseOffset, car.position);
     const cast = () =>
       simulation.world.castRay(
         new RAPIER.Ray(car.position, this.reverseOffset.clone().normalize()),
@@ -120,8 +136,7 @@ export class GameCamera {
         undefined,
         undefined,
         undefined,
-        simulation.cameraObstacles ??
-          ((collider) => collider.parent() === null),
+        policy.blockers,
       );
     let hit = cast();
     if (hit && hit.timeOfImpact < 1) {
@@ -210,6 +225,7 @@ export class GameCamera {
     this.restoreNormal();
     dt = T.MathUtils.clamp(dt, 0, 0.1);
     if (home) {
+      delete c.userData.cameraView;
       c.position.set(9 + Math.sin(time * 0.06) * 1.5, 2.7, 19);
       this.targetLook.set(5, 0.6, 10).sub(c.position).normalize();
       this.orientation(this.targetLook, c.quaternion, this.yaw);
@@ -227,13 +243,16 @@ export class GameCamera {
     if (first) this.velocity.set(0, 0, 0);
     this.previousCar.copy(car.position);
     const speed = Math.min(60, this.velocity.length());
+    const policy = cameraCollisionPolicy(simulation);
     this.clearance.survey(
       simulation.world,
       this.pivot,
       p.distance + 4,
       dt,
       first,
-      simulation.cameraObstacles,
+      policy.surfaces,
+      policy.blockers,
+      policy.outsideArena,
     );
     // Surface orientation guides the boom, while arena gravity owns the horizon.
     // This deliberately does not read individual wheel normals or physics poses.
@@ -623,7 +642,13 @@ export class GameCamera {
     this.debug.safe =
       this.framing.feasible && c.fov >= this.framing.requiredFov - 0.001;
     this.ready = true;
-    this.mouseLook?.apply(c);
+    this.mouseOrbit.apply(c, this.pivot, this.mouseLook, dt, simulation);
     if (this.reverseHeld) this.reverseView(car, simulation);
+    this.viewFrame.car.copy(this.pivot);
+    this.viewFrame.ball.copy(this.subject);
+    this.viewFrame.ballEnabled = !!simulation.ball?.isEnabled();
+    this.viewFrame.position.copy(c.position);
+    this.viewFrame.rotation.copy(c.quaternion);
+    c.userData.cameraView = this.viewFrame;
   }
 }

@@ -309,7 +309,16 @@ for (const slide of [false, true]) {
           x: camera.position.x,
         });
         assert.ok(distance > 2.2);
-        assert.ok(Math.abs(camera.position.x) < P.arena.halfWidth);
+        assert.ok(
+          distance >= control.settings.distance * 0.95,
+          "Arena walls preserve intended camera distance",
+        );
+        if (ballMode)
+          assert.ok(
+            Math.abs(camera.position.x) > P.arena.halfWidth,
+            "Ball Cam may frame the subjects from beyond the side wall",
+          );
+        assert.ok(camera.position.y >= 0.24, "Lens keeps floor clearance");
         assert.ok(Math.abs(camera.rotation.z) < 1e-8);
       }
   results.camera = cameras;

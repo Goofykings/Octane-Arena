@@ -1,3 +1,5 @@
+> Historical networking architecture. The current frontend uses [PeerJS Cloud](PEERJS-MULTIPLAYER.md) and needs no separate game backend or API URL.
+
  abnd# Browser-hosted WebRTC matches
 
 Both players open https://goofykings.github.io/Octane-Arena/, create/join the

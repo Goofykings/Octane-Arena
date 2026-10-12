@@ -179,6 +179,7 @@ export class ReplayScenePlayback {
         { angle: frame[o + RC.wheelAngle], steer: frame[o + RC.wheelSteer] },
       );
       this.effects.vehicles[i].update(c, effectDt, time, model.visible);
+      this.effects.vehicles[i].flipReset.replay(clip, source.id, time);
       this.effects.flips[i].updateCar(
         c,
         model,

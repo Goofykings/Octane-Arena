@@ -97,6 +97,55 @@ const { pathToFileURL } = require("node:url");
     await page.setViewportSize({ width: 1280, height: 720 });
     for (const pack of ["striker", "goalie", "aerial"]) {
       await launch(pack);
+      await page.waitForFunction(() => window.__arena.extraSession.run.ready);
+      const locked = await page.evaluate(() => {
+        const s = window.__arena.extraSession;
+        return {
+          car: { ...s.vehicle.body.translation() },
+          ball: { ...s.physics.ball.translation() },
+        };
+      });
+      await page.keyboard.press("KeyC");
+      await page.waitForFunction(
+        () => !window.__arena.extraSession.cameraControl.ballMode,
+      );
+      await page.keyboard.press("KeyC");
+      await page.waitForFunction(
+        () => window.__arena.extraSession.cameraControl.ballMode,
+      );
+      await page.waitForTimeout(350);
+      assert.deepEqual(
+        await page.evaluate(() => {
+          const s = window.__arena.extraSession;
+          return {
+            car: { ...s.vehicle.body.translation() },
+            ball: { ...s.physics.ball.translation() },
+          };
+        }),
+        locked,
+        "Ready pose is locked while camera controls don't start the shot",
+      );
+      assert.equal(
+        await page.evaluate(() => window.__arena.extraSession.run.elapsed),
+        0,
+      );
+      assert.equal(await page.locator("#training-time").textContent(), "10.0");
+      assert.equal(
+        await page.evaluate(
+          () => window.__arena.extraSession.preview.arrow.visible,
+        ),
+        pack !== "aerial",
+      );
+      await page.keyboard.down("KeyW");
+      await page.waitForFunction(() => !window.__arena.extraSession.run.ready);
+      await page.keyboard.up("KeyW");
+      assert.equal(
+        await page.evaluate(
+          () => window.__arena.extraSession.preview.arrow.visible,
+        ),
+        false,
+      );
+      assert.equal(await page.locator("#countdown").textContent(), "");
       assert.equal(
         await page.locator("#training-name").textContent(),
         pack.toUpperCase(),
@@ -114,9 +163,41 @@ const { pathToFileURL } = require("node:url");
       );
       for (let index = 1; index < 10; index++) {
         await page.locator("#training-next").click();
-        await page.waitForFunction(
-          (i) => window.__arena.extraSession.run.index === i,
-          index,
+        await page.waitForFunction((i) => {
+          const s = window.__arena.extraSession,
+            v = s.run.shot.ballVelocity;
+          return (
+            s.run.index === i &&
+            s.preview.arrow.visible ===
+              (!s.run.shot.ballFrozen && Math.hypot(v.x, v.y, v.z) > 0)
+          );
+        }, index);
+        const preview = await page.evaluate(() => {
+          const s = window.__arena.extraSession,
+            arrow = s.preview.arrow,
+            v = s.run.shot.ballVelocity;
+          const speed = Math.hypot(v.x, v.y, v.z),
+            direction = s.ball.position
+              .clone()
+              .set(0, 1, 0)
+              .applyQuaternion(arrow.quaternion);
+          return {
+            visible: arrow.visible,
+            expected: !s.run.shot.ballFrozen && speed > 0,
+            dot:
+              speed > 0
+                ? (direction.x * v.x + direction.y * v.y + direction.z * v.z) /
+                  speed
+                : 1,
+            length: arrow.cone.position.y,
+            expectedLength: Math.max(1.4, Math.min(6.5, 1.4 + speed * 0.2)),
+          };
+        });
+        assert.equal(preview.visible, preview.expected);
+        assert.ok(
+          preview.dot > 0.999999 &&
+            Math.abs(preview.length - preview.expectedLength) < 1e-6,
+          "Rendered arrow matches real launch velocity and speed",
         );
       }
       await page.waitForFunction(
@@ -175,6 +256,61 @@ const { pathToFileURL } = require("node:url");
       }
       await exit();
     }
+    await launch("goalie");
+    await page.keyboard.down("KeyW");
+    await page.waitForFunction(() => !window.__arena.extraSession.run.ready);
+    await page.keyboard.up("KeyW");
+    await page.evaluate(() => {
+      const s = window.__arena.extraSession,
+        b = s.physics.ball.translation();
+      s.vehicle.reset(b.x, b.z + 2.5, 0, b.y);
+      s.vehicle.body.setLinvel({ x: 0, y: 0, z: -10 }, true);
+    });
+    await page.waitForFunction(
+      () => window.__arena.extraSession.run.saveDelay > 0.25,
+    );
+    assert.equal(
+      await page.evaluate(
+        () =>
+          window.__arena.extraSession.physics.ball.isEnabled() &&
+          !window.__arena.extraSession.run.outcome,
+      ),
+      true,
+      "Saved ball keeps moving before delayed completion",
+    );
+    await page.waitForFunction(
+      () => window.__arena.extraSession.run.ballBurstSequence === 1,
+    );
+    assert.equal(
+      await page.evaluate(
+        () =>
+          !window.__arena.extraSession.ball.visible &&
+          window.__arena.extraSession.scene.children.some(
+            (o) => Math.abs(o.scale.x - 0.18) < 1e-8 && o.visible,
+          ),
+      ),
+      true,
+      "Ball disappears with a small visible explosion",
+    );
+    await exit();
+    await launch("aerial");
+    await page.keyboard.down("KeyW");
+    await page.waitForFunction(() => !window.__arena.extraSession.run.ready);
+    await page.keyboard.up("KeyW");
+    await page.evaluate(() => {
+      const s = window.__arena.extraSession;
+      s.run.frozen = false;
+      s.physics.ball.setGravityScale(1, true);
+      s.physics.ball.setTranslation({ x: 0, y: 2, z: -52.1 }, true);
+      s.physics.ball.setLinvel({ x: 0, y: 0, z: -20 }, true);
+    });
+    await page.locator("#goal-replay").waitFor({ state: "visible" });
+    await page.keyboard.press("Space");
+    await page.waitForFunction(
+      () => window.__arena.extraSession.run.index === 1,
+    );
+    assert.ok(await page.evaluate(() => window.__arena.extraSession.run.ready));
+    await exit();
     await launch("striker");
     await page.evaluate(() => {
       const audio = window.__arena.audio,
@@ -190,6 +326,8 @@ const { pathToFileURL } = require("node:url");
       s.run.results.fill(true);
       s.run.index = 9;
       s.run.reset();
+      if (s.run.ready)
+        s.run.step({ ...window.__arena.input.sample(), steer: 0.1 });
       s.physics.ball.setTranslation({ x: 0, y: 2, z: -52.1 }, true);
       s.physics.ball.setLinvel({ x: 0, y: 0, z: -20 }, true);
     });
@@ -197,7 +335,43 @@ const { pathToFileURL } = require("node:url");
       () =>
         document.getElementById("training-message").textContent === "SUCCESS",
     );
+    await page.locator("#goal-replay").waitFor({ state: "visible" });
+    assert.equal(
+      await page.evaluate(() => window.__arena.extraSession.run.index),
+      9,
+    );
+    assert.equal(
+      await page.evaluate(() => window.__arena.extraSession.run.ready),
+      false,
+    );
+    const physical = await page.evaluate(() => {
+      const s = window.__arena.extraSession.physics;
+      return {
+        ball: { ...s.ball.translation() },
+        car: { ...s.cars[0].body.translation() },
+        clock: s.clock,
+      };
+    });
+    await page.waitForTimeout(100);
+    assert.deepEqual(
+      await page.evaluate(() => {
+        const s = window.__arena.extraSession.physics;
+        return {
+          ball: { ...s.ball.translation() },
+          car: { ...s.cars[0].body.translation() },
+          clock: s.clock,
+        };
+      }),
+      physical,
+      "Replay is visual only",
+    );
+    await page.locator("#replay-skip-button").click();
     await page.waitForFunction(() => window.__arena.extraSession.complete);
+    await page.waitForFunction(
+      () =>
+        document.getElementById("training-title").textContent ===
+        "TRAINING COMPLETE",
+    );
     assert.equal(
       await page.evaluate(
         () =>
@@ -225,7 +399,8 @@ const { pathToFileURL } = require("node:url");
     await page.waitForFunction(() => !window.__arena.extraSession.complete);
     await page.evaluate(() => {
       const r = window.__arena.extraSession.run;
-      r.elapsed = r.shot.timeLimit;
+      if (r.ready) r.step({ ...window.__arena.input.sample(), steer: 0.1 });
+      r.elapsed = r.duration;
     });
     await page.waitForFunction(
       () =>

@@ -3,6 +3,7 @@ import { Simulation, initializeSimulation } from "../physics/simulation";
 import { Match } from "../game/match";
 import { Pads } from "../game/pads";
 import { Opponent } from "../ai/opponent";
+import { BotTeam } from "../ai/team";
 import { P } from "../config/physics";
 import { neutralInput, type PlayerInput } from "../../shared/player";
 import type { MatchSnapshot, NetPlayer } from "../../shared/network";
@@ -22,6 +23,7 @@ export const networkInputSchema = z
     pitch: axis,
     yaw: axis,
     roll: axis,
+    directionalRoll: axis.optional(),
     jump: z.boolean(),
     boost: z.boolean(),
     slide: z.boolean(),
@@ -52,6 +54,7 @@ export class NetworkMatch {
   }
   tick = 0;
   private bots = new Map<string, Opponent>();
+  private botTeam = new BotTeam("intermediate");
   private disconnected = new Set<string>();
   private inputs = new Map<
     string,
@@ -133,12 +136,15 @@ export class NetworkMatch {
       return;
     }
     const inputs = new Map<string, PlayerInput>();
+    const botInputs = this.bots.size
+      ? this.botTeam.inputs(s, this.pads)
+      : new Map<string, PlayerInput>();
     for (const p of this.players) {
       const car = s.cars.find((c) => c.id === p.id)!,
         bot = this.bots.get(p.id),
         incoming = this.inputs.get(p.id);
       const input = bot
-        ? bot.sample(car, s.ball.translation(), s.clock)
+        ? (botInputs.get(p.id) ?? neutralInput())
         : incoming && now - incoming.received < 300
           ? { ...incoming.value, jump: incoming.value.jump || incoming.jump }
           : neutralInput();
@@ -192,6 +198,12 @@ export class NetworkMatch {
         wheels: [...c.wheelContact],
         wheelHits: c.wheelHits.map((p) => ({ x: p.x, y: p.y, z: p.z })),
         flipLeft: c.jump.flipLeft,
+        flipReset: {
+          sequence: c.flipResetSequence,
+          age: Number.isFinite(c.flipResetAge) ? c.flipResetAge : 1000,
+          origin: { ...c.flipResetOrigin },
+          normal: { ...c.flipResetNormal },
+        },
         normalJump: {
           sequence: c.normalJumpSequence,
           age: Number.isFinite(c.normalJumpAge) ? c.normalJumpAge : 1000,

@@ -12,16 +12,18 @@ import {
   type Action,
 } from "../input/bindings";
 import type { Input } from "../input/input";
+import { controllerDefaults, controllerName } from "../../shared/controller";
 export class SettingsPanel {
   dialog = document.querySelector<HTMLDialogElement>("#settings")!;
   private tab = "gameplay";
   private capture: Action | null = null;
+  private controllerCapture: Action | null = null;
   constructor(
     private settings: Settings,
     private input: Input,
     private apply: () => void,
   ) {
-    this.dialog.innerHTML = `<div class="dialog-heading"><h2>SETTINGS</h2><button id="close-settings" class="icon-button" aria-label="Close settings">×</button></div><nav class="settings-tabs" role="tablist" aria-label="Settings">${["gameplay", "camera", "controls", "graphics", "audio"].map((t) => `<button role="tab" id="tab-${t}" data-tab="${t}" aria-controls="settings-content">${t.toUpperCase()}</button>`).join("")}</nav><div id="settings-content" role="tabpanel"></div>`;
+    this.dialog.innerHTML = `<div class="dialog-heading"><h2>SETTINGS</h2><button id="close-settings" data-nav-back class="icon-button" aria-label="Close settings">×</button></div><nav class="settings-tabs" role="tablist" aria-label="Settings">${["gameplay", "camera", "controls", "graphics", "audio"].map((t) => `<button role="tab" id="tab-${t}" data-tab="${t}" aria-controls="settings-content">${t.toUpperCase()}</button>`).join("")}</nav><div id="settings-content" role="tabpanel"></div>`;
     this.dialog.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach(
       (btn) =>
         (btn.onclick = () => {
@@ -41,11 +43,25 @@ export class SettingsPanel {
     window.addEventListener(
       "keydown",
       (e) => {
+        if (this.controllerCapture) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          if (e.code === "Escape") {
+            this.stopCapture();
+            this.render();
+          }
+          return;
+        }
         if (!this.capture) return;
         e.preventDefault();
         e.stopImmediatePropagation();
         if (e.code !== "Escape")
-          this.settings.value.bindings[this.capture] = e.code;
+          this.settings.value.bindings[this.capture] = [
+            "Delete",
+            "Backspace",
+          ].includes(e.code)
+            ? ""
+            : e.code;
         this.stopCapture();
         this.save();
         this.render();
@@ -63,6 +79,8 @@ export class SettingsPanel {
   }
   private stopCapture() {
     this.capture = null;
+    this.controllerCapture = null;
+    this.input.controller.cancelBind();
     this.input.capturing = false;
     this.input.clear();
   }
@@ -166,36 +184,101 @@ export class SettingsPanel {
           this.save();
         };
     } else if (this.tab === "controls") {
-      host.innerHTML = `<div class="binding-list">${(
+      host.innerHTML = `<p id="controller-status" class="field-note" role="status"></p>
+      ${range("controller-deadzone", "Stick deadzone", p.controller.deadzone, 0.05, 0.3, 0.01)}
+      <div class="binding-list"><div class="binding-columns binding-head"><span>ACTION</span><span>KEYBOARD</span><span>CONTROLLER</span></div>${(
         Object.keys(defaultBindings) as Action[]
       )
         .filter((k) => k !== "reset")
         .map(
           (k) =>
-            `<div class="setting-row"><span>${actionLabels[k]}</span><button class="binding ${conflicts(p.bindings, k).length ? "conflict" : ""}" data-action="${k}">${keyName(p.bindings[k])}</button></div>`,
+            `<div class="binding-columns"><span>${actionLabels[k]}</span><button class="binding ${conflicts(p.bindings, k).length ? "conflict" : ""}" data-action="${k}" aria-label="Bind keyboard ${actionLabels[k]}">${keyName(p.bindings[k])}</button><button class="binding controller-binding" data-controller="${k}" aria-label="Bind controller ${actionLabels[k]}"><span>${controllerName(p.controller.bindings[k], this.input.controller.pad?.mapping !== "")}</span><small>BIND</small></button></div>`,
         )
-        .join(
-          "",
-        )}</div><p id="binding-note" class="field-note" role="status">${Object.keys(p.bindings).some((k) => conflicts(p.bindings, k as Action).length) ? "Duplicate bindings highlighted. Both actions will run." : "Select an action, then press a key. Escape cancels."}</p><button id="reset-bindings" class="small-button">RESET BINDINGS</button>`;
-      host.querySelectorAll<HTMLButtonElement>("[data-action]").forEach(
-        (b) =>
-          (b.onclick = () => {
-            this.stopCapture();
-            this.render();
-            this.capture = b.dataset.action as Action;
-            this.input.capturing = true;
-            const active = host.querySelector(
-              `[data-action="${this.capture}"]`,
-            )!;
-            active.textContent = "PRESS A KEY";
-            active.classList.add("listening");
-          }),
-      );
-      host.querySelector("#reset-bindings")!.addEventListener("click", () => {
-        Object.assign(p.bindings, defaultBindings);
+        .join("")}</div>
+      <div id="binding-capture" role="status" hidden><strong id="capture-title"></strong><p id="capture-instruction"></p><button id="cancel-binding" class="small-button">CANCEL</button><button id="clear-controller-binding" class="small-button" hidden>UNBIND</button></div>
+      <p id="binding-note" class="field-note">Select a binding to change it. Escape cancels; Delete clears a keyboard binding. Shared bindings run both actions.</p>
+      <div class="binding-resets"><button id="reset-bindings" class="small-button">RESET KEYBOARD</button><button id="reset-controller" class="small-button">RESET CONTROLLER</button><button id="reset-all-controls" class="small-button">RESET ALL</button></div>`;
+      this.updateController();
+      host.querySelector<HTMLInputElement>("#controller-deadzone")!.oninput = (
+        e,
+      ) => {
+        p.controller.deadzone = Number((e.target as HTMLInputElement).value);
+        this.rangeOutput(e);
         this.save();
+      };
+      const begin = (action: Action, controller: boolean) => {
+        this.stopCapture();
+        this.input.capturing = true;
+        const panel = host.querySelector<HTMLElement>("#binding-capture")!;
+        panel.hidden = false;
+        host.querySelector<HTMLElement>("#clear-controller-binding")!.hidden =
+          !controller;
+        host.querySelector("#capture-title")!.textContent =
+          `BIND ${actionLabels[action].toUpperCase()}`;
+        host.querySelector("#capture-instruction")!.textContent = controller
+          ? "Release held controls, then press a button or move a stick. Hold Start / Options to cancel; tap it to bind. Escape or Cancel also exits."
+          : "Press a keyboard key. Escape cancels; Delete clears.";
+        if (controller) {
+          this.controllerCapture = action;
+          this.input.controller.beginBind(
+            action,
+            (binding) => {
+              p.controller.bindings[action] = binding;
+              this.stopCapture();
+              this.save();
+              this.render();
+            },
+            () => {
+              this.stopCapture();
+              this.render();
+            },
+          );
+        } else this.capture = action;
+      };
+      host
+        .querySelectorAll<HTMLButtonElement>("[data-action]")
+        .forEach(
+          (b) => (b.onclick = () => begin(b.dataset.action as Action, false)),
+        );
+      host
+        .querySelectorAll<HTMLButtonElement>("[data-controller]")
+        .forEach(
+          (b) =>
+            (b.onclick = () => begin(b.dataset.controller as Action, true)),
+        );
+      host.querySelector("#cancel-binding")!.addEventListener("click", () => {
+        this.stopCapture();
         this.render();
       });
+      host
+        .querySelector("#clear-controller-binding")!
+        .addEventListener("click", () => {
+          if (this.controllerCapture)
+            p.controller.bindings[this.controllerCapture] = null;
+          this.stopCapture();
+          this.save();
+          this.render();
+        });
+      const reset = (keyboard: boolean, controller: boolean) => {
+        this.stopCapture();
+        if (keyboard) Object.assign(p.bindings, defaultBindings);
+        if (controller) {
+          const fresh = controllerDefaults();
+          Object.assign(p.controller.bindings, fresh.bindings);
+          p.controller.deadzone = fresh.deadzone;
+        }
+        this.save();
+        this.render();
+      };
+      host
+        .querySelector("#reset-bindings")!
+        .addEventListener("click", () => reset(true, false));
+      host
+        .querySelector("#reset-controller")!
+        .addEventListener("click", () => reset(false, true));
+      host
+        .querySelector("#reset-all-controls")!
+        .addEventListener("click", () => reset(true, true));
     } else if (this.tab === "graphics") {
       host.innerHTML = `<div class="quality-grid">${["low", "medium", "high", "ultra"].map((q) => `<button data-quality="${q}" aria-pressed="${p.quality === q}">${q.toUpperCase()}</button>`).join("")}</div><dl class="quality-info"><dt>Resolution</dt><dd>${{ low: "65%", medium: "85%", high: "100%", ultra: "130%" }[p.quality]}</dd><dt>Shadows</dt><dd>${{ low: "OFF", medium: "1024", high: "2048", ultra: "4096" }[p.quality]}</dd><dt>Particles</dt><dd>${{ low: "20%", medium: "50%", high: "100%", ultra: "150%" }[p.quality]}</dd><dt>Edge smoothing</dt><dd>${p.quality === "low" ? "OFF" : "FXAA"}</dd></dl>`;
       host.querySelectorAll<HTMLButtonElement>("[data-quality]").forEach(
@@ -228,6 +311,11 @@ export class SettingsPanel {
         };
     }
     this.bindNumbers(host);
+  }
+  updateController() {
+    const status = this.dialog.querySelector("#controller-status");
+    if (status && status.textContent !== this.input.controller.status)
+      status.textContent = this.input.controller.status;
   }
   private bindNumbers(host: HTMLElement) {
     host.querySelectorAll<HTMLButtonElement>(".number-value").forEach(

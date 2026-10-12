@@ -2,9 +2,11 @@ import * as T from "three";
 import type { Car } from "../car/car";
 import { P } from "../config/physics";
 import { polishMaterial } from "../render/material-polish";
+import { FlipResetBurst } from "./flip-reset";
 
 /** Continuous exhaust geometry plus world-space ribbons from the rear wheels. */
 export class VehicleEffects {
+  readonly flipReset: FlipResetBurst;
   private flames = new T.Group();
   private glow: T.PointLight;
   private trails: {
@@ -20,6 +22,7 @@ export class VehicleEffects {
     scene: T.Scene,
     color: number,
   ) {
+    this.flipReset = new FlipResetBurst(scene);
     for (const x of [-0.22, 0.22]) {
       const outer = new T.Mesh(
         new T.ConeGeometry(0.14, 1.5, 10),
@@ -75,6 +78,7 @@ export class VehicleEffects {
     }
   }
   reset() {
+    this.flipReset.reset();
     this.fade = 0;
     this.wasActive = false;
     for (const t of this.trails) {
@@ -99,6 +103,7 @@ export class VehicleEffects {
     this.glow.intensity = enabled ? 2.4 : 0;
   }
   dispose() {
+    this.flipReset.dispose();
     for (const t of this.trails) {
       t.mesh.removeFromParent();
       t.mesh.geometry.dispose();
@@ -108,6 +113,7 @@ export class VehicleEffects {
   update(car: Car, dt: number, time: number, active: boolean) {
     if (!active && this.wasActive) this.reset();
     this.wasActive = active;
+    this.flipReset.update(car, active);
     this.flames.visible = active && car.boosting;
     this.flames.scale.z =
       1 + 0.17 * Math.sin(time * 67) + 0.1 * Math.sin(time * 113);

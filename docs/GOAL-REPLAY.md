@@ -10,8 +10,10 @@ Rings never enters the soccer match/replay state machine.
 
 `shared/replay.ts` owns the packed schema, fixed circular storage, interpolation,
 slow-motion regions, playback clock and transport types. `src/replay/recorder.ts`
-captures the authoritative simulation after each playing physics step, before a
-goal disables the ball or applies the explosion impulse. The source rate remains
+captures the authoritative simulation after each playing physics step and during
+movable goal celebration. A goal marks its timestamp; recording continues for
+exactly one second of actual post-goal physics before finalizing the replay.
+Cars keep their real movement, rotation, boost and pickup state. The source rate remains
 120 Hz. There are 721 reusable slots, covering six seconds including endpoints.
 
 The buffer stores ball position/quaternion/linear and angular velocity/enabled
@@ -21,10 +23,12 @@ state; and all 20 boost-pad cooldowns. Bounded event storage records touches wit
 player IDs/timestamps, pickups, demolitions and the goal. Static arena geometry,
 textures, meshes and cosmetics are never stored per tick.
 
-A four-car buffer uses about 0.68 MiB of packed numeric storage; a full goal clip
-adds about 0.56 MiB. Car IDs are referenced once per buffer. Only a goal copies
-the final approximately five seconds into an immutable clip. Goals scored before
-five seconds of play replay the available history. Kickoff clears history, and
+A four-car buffer and a full goal clip each use about 0.68 MiB of packed numeric
+storage. Car IDs are referenced once per buffer. A finalized goal copies up to
+five seconds before the goal plus one second afterward into an immutable clip.
+Goals scored before five seconds of play replay the available lead-in. Subsequent
+live celebration capture maintains wheel/pickup state without modifying that clip.
+Kickoff clears history, and
 interpolation cannot cross a reset, demolition/respawn or large teleport.
 
 `ReplaySampler` writes a reusable output row, with linear position/velocity
@@ -38,8 +42,10 @@ The authoritative physics world, boost, pads, match clock, scoring and stats do
 not advance during replay. Existing pooled boost flames, trails, wheel animation,
 flip/double-jump effects, skid marks and demolition flashes are driven by recorded
 state. Pad visuals use recorded cooldowns without changing the live pad objects.
-At the recorded goal, a visual-only explosion plays, followed by a short 0.65-second
-hold before kickoff. The preceding live celebration already includes the real
+At the recorded goal, a visual-only explosion plays while recorded car motion
+continues through the one-second post-goal tail. Existing slow motion can make
+that tail take longer to play. A short 0.65-second hold follows the clip end
+before kickoff. The preceding live celebration already includes the real
 physics blast; replay does not reapply its impulse or simulate the aftermath.
 
 ## Camera and slow motion

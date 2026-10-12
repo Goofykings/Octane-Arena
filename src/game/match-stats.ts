@@ -2,6 +2,7 @@ import { Vector3 } from "three";
 import type { PlayerEntity } from "../../shared/player";
 import {
   MATCH_POINTS,
+  applyStatAward,
   STAT_TUNING,
   type MatchStatEvent,
   type PlayerMatchStats,
@@ -45,15 +46,7 @@ export class MatchStats {
     const player = this.roster.find((p) => p.id === playerId),
       stats = this.players.get(playerId);
     if (!player || !stats) return;
-    const field = {
-      BALL_TOUCH: "touches",
-      GOAL: "goals",
-      ASSIST: "assists",
-      SAVE: "saves",
-      SHOT: "shots",
-    } as const;
-    stats[field[type]]++;
-    stats.score += MATCH_POINTS[type];
+    applyStatAward(stats, type);
     const event: MatchStatEvent = {
       id: ++this.sequence,
       type,

@@ -59,9 +59,9 @@ const { pathToFileURL } = require("node:url");
         return (
           !!start &&
           !!wall &&
-          wall.children[0].material.transparent &&
-          wall.children[0].material.depthWrite === false &&
-          wall.children[0].material.map !== null
+          wall.getObjectByName("dribble-goal-grid").material.transparent &&
+          wall.getObjectByName("dribble-goal-grid").material.depthWrite === false &&
+          wall.getObjectByName("dribble-goal-grid").material.map !== null
         );
       }),
       true,

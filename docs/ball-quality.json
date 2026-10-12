@@ -141,73 +141,73 @@
     "kind": "flick",
     "id": "ion",
     "name": "front",
-    "maxSpeed": 15.332992672799108,
-    "maxAngular": 7.000000000000024,
-    "extra": 5.528412214749582,
+    "maxSpeed": 11.836280004180628,
+    "maxAngular": 7.00000000000002,
+    "extra": 2.0872952690898856,
     "angularContact": 4.253345205720887
   },
   {
     "kind": "flick",
     "id": "ion",
     "name": "back",
-    "maxSpeed": 10.95271776022745,
-    "maxAngular": 7.000000000000031,
-    "extra": 5.341495089436227,
+    "maxSpeed": 8.783103992388122,
+    "maxAngular": 7.0000000000000195,
+    "extra": 2.544636083667651,
     "angularContact": 3.7163791937541606
   },
   {
     "kind": "flick",
     "id": "ion",
     "name": "side",
-    "maxSpeed": 11.785748103795704,
-    "maxAngular": 7.000000225195093,
-    "extra": 4.581401972801714,
+    "maxSpeed": 9.849085994785739,
+    "maxAngular": 7.000000208120464,
+    "extra": 2.150683902522381,
     "angularContact": 3.469365049364712
   },
   {
     "kind": "flick",
     "id": "ion",
     "name": "diagonal",
-    "maxSpeed": 14.703050528569294,
-    "maxAngular": 7.000000304920234,
-    "extra": 5.571240287176972,
-    "angularContact": 3.6305863920956334
+    "maxSpeed": 12.23211715140854,
+    "maxAngular": 7.000000305693199,
+    "extra": 2.526217620579374,
+    "angularContact": 5.073543739309944
   },
   {
     "kind": "flick",
     "id": "vector",
     "name": "front",
-    "maxSpeed": 16.016970016584796,
-    "maxAngular": 7.000000000000012,
-    "extra": 5.9476727601195165,
+    "maxSpeed": 12.0166755964377,
+    "maxAngular": 7.00000000000001,
+    "extra": 2.1747930860131826,
     "angularContact": 4.838795178485539
   },
   {
     "kind": "flick",
     "id": "vector",
     "name": "back",
-    "maxSpeed": 11.274971505573108,
-    "maxAngular": 7.000000000000001,
-    "extra": 5.887013410538839,
+    "maxSpeed": 8.766876437189,
+    "maxAngular": 7,
+    "extra": 2.586120441159095,
     "angularContact": 4.3578416693508935
   },
   {
     "kind": "flick",
     "id": "vector",
     "name": "side",
-    "maxSpeed": 11.637008968253163,
-    "maxAngular": 7.0000002107683414,
-    "extra": 4.489800911711441,
+    "maxSpeed": 9.792558175598703,
+    "maxAngular": 7.000000237543468,
+    "extra": 2.134613628481013,
     "angularContact": 3.739764839908043
   },
   {
     "kind": "flick",
     "id": "vector",
     "name": "diagonal",
-    "maxSpeed": 14.758479513686614,
-    "maxAngular": 7.000000260167014,
-    "extra": 5.6452234132289565,
-    "angularContact": 3.9661965720802494
+    "maxSpeed": 12.221616810872298,
+    "maxAngular": 7.0000002110552515,
+    "extra": 2.5357607441401298,
+    "angularContact": 5.349408657585588
   },
   {
     "kind": "moving dribble",
@@ -293,25 +293,25 @@
     "kind": "shot",
     "name": "slow",
     "speed": 1,
-    "maxSpeed": 0.9998661103380457
+    "maxSpeed": 0.8923095849052289
   },
   {
     "kind": "shot",
     "name": "front",
     "speed": 23,
-    "maxSpeed": 33.32176303052861
+    "maxSpeed": 20.11412119710533
   },
   {
     "kind": "shot",
     "name": "diagonal",
     "speed": 18,
-    "maxSpeed": 23.71330655966122
+    "maxSpeed": 13.808018837464555
   },
   {
     "kind": "shot",
     "name": "aerial",
     "speed": 18,
-    "maxSpeed": 26.395822446776265
+    "maxSpeed": 15.630083984567177
   },
   {
     "kind": "height indicator",

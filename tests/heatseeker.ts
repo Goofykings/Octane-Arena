@@ -1,3 +1,4 @@
+import { captureGoalReplay } from "./replay-capture";
 import assert from "node:assert/strict";
 import { Vector3 } from "three";
 import { initializeSimulation, Simulation } from "../src/physics/simulation";
@@ -167,6 +168,7 @@ try {
   m.tick(s);
   assert.deepEqual(m.score, [1, 0]);
   assert.equal(m.phase, "goal");
+  captureGoalReplay(m, s);
   assert.ok(m.replay?.clip.heatseeker?.length);
   m.tick(s);
   assert.deepEqual(m.score, [1, 0]);

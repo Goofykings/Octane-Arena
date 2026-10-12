@@ -42,13 +42,6 @@ export class NetworkClient {
         return false;
       }
     }
-    if (
-      this.party.state?.transport !== "webrtc" &&
-      this.socket?.readyState !== WebSocket.OPEN
-    ) {
-      this.chatError = "Chat connection unavailable.";
-      return false;
-    }
     if (!this.send({ type: "chat-send", matchId: this.desired, text })) {
       this.chatError = "Chat connection unavailable.";
       return false;
@@ -83,7 +76,6 @@ export class NetworkClient {
   replayClip: ReplayClip | null = null;
   arrived = 0;
   status = "CONNECTING TO MATCH";
-  private socket: WebSocket | null = null;
   private sequence = 0;
   private lastInput = neutralInput();
   private inputTime = 0;
@@ -134,9 +126,7 @@ export class NetworkClient {
       this.latest?.phase !== "replay" ||
       !replay ||
       replay.votes.includes(this.party.playerId) ||
-      this.skipSent === replay.id ||
-      (this.party.state?.transport !== "webrtc" &&
-        this.socket?.readyState !== WebSocket.OPEN)
+      this.skipSent === replay.id
     )
       return;
     this.send({
@@ -147,20 +137,14 @@ export class NetworkClient {
     this.skipSent = replay.id;
   }
   private send(message: ClientMessage) {
-    if (this.party.state?.transport === "webrtc") {
-      const host = this.party.state.matchHostId ?? this.party.state.hostId;
-      if (host === this.party.playerId) this.peerData(host, message);
-      else return this.rtc.send(host, message);
+    const party = this.party.state;
+    if (!party) return false;
+    const host = party.matchHostId ?? party.hostId;
+    if (host === this.party.playerId) {
+      this.peerData(host, message);
       return true;
     }
-    if (
-      this.socket?.readyState === WebSocket.OPEN &&
-      this.socket.bufferedAmount < 16000
-    ) {
-      this.socket.send(JSON.stringify(message));
-      return true;
-    }
-    return false;
+    return this.rtc.send(host, message);
   }
   private sendInput() {
     if (!this.latest) return;
@@ -187,41 +171,7 @@ export class NetworkClient {
       this.rtcStartedAt = performance.now();
     }
     if (!desired) return;
-    if (this.party.state?.transport === "webrtc") {
-      this.pumpRtc();
-      return;
-    }
-    if (!this.socket && performance.now() >= this.retryAt) this.connect();
-    this.sendInput();
-    if (this.latest && performance.now() - this.arrived > 1500)
-      this.status = "CONNECTION LOST — RECONNECTING";
-    if (this.socket && this.arrived && performance.now() - this.arrived > 4000)
-      this.socket.close();
-  }
-  private connect() {
-    const credentials = this.party.matchConnection;
-    if (!credentials.token) return;
-    const socket = (this.socket = new WebSocket(credentials.url));
-    this.status = "CONNECTING TO MATCH";
-    this.arrived = performance.now();
-    socket.onopen = () => this.send({ type: "auth", token: credentials.token });
-    socket.onmessage = (e) => {
-      if (this.socket !== socket) return;
-      try {
-        this.receive(JSON.parse(e.data) as ServerMessage);
-      } catch {
-        this.status = "INVALID MATCH RESPONSE";
-      }
-    };
-    socket.onclose = () => {
-      if (this.socket !== socket) return;
-      this.socket = null;
-      this.retryAt = performance.now() + 800;
-      this.status = "CONNECTION LOST — RECONNECTING";
-    };
-    socket.onerror = () => {
-      this.status = "MATCH CONNECTION UNAVAILABLE";
-    };
+    this.pumpRtc();
   }
   private receive(message: ServerMessage) {
     if (message.type === "latency-probe") {
@@ -443,12 +393,6 @@ export class NetworkClient {
     this.rtcReplay = null;
     this.readyAt = this.endAt = this.arrived = 0;
     this.reportedFinished = false;
-    const socket = this.socket;
-    this.socket = null;
-    if (socket) {
-      socket.onclose = null;
-      socket.close();
-    }
     this.latest = null;
     this.chatLog.length = 0;
     this.chatError = "";

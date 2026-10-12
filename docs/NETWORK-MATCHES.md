@@ -1,3 +1,5 @@
+> Historical networking architecture. The current frontend uses [PeerJS Cloud](PEERJS-MULTIPLAYER.md) and needs no separate game backend or API URL.
+
 # Network matches
 
 The network-match implementation was added after the original LAN Phase 1, at the

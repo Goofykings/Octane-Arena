@@ -21,14 +21,13 @@ a keyboard or standard gamepad is required. Click PLAY to unlock browser audio.
 Local games pause on focus loss. Network matches continue; unfocused clients send
 neutral controls. Touch driving is not implemented.
 
-For same-Wi-Fi network matches, install the backend dependencies once with
-`npm --prefix server install`, then run **`npm run lan`**. Open
-`http://localhost:8090` on this computer; other computers open the LAN address
-printed in the terminal and join using the party code. The host chooses
-**START GAME → mode → CONTINUE**. Everyone chooses a side, then the host selects
-**KICK OFF**. Supports 1v1, 2v2 and two humans versus two bots. See the
-[network match guide](docs/NETWORK-MATCHES.md) and the historical
-[Phase 1 checklist](docs/LAN-PHASE1.md).
+Multiplayer uses **PeerJS Cloud signaling and browser-hosted WebRTC**. Both
+players open the normal GitHub Pages site; the host selects **CREATE PARTY** and
+a friend selects **JOIN PARTY** using its six-character code. No API address,
+local/LAN server or Node hosting is required to play. The host selects the
+existing match setup and starts 1v1, 2v2 or two humans versus two bots. See the
+[PeerJS guide and two-device procedure](docs/PEERJS-MULTIPLAYER.md).
+`npm run lan` remains an optional way to serve built files, not a PeerJS requirement.
 
 The home screen has Play, Garage and Settings on the left, plus a compact clickable Guest/account
 profile. Garage includes two original starter bodies (Ion and Vector), curated
@@ -45,7 +44,7 @@ tabs. Keyboard bindings, camera tuning, quality, audio and presets save locally.
 Quick chat is only a saved future preference. Click any slider value to type a
 number; Enter or blur applies it, Escape cancels, and values clamp to the range.
 
-Customize Account edits your browser-local name. Click its profile picture to choose an icon and icon color; these choices save immediately. Player tags have been removed. Profile identity, completed-match stats and play time are stored in `octane-arena-profile`; garage and settings keep their existing local saves. There is no online login or cloud sync. Clearing site data can erase your profile. LAN parties still use the optional server described in [server/README.md](server/README.md).
+Customize Account edits your browser-local name. Click its profile picture to choose an icon and icon color; these choices save immediately. Player tags have been removed. Profile identity, completed-match stats and play time are stored in `octane-arena-profile`; garage and settings keep their existing local saves. There is no online login or cloud sync. Clearing site data can erase your profile. Parties use PeerJS Cloud; the optional server is not needed for them.
 
 The arena's original **Lumen District** theme includes a twilight skyline,
 illuminated buildings and skybridges. Lower wall curves are opaque and marked
@@ -111,15 +110,13 @@ The LAN launcher also serves that built asset prefix. Rapier's compat package em
 absolute WASM URL or external asset service. All visual/audio assets are created
 locally, apart from the bundled open-license font. Serve `dist/` over HTTP; do not open it with `file://`.
 
-The workflow is supplied; this workspace is not connected to a GitHub repository
-and no public deployment has been performed.
+The included workflow deploys the committed main branch. Local changes are not
+published until you push and the Pages workflow finishes.
 
-GitHub Pages cannot run the party server. To enable public Create/Join Party,
-deploy the existing Node backend separately and set the repository Actions
-variable `VITE_API_URL` to its HTTPS base address before rebuilding Pages.
-See [public party deployment and local setup](docs/PUBLIC-PARTIES.md).
-Public shared matches now support browser-hosted WebRTC for 1v1, 2v2 and
-two players against bots. See [WebRTC setup and verification](docs/WEBRTC-MATCHES.md).
+Create/Join Party now works through PeerJS Cloud without a separate game backend
+or `VITE_API_URL`. Deploy the new build before testing the normal Pages URL.
+See [PeerJS setup and verification](docs/PEERJS-MULTIPLAYER.md). Historical LAN
+and manual-signaling documents describe the earlier architecture.
 
 ## Architecture and tuning
 

@@ -3,6 +3,7 @@ import { writeFileSync } from "node:fs";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { Group, PerspectiveCamera, Vector3 } from "three";
 import { GameCamera } from "../src/camera/camera";
+import { cameraCollisionPolicy } from "../src/camera/space";
 import { Simulation } from "../src/physics/simulation";
 import { P } from "../src/config/physics";
 import { CAR_FRAME_RADIUS } from "../src/camera/framing";
@@ -202,10 +203,10 @@ try {
               undefined,
               undefined,
               undefined,
-              (col) => col.parent() === null,
+              cameraCollisionPolicy(simulation).blockers,
             ),
             null,
-            name + " boom crossed arena",
+            name + " boom crossed a hard camera blocker",
           );
           assert.ok(
             extent(camera, car.position, CAR_FRAME_RADIUS) < 1,

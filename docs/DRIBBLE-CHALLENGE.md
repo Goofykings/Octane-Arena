@@ -3,7 +3,7 @@
 Select **Play → Extra Modes → Dribble Challenge**. This is a single-player
 ball-control course with twenty original levels and permanent local checkpoints.
 It uses the normal car and ball physics, the current garage preset, Ball Cam,
-camera settings and mouse free look. It has no soccer goals, bot, score clock,
+camera settings and mouse orbit. It has no competitive soccer match, bot, score clock,
 online account requirement or timer objective. Boost is unlimited, as in Rings.
 
 ## Levels and progression
@@ -25,6 +25,14 @@ online account requirement or timer objective. Boost is unlimited, as in Rings.
 
 Courses remain open floating platforms with the original blue panel pattern,
 turquoise edges, arrows, gray starting patch and transparent grid finish.
+Every finish now uses the reusable `DribbleFinishGoal` definition: rounded
+0.18 m radius posts and crossbar, with matching CapsuleGeometry/Rapier capsule
+transforms. The existing width/height describe the clear opening. The grid stays
+noncolliding, with no back wall or net collider. Completion requires front-side
+entry and the entire sphere passing the plane inside the posts and below the
+crossbar; center-only, outside, over-bar and backward crossings do not complete.
+Valid completion smoothly highlights posts/bar/grid green with a small emissive
+pulse. Restart and level changes restore the normal color.
 Wall heights are 0.8-1 m; both starter cars can clear them while carrying a ball
 using one held jump. The 4.3 m gap is 3.64 Ion car lengths. It needs more approach
 speed than the original small gaps (tests use 7 m/s and a 0.2 s held jump).

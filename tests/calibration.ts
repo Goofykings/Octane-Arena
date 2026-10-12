@@ -364,11 +364,17 @@ for (const dir of [
   );
   for (let i = 0; i < 360; i++) m.tick(s);
   m.remaining = 0.001;
+  s.ball.setTranslation({ x: 0, y: P.ball.radius, z: 0 }, true);
+  s.ball.setLinvel({ x: 0, y: 0, z: 0 }, true);
+  s.step([neutral(), neutral()]);
   m.tick(s);
   record("full time result", m.phase, m.phase === "finished");
   m.start(s);
   for (let i = 0; i < 360; i++) m.tick(s);
   m.remaining = 0.001;
+  s.ball.setTranslation({ x: 0, y: P.ball.radius, z: 0 }, true);
+  s.ball.setLinvel({ x: 0, y: 0, z: 0 }, true);
+  s.step([neutral(), neutral()]);
   m.tick(s);
   record(
     "tied match overtime",
@@ -378,7 +384,10 @@ for (const dir of [
   for (let i = 0; i < 360; i++) m.tick(s);
   s.ball.setTranslation({ x: 0, y: 1, z: P.arena.halfLength + 1 }, true);
   m.tick(s);
-  for (let i = 0; i < 386; i++) m.tick(s);
+  for (let i = 0; i < 386; i++) {
+    if (m.phase === "goal") s.step([neutral(), neutral()]);
+    m.tick(s);
+  }
   if (m.phase === "replay" && m.replay)
     m.skipReplay(s.cars[0].id, m.replay.clip.goal.id, s);
   record(

@@ -23,6 +23,7 @@ import type { SoccerMode } from "../../shared/soccer";
 import { HEATSEEKER as H } from "../config/heatseeker";
 import type { StatTouch } from "../game/match-stats";
 import type { BallSample } from "../game/ball-prediction";
+import { BallGroundContact } from "./ball-ground";
 // Initialize the same Rapier module used by the simulation, including in Node.
 export const initializeSimulation = () => RAPIER.init();
 export interface Hit {
@@ -58,6 +59,7 @@ export class Simulation {
   ball: RAPIER.RigidBody;
   ballCollider: RAPIER.Collider;
   ballPose: Pose;
+  readonly ballGround: BallGroundContact;
   events = new RAPIER.EventQueue(true);
   hits: Hit[] = [];
   clock = 0;
@@ -87,16 +89,17 @@ export class Simulation {
     this.players = players;
     if (
       players.length < 1 ||
-      players.length > 4 ||
+      players.length > 6 ||
       new Set(players.map((p) => p.id)).size !== players.length ||
       players.some((p) => !p.id || ![0, 1].includes(p.team))
     )
-      throw Error("A simulation needs 1–4 unique player IDs and valid teams");
+      throw Error("A simulation needs 1–6 unique player IDs and valid teams");
     this.world = new RAPIER.World({ x: 0, y: -P.gravity, z: 0 });
     this.world.timestep = P.dt;
     this.world.numSolverIterations = 8;
     this.world.maxCcdSubsteps = 4;
-    this.arenaCollider = createArena(this.world, flat);
+    const arenaSurface = createArena(this.world, flat);
+    this.arenaCollider = flat ? undefined : arenaSurface;
     this.cars = players.map(() => new Car(this.world));
     this.velocities = players.map(() => new Vector3());
     this.relative = players.map(() => new Vector3());
@@ -126,12 +129,18 @@ export class Simulation {
       this.ball,
     );
     this.ballPose = new Pose(this.ball);
+    this.ballGround = new BallGroundContact(
+      this.world,
+      this.ballCollider,
+      arenaSurface,
+    );
     this.reset();
     this.world.step();
     this.cars.forEach((c) => c.pose.snap());
     this.ballPose.snap();
   }
   reset(formation?: KickoffFormation) {
+    this.ballGround.reset();
     this.statContacts.clear();
     this.statTouches.length = 0;
     for (const c of this.cars)
@@ -173,7 +182,7 @@ export class Simulation {
         const team = this.cars.filter((p) => p.team === c.team),
           slot = team.indexOf(c);
         c.reset(
-          team.length === 1 ? 0 : (slot - 0.5) * 10,
+          team.length === 1 ? 0 : (slot - (team.length - 1) / 2) * 10,
           (c.team === 0 ? 1 : -1) * H.kickoffCarDistance,
           c.team === 0 ? 0 : Math.PI,
         );
@@ -181,6 +190,37 @@ export class Simulation {
       this.ball.setTranslation(heatseekerServeSpawn(receiver), true);
       this.ballPose.snap();
     }
+  }
+  /** Entity lifecycle only: reuse the world, arena, ball and vehicle forces. */
+  configurePlayers(players: PlayerEntity[]) {
+    if (
+      !players.length ||
+      players.length > 6 ||
+      new Set(players.map((p) => p.id)).size !== players.length ||
+      players.some((p) => !p.id || ![0, 1].includes(p.team))
+    )
+      throw Error("Invalid player roster");
+    while (this.cars.length > players.length) {
+      const car = this.cars.pop()!;
+      this.world.removeRigidBody(car.body);
+    }
+    while (this.cars.length < players.length) {
+      const car = new Car(this.world);
+      car.collider.setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS);
+      this.cars.push(car);
+    }
+    this.players.splice(0, this.players.length, ...players);
+    this.cars.forEach((car, i) => {
+      car.id = players[i].id;
+      car.team = players[i].team;
+      car.displayName = players[i].name;
+      car.body.setEnabled(true);
+      car.collider.setCollisionGroups(0xffffffff);
+    });
+    this.velocities = this.cars.map(() => new Vector3());
+    this.relative = this.cars.map(() => new Vector3());
+    this.ballContacts = this.cars.map(() => new CarBallContact());
+    this.reset();
   }
   /** Physical blast; the match keeps steering, aerial control and boost live. */
   explode(origin: { x: number; y: number; z: number }) {
@@ -249,12 +289,14 @@ export class Simulation {
       c.updateSupersonic(P.dt);
       this.velocities[i].copy(c.body.linvel());
       this.relative[i].copy(c.body.linvel()).sub(this.ball.linvel());
-      this.ballContacts[i].sample(c, this.ball);
     });
     this.ballPose.before();
     this.heatseeker?.steer(this.ball, P.dt);
+    // Sample the actual pre-solver velocity, including this tick's homing force.
+    this.cars.forEach((c, i) => this.ballContacts[i].sample(c, this.ball));
     const statBefore = this.ballSample();
     this.world.step(this.events);
+    this.ballGround.update();
     this.events.drainCollisionEvents((a, b, started) => {
       if (
         started &&
@@ -332,7 +374,8 @@ export class Simulation {
                 before: statBefore,
                 after: this.ballSample(),
                 impulseSpeed:
-                  (normalImpulse + response.impulse.length()) / P.ball.mass,
+                  Math.max(0, normalImpulse + response.impulse.dot(normal)) /
+                  P.ball.mass,
               });
             }
             if (response.impulse.lengthSq() > 0)
@@ -346,7 +389,7 @@ export class Simulation {
               });
           },
         );
-      if (!touched) response.separate();
+      if (!touched) response.separate(car, this.ball);
     });
     this.heatContacts = heatContacts;
     this.statContacts = statContacts;

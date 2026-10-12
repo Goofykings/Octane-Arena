@@ -309,6 +309,7 @@ const assert = require("node:assert/strict"),
         await host.keyboard.up("Tab");
         await host.setViewportSize({ width: 390, height: 844 });
         await host.keyboard.down("Tab");
+        await host.locator("#match-board").waitFor({ state: "visible" });
         const bounds = await host.locator("#match-board").boundingBox();
         assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 391);
         await host.screenshot({ path: "docs/match-scoreboard-small.png" });

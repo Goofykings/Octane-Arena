@@ -27,6 +27,7 @@ export interface CarSnapshot {
   wheels: boolean[];
   wheelHits: Vec[];
   flipLeft: number;
+  flipReset?: { sequence: number; age: number; origin: Vec; normal: Vec };
   normalJump?: { sequence: number; age: number; origin: Vec; normal: Vec };
   enabled: boolean;
 }

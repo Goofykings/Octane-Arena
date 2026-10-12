@@ -1,7 +1,9 @@
 import * as T from "three";
 import { ribbonGeometry } from "./geometry";
 import type { DribbleCourse } from "./levels";
+import { DribbleFinishGoal, DribbleFinishGoalView } from "./finish-goal";
 export class DribbleView {
+  readonly finishGoal: DribbleFinishGoalView;
   readonly group = new T.Group();
   readonly spinners: { mesh: T.Group; obstacleIndex: number }[] = [];
   constructor(readonly course: DribbleCourse) {
@@ -132,54 +134,10 @@ export class DribbleView {
       strip.rotation.y = -edge.heading;
       this.group.add(strip);
     });
-    const f = course.finish;
-    const goal = new T.Group();
-    goal.name = "dribble-finish-wall";
-    goal.position.copy(f.center);
-    goal.rotation.y = -f.heading;
-    const gridSize = 64,
-      gridPixels = new Uint8Array(gridSize * gridSize * 4);
-    for (let y = 0; y < gridSize; y++)
-      for (let x = 0; x < gridSize; x++) {
-        const line = x % 16 < 1 || y % 16 < 1;
-        gridPixels.set(
-          [216, 235, 240, line ? 115 : 18],
-          (y * gridSize + x) * 4,
-        );
-      }
-    const grid = new T.DataTexture(gridPixels, gridSize, gridSize);
-    grid.wrapS = grid.wrapT = T.RepeatWrapping;
-    grid.magFilter = T.LinearFilter;
-    grid.minFilter = T.LinearMipmapLinearFilter;
-    grid.generateMipmaps = true;
-    grid.repeat.set(f.width / 2, f.height / 2);
-    grid.needsUpdate = true;
-    const wall = new T.Mesh(
-      new T.PlaneGeometry(f.width, f.height),
-      new T.MeshBasicMaterial({
-        map: grid,
-        transparent: true,
-        side: T.DoubleSide,
-        depthWrite: false,
-        toneMapped: false,
-      }),
+    this.finishGoal = new DribbleFinishGoalView(
+      new DribbleFinishGoal(course.finish),
     );
-    wall.position.y = f.height / 2;
-    goal.add(wall);
-    const trim = new T.MeshBasicMaterial({
-      color: 0xc4e5e7,
-      transparent: true,
-      opacity: 0.7,
-    });
-    for (const side of [-1, 1]) {
-      const post = new T.Mesh(new T.BoxGeometry(0.08, f.height, 0.08), trim);
-      post.position.set((side * f.width) / 2, f.height / 2, 0);
-      goal.add(post);
-    }
-    const bar = new T.Mesh(new T.BoxGeometry(f.width, 0.08, 0.08), trim);
-    bar.position.y = f.height;
-    goal.add(bar);
-    this.group.add(goal);
+    this.group.add(this.finishGoal.group);
     // Labels are original canvas text, using the game's bundled font.
     if (typeof document !== "undefined") {
       const canvas = document.createElement("canvas");

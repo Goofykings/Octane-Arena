@@ -1,5 +1,5 @@
 import * as T from "three";
-import { P } from "../config/physics";
+import { SoccarTrail } from "./soccar-trail";
 import { wheelMount } from "../car/wheels";
 import type { Car } from "../car/car";
 import type { HeatseekerState } from "../../shared/soccer";
@@ -103,11 +103,11 @@ export class MotionTrails {
     this.mesh.visible = vertex > 0;
   }
 }
-export class BallTrails extends MotionTrails {
+export class BallTrails extends SoccarTrail {
   readonly heatseeker: HeatseekerTrail;
   quality: Quality = "high";
   constructor(scene: T.Scene) {
-    super(scene, 4, 0.22);
+    super(scene);
     this.heatseeker = new HeatseekerTrail(scene);
   }
   reset() {
@@ -126,7 +126,7 @@ export class BallTrails extends MotionTrails {
   ) {
     if (state) {
       this.mesh.visible = false;
-      this.tracks.forEach((t) => (t.length = 0));
+      super.reset();
       this.heatseeker.update(
         ball.position,
         dt,
@@ -138,27 +138,7 @@ export class BallTrails extends MotionTrails {
       return;
     }
     if (this.heatseeker.count) this.heatseeker.reset();
-    const strength = T.MathUtils.smoothstep(speed, 3, 24) * (0.65 + heat * 0.2);
-    const points = Array.from({ length: 4 }, (_, i) => {
-      const angle = (i * Math.PI) / 2;
-      return new T.Vector3(
-        Math.cos(angle) * 0.84,
-        (i % 2 ? 1 : -1) * 0.3,
-        Math.sin(angle) * 0.84,
-      )
-        .multiplyScalar(P.ball.radius)
-        .applyQuaternion(ball.quaternion)
-        .add(ball.position);
-    });
-    this.update(
-      points,
-      dt,
-      active && speed > 3,
-      team === 0 ? 0x69cfff : team === 1 ? 0xffa34a : 0xc4c4c4,
-      strength,
-      0.035 + strength * 0.04,
-      camera,
-    );
+    this.updatePath(ball.position, speed, team, dt, active, camera);
   }
 }
 export class FlipTrails extends MotionTrails {

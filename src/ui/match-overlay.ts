@@ -146,6 +146,8 @@ export class MatchOverlay {
     if (id !== this.matchId) this.reset(id, events);
     this.chatAllowed = multiplayer && !!id && !menu;
     if (!this.chatAllowed) this.close();
+    if (this.input.takeAction("chat") && this.chatAllowed && !this.typing)
+      this.open();
     if (chat.at(-1)?.id !== this.chatSequence && chat.length) {
       this.chatSequence = chat.at(-1)!.id;
       this.log.replaceChildren();

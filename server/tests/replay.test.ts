@@ -27,7 +27,7 @@ function goal(game: NetworkMatch) {
   game.match.tick(game.simulation, game.pads);
   assert.equal(game.match.phase, "goal");
   game.match.freeze = 0;
-  game.step();
+  for (let i = 0; i < 240 && game.match.phase === "goal"; i++) game.step();
   assert.equal(game.match.phase, "replay");
 }
 test("authoritative 1v1/2v2 skip validation, frozen physics, stale votes and disconnect unanimity", async () => {

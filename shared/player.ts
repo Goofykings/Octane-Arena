@@ -5,6 +5,7 @@ export interface PlayerInput {
   pitch: number;
   yaw: number;
   roll: number;
+  directionalRoll?: number; // Dedicated Air Roll Left/Right; generic air roll is excluded.
   jump: boolean;
   boost: boolean;
   slide: boolean;

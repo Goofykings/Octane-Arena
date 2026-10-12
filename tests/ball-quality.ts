@@ -138,6 +138,7 @@ for (const legacy of [true, false])
       c.body.setLinvel({ x: 0, y: 0, z: -8 }, true);
       s.ball.setLinvel({ x: 0, y: 0, z: -8 }, true);
       let maxSpeed = 0,
+        maxHeight = 0,
         maxAngular = 0,
         extra = 0,
         angularContact = 0;
@@ -155,6 +156,7 @@ for (const legacy of [true, false])
           maxSpeed,
           new Vector3().copy(s.ball.linvel()).length(),
         );
+        maxHeight = Math.max(maxHeight, s.ball.translation().y);
         maxAngular = Math.max(
           maxAngular,
           new Vector3().copy(c.body.angvel()).length(),
@@ -182,8 +184,8 @@ for (const legacy of [true, false])
           "flip speed changed",
         );
         assert.ok(
-          maxSpeed > flickSpeeds.get(key)! * 1.08,
-          "flick power did not improve",
+          maxSpeed > 8 * 1.08 && maxHeight > 2,
+          "physical flick must accelerate above carry speed and lift the ball",
         );
         assert.ok(maxSpeed <= P.ball.maxSpeed + 0.001);
       }

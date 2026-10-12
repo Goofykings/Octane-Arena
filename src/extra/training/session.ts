@@ -45,6 +45,8 @@ export class TrainingSession implements ExtraSession {
   readonly preview: TrainingPreview;
   readonly replayView: ReplayScenePlayback;
   private saveExplosion: GoalExplosion;
+  private goalExplosion: GoalExplosion;
+  private goalSequence = -1;
   private burstSequence = 0;
   private effects: VehicleEffects;
   private jump: JumpBurst;
@@ -114,17 +116,62 @@ export class TrainingSession implements ExtraSession {
     this.jump = new JumpBurst(this.scene);
     this.flips = new FlipTrails(this.scene);
     this.indicator = new BallHeightIndicator(this.scene);
-    this.preview = new TrainingPreview(this.scene);this.preview.load(this.run.shot);
-    this.saveExplosion=new GoalExplosion(this.scene,0.18);
-    this.replayView=new ReplayScenePlayback(options.camera,[this.car],[this.model],this.ball,this.physics.cars,{
-      vehicles:[this.effects],ball:new BallTrails(this.scene),flips:[this.flips],jumps:[this.jump],skids:[new SkidMarks(this.scene)],demos:[new DemolitionFlash(this.scene)],explosion:new GoalExplosion(this.scene),
-    });
+    this.preview = new TrainingPreview(this.scene);
+    this.preview.load(this.run.shot);
+    this.saveExplosion = new GoalExplosion(this.scene, 0.18);
+    this.goalExplosion = new GoalExplosion(this.scene);
+    this.replayView = new ReplayScenePlayback(
+      options.camera,
+      [this.car],
+      [this.model],
+      this.ball,
+      this.physics.cars,
+      {
+        vehicles: [this.effects],
+        ball: new BallTrails(this.scene),
+        flips: [this.flips],
+        jumps: [this.jump],
+        skids: [new SkidMarks(this.scene)],
+        demos: [new DemolitionFlash(this.scene)],
+        explosion: new GoalExplosion(this.scene),
+      },
+    );
   }
-  get replayActive(){return !!this.run.replay;}
-  get replayClip(){return this.run.replay?.clip??null;}
-  get replayState(){const r=this.run.replay;return r?{id:r.clip.goal.id,time:r.clock.time,speed:r.clock.speed,eligible:[this.vehicle.id],votes:[]}:null;}
-  get replayPlayers(){return this.physics.players.map(p=>({...p,name:this.vehicle.displayName,avatarId:this.options.profile?.value.avatarId,avatarColor:this.options.profile?.value.avatarColor}));}
-  skipReplay(){const sequence=this.run.resetSequence;const changed=this.run.skipReplay();if(changed&&sequence!==this.run.resetSequence)this.resetView();return changed;}
+  get replayActive() {
+    return !!this.run.replay;
+  }
+  get replayCapturing() {
+    return !!this.run.recorder.pendingGoal;
+  }
+  get replayClip() {
+    return this.run.replay?.clip ?? null;
+  }
+  get replayState() {
+    const r = this.run.replay;
+    return r
+      ? {
+          id: r.clip.goal.id,
+          time: r.clock.time,
+          speed: r.clock.speed,
+          eligible: [this.vehicle.id],
+          votes: [],
+        }
+      : null;
+  }
+  get replayPlayers() {
+    return this.physics.players.map((p) => ({
+      ...p,
+      name: this.vehicle.displayName,
+      avatarId: this.options.profile?.value.avatarId,
+      avatarColor: this.options.profile?.value.avatarColor,
+    }));
+  }
+  skipReplay() {
+    const sequence = this.run.resetSequence;
+    const changed = this.run.skipReplay();
+    if (changed && sequence !== this.run.resetSequence) this.resetView();
+    return changed;
+  }
   get vehicle() {
     return this.physics.cars[0];
   }
@@ -139,7 +186,15 @@ export class TrainingSession implements ExtraSession {
   }
   readout(_now: number): ExtraReadout {
     return {
-      phase: this.paused ? "paused" : this.complete ? "complete" : this.replayActive ? "replay" : this.run.countdown>0 ? "countdown" : "running",
+      phase: this.paused
+        ? "paused"
+        : this.complete
+          ? "complete"
+          : this.replayActive
+            ? "replay"
+            : this.run.ready
+              ? "ready"
+              : "running",
       progress: this.run.index + 1,
       total: this.pack.shots.length,
       bestProgress: this.run.best,
@@ -150,11 +205,16 @@ export class TrainingSession implements ExtraSession {
       successes: this.run.successes,
       packName: this.pack.name,
       outcomeSequence: this.run.outcomeSequence,
-      countdownText: this.run.countdown>0?String(Math.ceil(this.run.countdown)):this.run.goTime>0?"GO!":"",
+      timeRemaining: this.run.timeRemaining,
+      duration: this.run.duration,
+      zeroTime: this.run.zeroTime,
     };
   }
   private resetView() {
-    this.replayView.stop();this.preview.load(this.run.shot);this.saveExplosion.reset();
+    this.replayView.stop();
+    this.preview.load(this.run.shot);
+    this.saveExplosion.reset();
+    this.goalExplosion.reset();
     this.loop.accumulator = 0;
     this.cameraControl.reset();
     this.effects.reset();
@@ -182,27 +242,50 @@ export class TrainingSession implements ExtraSession {
     if (this.run.advance(dt)) this.resetView();
     const sequence = this.run.resetSequence;
     const result =
-      !this.paused && !this.complete && !this.run.outcome && !this.replayActive
+      !this.paused &&
+      !this.complete &&
+      (!this.run.outcome || !!this.run.recorder.pendingGoal) &&
+      !this.replayActive
         ? this.loop.advance(dt, () => {
             if (sequence === this.run.resetSequence) this.run.step(input);
           })
         : { alpha: 1, steps: 0 };
     if (sequence !== this.run.resetSequence) this.resetView();
-    this.preview.update(this.run.countdown);
-    if(this.run.replay){
-      const r=this.run.replay;
-      this.replayView.render(r.clip,r.clock.time,r.clock.speed,this.paused?0:dt);
-      this.preview.arrow.visible=false;this.indicator.group.visible=false;
+    this.preview.update(this.run.ready);
+    const pendingGoal = this.run.recorder.pendingGoal;
+    if (pendingGoal && this.goalSequence !== this.run.outcomeSequence) {
+      this.goalSequence = this.run.outcomeSequence;
+      this.goalExplosion.trigger(pendingGoal.focus, 0x69e9ff);
+    }
+    this.goalExplosion.update(this.paused ? 0 : dt);
+    if (this.run.replay) {
+      if (!this.replayView.active) this.goalExplosion.reset();
+      const r = this.run.replay;
+      this.replayView.render(
+        r.clip,
+        r.clock.time,
+        r.clock.speed,
+        this.paused ? 0 : dt,
+      );
+      this.preview.arrow.visible = false;
+      this.indicator.group.visible = false;
       return;
     }
-    if(this.replayView.active)this.replayView.stop();
+    if (this.replayView.active) this.replayView.stop();
     const alpha = sequence === this.run.resetSequence ? result.alpha : 1;
     this.vehicle.pose.render(this.car, alpha);
     this.physics.ballPose.render(this.ball, alpha);
-    this.ball.visible=this.physics.ball.isEnabled();
-    if(this.burstSequence!==this.run.ballBurstSequence){this.burstSequence=this.run.ballBurstSequence;this.saveExplosion.trigger(this.physics.ball.translation(),0xb3e8ff);}
-    this.saveExplosion.update(this.paused?0:dt);
-    const active = !this.paused && !this.complete && !this.run.outcome && this.run.countdown===0,
+    this.ball.visible = this.physics.ball.isEnabled();
+    if (this.burstSequence !== this.run.ballBurstSequence) {
+      this.burstSequence = this.run.ballBurstSequence;
+      this.saveExplosion.trigger(this.physics.ball.translation(), 0xb3e8ff);
+    }
+    this.saveExplosion.update(this.paused ? 0 : dt);
+    const active =
+        !this.paused &&
+        !this.complete &&
+        (!this.run.outcome || !!pendingGoal) &&
+        !this.run.ready,
       activeDt = active ? dt : 0;
     animateWheels(
       this.model,

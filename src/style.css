@@ -166,7 +166,7 @@ h1 span {
     filter 0.15s;
   box-shadow: inset 0 1px #d5ffff29;
 }
-.nav-button:hover {
+.nav-button:is(.gamepad-focus, :where(:root:not([data-ui-input="controller"])) :hover) {
   background: linear-gradient(100deg, #37667b, #263d52);
   transform: translateX(5px);
 }
@@ -176,7 +176,7 @@ h1 span {
   color: #102a3c;
   text-shadow: 0 0 15px #fff5;
 }
-.nav-button.primary:hover {
+.nav-button.primary:is(.gamepad-focus, :where(:root:not([data-ui-input="controller"])) :hover) {
   filter: brightness(1.12);
 }
 #play {
@@ -270,7 +270,7 @@ h1 span {
   transition: border-color .15s, filter .15s;
 }
 .arena-option[aria-pressed="true"] { border: 2px solid #9de8ed; }
-.arena-option:hover { filter: brightness(1.15); }
+.arena-option:is(.gamepad-focus, :where(:root:not([data-ui-input="controller"])) :hover) { filter: brightness(1.15); }
 .arena-option:focus-visible { outline: 3px solid #fff; outline-offset: -5px; }
 .arena-option strong { position: relative; display: block; padding: 10px 12px; font-size: 12px; letter-spacing: .08em; text-shadow: none; }
 .arena-swatch { display: block; height: 48px; border-bottom: 1px solid #ffffff20; }
@@ -317,7 +317,7 @@ h1 span {
   line-height: 1.1;
   text-align: left;
 }
-.mode-card:hover:not(:disabled) {
+.mode-card:is(.gamepad-focus, :where(:root:not([data-ui-input="controller"])) :hover):not(:disabled), #extra-mode:is(.gamepad-focus, :where(:root:not([data-ui-input="controller"])) :hover):not(:disabled) {
   transform: translateY(-6px);
   background: linear-gradient(145deg, #3e7589, #1e384d);
 }
@@ -354,8 +354,8 @@ h1 span {
   letter-spacing: 0.05em;
   min-height: 43px;
 }
-.back-button:hover,
-.small-button:hover {
+.back-button:is(.gamepad-focus, :where(:root:not([data-ui-input="controller"])) :hover),
+.small-button:is(.gamepad-focus, :where(:root:not([data-ui-input="controller"])) :hover) {
   background: #375c72;
 }
 .garage-left {
@@ -398,7 +398,7 @@ h1 span {
   background: var(--cyan);
   color: #102b3e;
 }
-.category-tabs button:hover {
+.category-tabs button:is(.gamepad-focus, :where(:root:not([data-ui-input="controller"])) :hover) {
   filter: brightness(1.25);
 }
 .category-tabs svg {
@@ -576,7 +576,7 @@ dialog::backdrop {
   background: #9eeef3;
   color: #122a3a;
 }
-.settings-tabs button:hover {
+.settings-tabs button:is(.gamepad-focus, :where(:root:not([data-ui-input="controller"])) :hover) {
   filter: brightness(1.18);
 }
 #settings-content {
@@ -672,6 +672,17 @@ output {
   background: var(--cyan);
   color: #142838;
 }
+.binding-columns {display:grid;grid-template-columns:minmax(120px,1.2fr) minmax(90px,.7fr) minmax(130px,1fr);gap:clamp(6px,1.2vw,14px);align-items:center;margin:8px 0;}
+.binding-columns .binding {min-width:0;width:100%;font-size:clamp(12px,1.4vw,16px);overflow-wrap:anywhere;}
+.binding-head {color:#a7bdcb;font-size:12px;}
+.controller-binding {display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.controller-binding small {font-size:10px;color:#b7dce8;}
+.binding-resets {display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
+#binding-capture {position:sticky;bottom:0;padding:16px;background:#142c3ef5;border:2px solid var(--cyan);box-shadow:0 -4px 24px #0008;z-index:3;}
+#binding-capture p {font-size:14px;line-height:1.5;}
+.gamepad-focus {outline:2px solid #c2fbff!important;outline-offset:4px;}
+[data-ui-input="mouse"] .controller-focus-origin:focus-visible {outline:none;}
+@media(max-width:540px) {.binding-columns {grid-template-columns:minmax(90px,1fr) minmax(65px,.7fr) minmax(110px,1fr);gap:5px;}.binding-columns>span {font-size:12px;}.binding-columns .binding {padding:7px 5px;}}
 .quality-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -809,7 +820,7 @@ output {
   letter-spacing: 0.08em;
   color: #ffce86;
 }
-#bot-tag {
+.bot-name {
   position: absolute;
   transform: translate(-50%, -100%);
   padding: 2px 10px;
@@ -1003,13 +1014,13 @@ output {
 #profile .level b {
   font-size: 17px;
 }
-#profile:hover {
+#profile:is(.gamepad-focus, :where(:root:not([data-ui-input="controller"])) :hover) {
   filter: brightness(1.3);
 }
 .camera-dragging, .camera-dragging * { user-select: none !important; }
 .camera-dragging { cursor: grabbing; }
 #game-version { position: fixed; right: clamp(16px, 3vw, 48px); bottom: clamp(16px, 2vh, 28px); z-index: 14; padding: 8px 10px; color: #b1ccd8; background: #11263688; border: 1px solid transparent; font-size: clamp(11px, .85vw, 14px); text-shadow: none; transition: color .15s, border-color .15s, background .15s; }
-#game-version:hover, #game-version:focus-visible { color: #e5faff; background: #244657; border-color: #83e4ff; }
+#game-version:is(.gamepad-focus, :where(:root:not([data-ui-input="controller"])) :hover), #game-version:focus-visible { color: #e5faff; background: #244657; border-color: #83e4ff; }
 #version-updates { width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); height: max-content; padding: clamp(20px, 3vw, 34px); overflow: auto; }
 #version-updates h2 { font-size: clamp(22px, 3vw, 30px); }
 #version-updates h3 { font-size: 15px; color: #8bdeec; margin: 24px 0 12px; }
@@ -1035,7 +1046,7 @@ output {
   border: 1px solid transparent;
   padding: 5px 7px;
 }
-.number-value:hover {
+.number-value:is(.gamepad-focus, :where(:root:not([data-ui-input="controller"])) :hover) {
   border-color: #86cbd6;
   background: #294d61;
 }
@@ -1108,13 +1119,13 @@ output {
     filter 0.14s,
     translate 0.14s;
 }
-.item-card:hover,
-.avatar-grid button:hover,
-.title-grid button:not(:disabled):hover {
+.item-card:is(.gamepad-focus, :where(:root:not([data-ui-input="controller"])) :hover),
+.avatar-grid button:is(.gamepad-focus, :where(:root:not([data-ui-input="controller"])) :hover),
+.title-grid button:not(:disabled):is(.gamepad-focus, :where(:root:not([data-ui-input="controller"])) :hover) {
   filter: brightness(1.2);
   translate: 0 -2px;
 }
-#bot-tag {
+.bot-name {
   clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%);
 }
 #account {
@@ -1248,7 +1259,15 @@ output {
   z-index: auto;
 }
 #bot-tag {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
   z-index: var(--layer-name);
+}
+.bot-name[data-team="0"] {
+  background: #102d3ac9;
+  border-bottom-color: #74d7ff;
+  color: #c4f0ff;
 }
 .scoreboard,
 .boost-hud,
@@ -1460,7 +1479,7 @@ output {
 #party-panel {position:fixed;z-index:45;left:50%;bottom:4%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:10px;max-width:94vw;}
 .party-top,.party-controls,#party-join,#party-members {display:flex;align-items:center;justify-content:center;gap:8px;}
 .party-button,#party-code,#party-actions button {background:#162c40ed;border:1px solid #52738a;color:#edfaff;font-size:14px;letter-spacing:.04em;padding:9px 17px;min-height:36px;clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%);transition:background .15s,transform .15s;}
-.party-button:hover,#party-code:hover,#party-actions button:hover {background:#285367;transform:translateY(-2px);}
+.party-button:is(.gamepad-focus, :where(:root:not([data-ui-input="controller"])) :hover),#party-code:is(.gamepad-focus, :where(:root:not([data-ui-input="controller"])) :hover),#party-actions button:is(.gamepad-focus, :where(:root:not([data-ui-input="controller"])) :hover) {background:#285367;transform:translateY(-2px);}
 .party-button:disabled {opacity:.5;}
 #party-code {font-size:18px;letter-spacing:.13em;border-color:#7cebf2;animation:screen-in .25s ease-out;}
 .party-avatar {position:relative;width:40px;height:40px;border:1px solid #62849c;background:#142b3c;border-radius:5px;display:grid;place-items:center;transition:border-color .15s,transform .15s,box-shadow .15s;}
@@ -1525,7 +1544,7 @@ output {
 .party-mode-card {min-height:260px;border:1px solid #5a819e;background:linear-gradient(150deg,#1f405bcc,#0d1d32ee);color:#edfaff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px;clip-path:polygon(0 0,calc(100% - 22px) 0,100% 22px,100% 100%,0 100%);transition:background .15s,transform .15s;}
 .party-mode-card strong {font-size:clamp(20px,2.4vw,32px);}
 .party-mode-card[aria-pressed=true] {background:linear-gradient(150deg,#397e98ee,#193956ee);border-color:#b0faff;box-shadow:inset 0 -5px #8df4ff;}
-.party-mode-card:hover:not(:disabled) {transform:translateY(-5px);}
+.party-mode-card:is(.gamepad-focus, :where(:root:not([data-ui-input="controller"])) :hover):not(:disabled) {transform:translateY(-5px);}
 .party-mode-card:disabled {cursor:default;opacity:.8;}
 .mode-emblem {font-size:58px;color:#88e4f1;text-shadow:0 0 25px #62c9ff55;}
 .party-flow-host,.arena-caption,#party-match-mode {font-size:14px;letter-spacing:.13em;color:#b7d6e8;}
@@ -1611,7 +1630,7 @@ output {
 .profile-fields input { width: 100%; min-width: 0; padding: 10px; background: #0d2231; color: #eefaff; border: 1px solid #6595a5; font: inherit; }
 #profile-avatar-edit { width: clamp(60px, 8vw, 76px); aspect-ratio: 1; padding: 13px; background: #203c50; border: 1px solid #6595a5; clip-path: polygon(0 0, 85% 0, 100% 15%, 100% 100%, 0 100%); transition: background .15s, filter .15s; }
 #profile-avatar-edit svg { width: 100%; height: 100%; }
-#profile-avatar-edit:hover, #profile-avatar-edit[aria-expanded="true"] { background: #315b70; filter: brightness(1.15); }
+#profile-avatar-edit:is(.gamepad-focus, :where(:root:not([data-ui-input="controller"])) :hover), #profile-avatar-edit[aria-expanded="true"] { background: #315b70; filter: brightness(1.15); }
 #profile-avatar-picker { margin-top: 16px; padding: 0 14px 16px; background: #102637; border: 1px solid #6595a555; }
 #profile-avatar-picker .avatar-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 #profile-avatar-picker button:focus-visible, #profile-avatar-edit:focus-visible { outline: 2px solid #fff; outline-offset: -4px; }
@@ -1697,16 +1716,15 @@ output {
 @media(max-width:640px){#extras .extra-grid,#training-menu .extra-grid{grid-template-columns:repeat(2,minmax(0,1fr));}#extras .mode-card,#training-menu .mode-card{height:clamp(120px,23vh,220px);}#training-hud{left:15px;top:15px;padding:12px;}#training-menu .mode-card small{font-size:12px;}}
 /* Competitive scoreboard keeps the field visible behind the stat rows. */
 #match-board{background:rgba(7,20,32,.76);border-radius:12px;border-color:#7695aa66;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);}
+#training-timer{display:grid;grid-template-columns:minmax(80px,150px) 45px;align-items:center;gap:8px;margin-top:8px;}
+.training-time-track{height:5px;background:#9ecde333;border-radius:2px;overflow:hidden;}
+#training-time-fill{display:block;height:100%;background:#9adeff;transform-origin:left;transition:transform .08s linear,background .2s;}
+#training-time{font-size:18px;font-variant-numeric:tabular-nums;text-align:right;}
+#training-time-state{grid-column:1/-1;font-size:10px;min-height:12px;}
+#training-timer.zero-time #training-time-fill{background:#f5bf78;}
+#training-timer.zero-time #training-time,#training-timer.zero-time #training-time-state{color:#f5bf78;}
 
-/* Now-playing box, bottom corner, auto-hides after a couple seconds. */
-#now-playing{position:fixed;left:18px;bottom:18px;z-index:150;display:flex;align-items:center;gap:12px;min-width:230px;max-width:min(340px,80vw);padding:10px 16px 10px 10px;background:linear-gradient(120deg,#0e2233f2,#132c42e8);border:1px solid #4f7d99;border-left:4px solid #7cebf2;box-shadow:0 10px 34px #000a;transform:translateY(16px);opacity:0;pointer-events:none;transition:opacity .35s ease,transform .35s ease;}
-#now-playing.show{opacity:1;transform:none;}
-#now-playing .disc{width:42px;height:42px;flex:none;border-radius:50%;background:conic-gradient(from 0deg,#20394f,#7cebf2,#20394f);border:2px solid #0a1622;position:relative;animation:spin-disc 3s linear infinite;}
-#now-playing .disc::after{content:"";position:absolute;inset:14px;border-radius:50%;background:#0a1622;border:1px solid #7cebf288;}
-#now-playing .meta{min-width:0;}
-#now-playing small{display:block;font-size:10px;letter-spacing:.22em;color:#8fd8e6;}
-#now-playing strong{display:block;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-#now-playing span{display:block;font-size:12px;color:#a9c3d4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-@keyframes spin-disc{to{transform:rotate(360deg)}}
-@media (prefers-reduced-motion:reduce){#now-playing .disc{animation:none}}
+.bot-selectors{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(18px,4vw,52px);width:min(760px,90vw);margin:clamp(20px,6vh,64px) auto 28px}.bot-selectors section{padding:24px 16px;background:linear-gradient(145deg,#233d52ee,#0e2131ef);border-top:2px solid #7abbcd;clip-path:polygon(0 0,94% 0,100% 14%,100% 100%,0 100%)}.bot-selectors h3{text-align:center;font-size:clamp(16px,2vw,23px);margin:0 0 20px}.bot-cycle{display:grid;grid-template-columns:42px minmax(0,1fr) 42px;align-items:center;gap:8px}.bot-cycle strong{font-size:clamp(17px,2vw,25px);text-align:center}.bot-cycle button{height:44px;background:#29485d;border:1px solid #78b1c5;font-size:30px}.bot-cycle button:is(.gamepad-focus, :where(:root:not([data-ui-input="controller"])) :hover){background:#447487}#bot-setup #bot-launch{width:min(300px,72vw);margin:0 auto}@media(max-width:600px){.bot-selectors{grid-template-columns:1fr;gap:14px;margin:20px auto}.bot-selectors section{padding:18px 16px}.bot-selectors h3{margin-bottom:10px}}
 
+[data-nav-cycle].gamepad-focus {background:#365c70;filter:brightness(1.12);}
+.controller-color-editor {width:110px;padding:8px;background:#183246;color:#e9ffff;border:1px solid #8acbd7;font:inherit;text-transform:uppercase;}

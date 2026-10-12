@@ -1,4 +1,5 @@
 import { defaultBindings, type Bindings } from "./controls.js";
+import { controllerDefaults, type ControllerSettings } from "./controller.js";
 export type Quality = "low" | "medium" | "high" | "ultra";
 export const qualities = {
   low: { scale: 0.65, shadows: 0, particles: 0.2, aa: false },
@@ -28,6 +29,7 @@ export interface Preferences {
   showHitboxes: boolean;
   camera: CameraSettings;
   bindings: Bindings;
+  controller: ControllerSettings;
   quality: Quality;
   audio: AudioSettings;
 }
@@ -45,6 +47,7 @@ export const defaults = (): Preferences => ({
     transition: 1.2,
   },
   bindings: { ...defaultBindings },
+  controller: controllerDefaults(),
   quality: "high",
   audio: { master: 0.7, music: 0.25, sfx: 0.8, engine: 0.65, ui: 0.65 },
 });

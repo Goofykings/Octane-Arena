@@ -8,13 +8,22 @@ import type { TrainingPack } from "./packs";
 import { P } from "../../config/physics";
 import { ReplayRecorder } from "../../replay/recorder";
 import { ReplayClock, type ReplayClip } from "../../../shared/replay";
-import { advanceKickoffCountdown, KICKOFF_GO_TIME } from "../../../shared/kickoff-countdown";
-export const TRAINING_SAVE = {horizon: 5, debounce: 0.18, delay: 1} as const;
+
+export const TRAINING_SAVE = { horizon: 5, debounce: 0.18, delay: 1 } as const;
+export function trainingGameplayInput(input: PlayerInput) {
+  return (
+    input.jump ||
+    input.boost ||
+    input.slide ||
+    [input.throttle, input.steer, input.pitch, input.yaw, input.roll].some(
+      (axis) => Math.abs(axis) > 0.015,
+    )
+  );
+}
 export class TrainingRun {
   readonly recorder = new ReplayRecorder();
-  replay: {clip: ReplayClip; clock: ReplayClock} | null = null;
-  countdown = 3;
-  goTime = 0;
+  replay: { clip: ReplayClip; clock: ReplayClock } | null = null;
+  ready = true;
   saveCandidate = false;
   saveSafeTime = 0;
   saveDelay = 0;
@@ -50,6 +59,16 @@ export class TrainingRun {
   get shot() {
     return this.pack.shots[this.index];
   }
+  get duration() {
+    const n = this.shot.timeLimit;
+    return typeof n === "number" && Number.isFinite(n) && n >= 0 ? n : 10;
+  }
+  get timeRemaining() {
+    return Math.max(0, this.duration - this.elapsed);
+  }
+  get zeroTime() {
+    return !this.ready && this.timeRemaining <= 0;
+  }
   get successes() {
     return this.results.filter((x) => x === true).length;
   }
@@ -64,7 +83,7 @@ export class TrainingRun {
     );
     s.cars[0].boost = 100;
     s.ball.setTranslation(shot.ballSpawn, true);
-    s.ball.setLinvel({x:0,y:0,z:0}, true);
+    s.ball.setLinvel({ x: 0, y: 0, z: 0 }, true);
     s.ball.setAngvel({ x: 0, y: 0, z: 0 }, true);
     this.frozen = shot.ballFrozen;
     // A dynamic ball with zero gravity/velocity stays still, yet its first
@@ -78,12 +97,18 @@ export class TrainingRun {
     this.complete = false;
     this.paused = false;
     this.results[this.index] = null;
-    this.countdown=3;this.goTime=0;this.replay=null;this.recorder.reset();
-    this.saveCandidate=false;this.saveSafeTime=0;this.saveDelay=0;this.predictionWait=0;this.threatened=true;
+    this.ready = true;
+    this.replay = null;
+    this.recorder.reset();
+    this.saveCandidate = false;
+    this.saveSafeTime = 0;
+    this.saveDelay = 0;
+    this.predictionWait = 0;
+    this.threatened = true;
     this.resetSequence++;
   }
   navigate(delta: number) {
-    if(this.replay)return false;
+    if (this.replay || this.recorder.pendingGoal) return false;
     const next = this.index + delta;
     if (next < 0 || next >= this.pack.shots.length) return false;
     this.index = next;
@@ -97,11 +122,13 @@ export class TrainingRun {
     this.wait = 1.25;
   }
   advance(dt: number) {
-    if(this.paused)return false;
-    if(this.replay){
+    if (this.paused) return false;
+    if (this.recorder.pendingGoal) return false;
+    if (this.replay) {
       this.replay.clock.advance(dt);
-      if(!this.replay.clock.done)return false;
-      this.replay=null;this.wait=0;
+      if (!this.replay.clock.done) return false;
+      this.replay = null;
+      this.wait = 0;
     }
     if (this.paused || !this.outcome || this.complete) return false;
     this.wait -= dt;
@@ -124,24 +151,29 @@ export class TrainingRun {
     return false;
   }
   step(input: PlayerInput) {
-    if (this.paused || this.outcome || this.complete || this.replay) return;
+    if (this.paused || this.complete || this.replay) return;
     const s = this.simulation;
-    if(this.countdown>0){
-      this.countdown=advanceKickoffCountdown(this.countdown,P.dt);
-      if(this.countdown===0){
-        s.ball.setLinvel(this.shot.ballVelocity,true);this.goTime=KICKOFF_GO_TIME;
-        this.recorder.capture(s,this.resetSequence);
-      }
+    if (this.recorder.pendingGoal) {
+      s.cars[0].boost = 100;
+      s.step([input]);
+      const clip = this.recorder.capturePostGoal(s, this.resetSequence);
+      if (clip) this.replay = { clip, clock: new ReplayClock(clip) };
       return;
     }
-    this.goTime=Math.max(0,this.goTime-P.dt);
+    if (this.outcome) return;
+    if (this.ready) {
+      if (!trainingGameplayInput(input)) return;
+      this.ready = false;
+      s.ball.setLinvel(this.shot.ballVelocity, true);
+      this.recorder.capture(s, this.resetSequence);
+    }
     if (this.frozen) {
       s.ball.setLinvel({ x: 0, y: 0, z: 0 }, true);
       s.ball.setAngvel({ x: 0, y: 0, z: 0 }, true);
     }
     s.cars[0].boost = 100;
     s.step([input]);
-    this.recorder.capture(s,this.resetSequence);
+    this.recorder.capture(s, this.resetSequence);
     this.elapsed += P.dt;
     if (this.frozen && s.statTouches.some((t) => t.playerId === s.cars[0].id)) {
       this.frozen = false;
@@ -151,47 +183,99 @@ export class TrainingRun {
     const goal = scoringTeam(s.ball.translation());
     if (goal !== null) {
       this.finish(this.shot.successCondition === "opponent-goal" && goal === 0);
-      if(this.outcome==="SUCCESS"){
-        const car=s.cars[0],p=s.ball.translation();
-        const clip=this.recorder.clip({id:`training:${this.pack.id}:${this.index}:${this.resetSequence}:${this.outcomeSequence}`,time:s.clock,scorerId:car.id,team:0,ownGoal:false,lastTouchId:s.lastTouchId,touchTime:Number.isFinite(s.lastTouchTime)?s.lastTouchTime:null,ballSpeed:new Vector3().copy(s.ball.linvel()).length(),focus:{x:p.x,y:p.y,z:-P.arena.halfLength}});
-        this.replay={clip,clock:new ReplayClock(clip)};
+      if (this.outcome === "SUCCESS") {
+        const car = s.cars[0],
+          p = s.ball.translation();
+        this.recorder.beginGoal({
+          id: `training:${this.pack.id}:${this.index}:${this.resetSequence}:${this.outcomeSequence}`,
+          time: s.clock,
+          scorerId: car.id,
+          team: 0,
+          ownGoal: false,
+          lastTouchId: s.lastTouchId,
+          touchTime: Number.isFinite(s.lastTouchTime) ? s.lastTouchTime : null,
+          ballSpeed: new Vector3().copy(s.ball.linvel()).length(),
+          focus: { x: p.x, y: p.y, z: -P.arena.halfLength },
+        });
+        s.explode(p);
       }
+      return;
+    }
+    if (this.zeroTime && s.ballGround.grounded) {
+      this.finish(false);
       return;
     }
     if (this.shot.successCondition === "save") {
       for (const touch of s.statTouches) {
         if (touch.playerId !== s.cars[0].id || (touch.impulseSpeed ?? 0) < 0.75)
           continue;
-        const before = predictGoal(touch.before, s.world, TRAINING_SAVE.horizon);
-        if (
-          before?.team === 0 &&
-          !this.saveCandidate
-        ) {
-          this.saveCandidate=true;this.predictionWait=0;
+        const before = predictGoal(
+          touch.before,
+          s.world,
+          TRAINING_SAVE.horizon,
+        );
+        if (before?.team === 0 && !this.saveCandidate) {
+          this.saveCandidate = true;
+          this.predictionWait = 0;
         }
       }
-      if(this.saveCandidate){
-        this.predictionWait-=P.dt;
-        if(this.predictionWait<=0){
-          this.threatened=predictGoal({position:s.ball.translation(),velocity:s.ball.linvel(),heat:null},s.world,TRAINING_SAVE.horizon)?.team===0;
-          this.predictionWait=1/30;
+      if (this.saveCandidate) {
+        this.predictionWait -= P.dt;
+        if (this.predictionWait <= 0) {
+          this.threatened =
+            predictGoal(
+              {
+                position: s.ball.translation(),
+                velocity: s.ball.linvel(),
+                heat: null,
+              },
+              s.world,
+              TRAINING_SAVE.horizon,
+            )?.team === 0;
+          this.predictionWait = 1 / 30;
         }
-        if(this.threatened){this.saveSafeTime=0;this.saveDelay=0;}
-        else {
-          this.saveSafeTime+=P.dt;
-          if(this.saveSafeTime>=TRAINING_SAVE.debounce)this.saveDelay+=P.dt;
-          if(this.saveDelay>=TRAINING_SAVE.delay){this.ballBurstSequence++;s.ball.setEnabled(false);this.finish(true);return;}
+        if (this.threatened) {
+          this.saveSafeTime = 0;
+          this.saveDelay = 0;
+        } else {
+          this.saveSafeTime += P.dt;
+          if (this.saveSafeTime >= TRAINING_SAVE.debounce)
+            this.saveDelay += P.dt;
+          if (this.saveDelay >= TRAINING_SAVE.delay) {
+            // Never complete using a cached "safe" result from an earlier tick.
+            const finalThreat = predictGoal(
+              {
+                position: s.ball.translation(),
+                velocity: s.ball.linvel(),
+                heat: null,
+              },
+              s.world,
+              TRAINING_SAVE.horizon,
+            );
+            if (finalThreat?.team === 0) {
+              this.threatened = true;
+              this.saveSafeTime = 0;
+              this.saveDelay = 0;
+            } else {
+              this.ballBurstSequence++;
+              s.ball.setEnabled(false);
+              this.finish(true);
+              return;
+            }
+          }
         }
       }
     }
     if (
-      this.elapsed >= this.shot.timeLimit ||
       !new Vector3().copy(s.ball.translation()).toArray().every(Number.isFinite)
     )
       this.finish(false);
   }
-  skipReplay(){
-    if(!this.replay||this.paused)return false;
-    this.replay=null;this.wait=0;this.advance(0);return true;
+  skipReplay() {
+    if (!this.replay || this.paused) return false;
+    this.replay = null;
+    this.wait = 0;
+    this.advance(0);
+    return true;
   }
 }

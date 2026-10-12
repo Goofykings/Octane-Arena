@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { Vector3, Quaternion, Matrix4, Group, PerspectiveCamera } from "three";
 import { Simulation, initializeSimulation } from "../src/physics/simulation";
+import { goalShell } from "../src/arena/geometry";
 import { collisionShell, meshEdges } from "../src/arena/shell";
 import { insideArena } from "../src/arena/physics";
 import { P } from "../src/config/physics";
+import { goalCeilingHeight, goalRoofHeight } from "../src/arena/goal";
 import { neutralInput } from "../shared/player";
 import { bodies } from "../shared/catalog";
 import { chassisPoints } from "../src/car/chassis";
@@ -108,6 +110,14 @@ function curve(
         -nz * Math.SQRT1_2,
       ),
     });
+    if (upper && name.startsWith("goal")) {
+      const surface = surfaces[surfaces.length - 1];
+      surface.p.y +=
+        goalRoofHeight(surface.p.z * Math.sign(z) - P.arena.halfLength) - H;
+      surface.n.z +=
+        (P.arena.goalRoofDrop / P.arena.goalDepth) * Math.sign(z) * surface.n.y;
+      surface.n.normalize();
+    }
   }
 }
 for (const sign of [-1, 1]) {
@@ -142,29 +152,29 @@ for (const sign of [-1, 1]) {
       a.goalHeight,
       a.goalCurve,
     );
-    // The shoulder loft's analytic derivatives provide an independent impact normal.
-    const u = 0.5,
-      t = Math.PI / 4,
-      blend = u * u * (3 - 2 * u),
-      db = 6 * u * (1 - u);
-    const p = new Vector3(
-      side * (a.goalHalf + a.goalLip * u),
-      a.ramp * blend * (1 - Math.cos(t)),
-      sign * (a.halfLength - a.ramp * (1 - Math.sin(t)) * blend),
-    );
-    const du = new Vector3(
-        side * a.goalLip,
-        a.ramp * db * (1 - Math.cos(t)),
-        -sign * a.ramp * (1 - Math.sin(t)) * db,
-      ),
-      dt = new Vector3(
-        0,
-        a.ramp * blend * Math.sin(t),
-        sign * a.ramp * Math.cos(t) * blend,
+    // Sample a real entrance fillet face, including its changing local radius.
+    const entrance = goalShell(sign),
+      part = entrance.frame![side > 0 ? "right" : "left"];
+    let surface: Surface | undefined;
+    for (let i = 0; i < part.length && !surface; i += 3) {
+      const ps = [0, 1, 2].map((k) =>
+        new Vector3().fromArray(entrance.vertices, part[i + k] * 3),
       );
-    const normal = new Vector3().crossVectors(du, dt).normalize();
-    if (normal.y < 0) normal.negate();
-    surfaces.push({ name: `goal shoulder ${side}/${sign}`, p, n: normal });
+      const p = ps[0]
+        .clone()
+        .add(ps[1])
+        .add(ps[2])
+        .multiplyScalar(1 / 3);
+      const normal = ps[1]
+        .clone()
+        .sub(ps[0])
+        .cross(ps[2].clone().sub(ps[0]))
+        .normalize();
+      if (p.y > 0.4 && p.y < 1.4 && normal.y > 0.3)
+        surface = { name: "goal shoulder " + side + "/" + sign, p, n: normal };
+    }
+    assert.ok(surface);
+    surfaces.push(surface);
   }
   curve(
     `goal rear ${sign}`,
@@ -445,87 +455,68 @@ check(
   },
 );
 check(
-  "volumetric posts/crossbars: centered, glancing, inside/outside, ground and joints",
+  "integrated rounded posts/crossbar: continuous contacts and bounded energy",
   () => {
     let cases = 0;
     for (const sign of [-1, 1])
-      for (const kind of ["bar", "post", "ground", "joint"])
-        for (const side of kind === "bar" ? [0] : [-1, 1])
-          for (const offset of [-0.6, 0, 0.6])
-            for (const speed of [8, 60]) {
-              clear();
-              c.body.setEnabled(false);
-              s.ball.setGravityScale(0, true);
-              const y =
-                kind === "bar" || kind === "joint"
-                  ? a.goalHeight + a.postRadius
-                  : kind === "ground"
-                    ? P.ball.radius + 0.02
-                    : 3;
-              const x = side * (a.goalHalf + a.postRadius);
-              s.ball.setTranslation(
-                {
-                  x: x + (kind === "bar" ? 0 : offset),
-                  y: y + (kind === "bar" ? offset : 0),
-                  z: sign * (a.halfLength - 3),
-                },
-                true,
-              );
-              s.ball.setLinvel({ x: 0, y: 0, z: sign * speed }, true);
-              s.ball.setAngvel({ x: 1, y: 1, z: 1 }, true);
-              let bounced = false,
-                transverse = 0;
-              for (let i = 0; i < 110; i++) {
-                s.step([n, n], true);
-                contained(`frame ${sign}/${kind}/${offset}/${speed}`);
-                const v = s.ball.linvel();
-                if (v.z * sign < 0) {
-                  if (
-                    !bounced &&
-                    offset === 0 &&
-                    (kind === "bar" || kind === "post")
-                  ) {
-                    assert.ok(
-                      Math.abs(v.z) > speed * 0.3 &&
-                        Math.abs(v.z) < speed * 0.6,
-                      "centered restitution changed",
-                    );
-                    assert.ok(
-                      Math.abs(v.z) > Math.hypot(v.x, v.y),
-                      "centered impact should rebound mostly backward",
-                    );
-                    assert.ok(
-                      new Vector3().copy(s.ball.angvel()).length() > 0.01,
-                      "spin was erased",
-                    );
-                  }
-                  bounced = true;
-                  transverse = Math.max(
-                    transverse,
-                    Math.abs(kind === "bar" ? v.y : v.x),
+      for (const side of [0, -1, 1])
+        for (const speed of [8, 60])
+          for (const theta of [0.15, 0.5, 1.1]) {
+            clear();
+            c.body.setEnabled(false);
+            s.ball.setGravityScale(0, true);
+            const d = a.goalLip * (1 - Math.cos(theta));
+            const p =
+              side === 0
+                ? new Vector3(
+                    0,
+                    goalCeilingHeight(d),
+                    sign * (a.halfLength + d),
+                  )
+                : new Vector3(
+                    side *
+                      (a.goalHalf + a.goalLip - a.goalLip * Math.sin(theta)),
+                    3,
+                    sign * (a.halfLength + d),
                   );
-                }
+            const normal =
+              side === 0
+                ? new Vector3(
+                    0,
+                    -Math.sin(theta),
+                    -sign *
+                      (Math.cos(theta) +
+                        (a.goalRoofDrop / a.goalDepth) * Math.sin(theta)),
+                  ).normalize()
+                : new Vector3(
+                    -side * Math.sin(theta),
+                    0,
+                    -sign * Math.cos(theta),
+                  );
+            s.ball.setTranslation(
+              p.addScaledVector(normal, P.ball.radius + 0.5),
+              true,
+            );
+            s.ball.setLinvel(normal.clone().multiplyScalar(-speed), true);
+            s.ball.setAngvel({ x: 1, y: 1, z: 1 }, true);
+            let bounced = false;
+            for (let i = 0; i < 110; i++) {
+              s.step([n, n], true);
+              contained("integrated frame");
+              const v = new Vector3().copy(s.ball.linvel());
+              assert.ok(v.length() <= speed * 1.02);
+              if (!bounced && v.dot(normal) > speed * 0.2) {
+                assert.ok(v.dot(normal) < speed * 0.7);
+                assert.ok(new Vector3().copy(s.ball.angvel()).length() > 0.01);
+                bounced = true;
               }
-              assert.ok(bounced, `no bounce ${kind}/${offset}/${speed}`);
-              if (
-                offset !== 0 &&
-                (kind === "post" || (kind === "bar" && offset < 0))
-              )
-                assert.ok(
-                  transverse > 0.5,
-                  `flat bounce ${kind}/${offset}/${speed}`,
-                );
-              if (kind === "bar" && offset > 0)
-                assert.ok(
-                  transverse < speed * 0.15,
-                  "upper front frame should not launch upward",
-                );
-              cases++;
             }
+            assert.ok(bounced);
+            cases++;
+          }
     return { cases };
   },
 );
-
 check(
   "repeated low/high-speed floor-wall runs, boost, contact normal and camera stability",
   () => {

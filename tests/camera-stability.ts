@@ -3,6 +3,7 @@ import { Group, PerspectiveCamera, Quaternion, Vector3 } from "three";
 import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { GameCamera } from "../src/camera/camera";
+import { cameraCollisionPolicy } from "../src/camera/space";
 import { Simulation } from "../src/physics/simulation";
 import { P } from "../src/config/physics";
 
@@ -73,7 +74,7 @@ check("high speed car retains camera distance", () => {
   control.ballMode = false;
   simulation.cars[0].body.setLinvel({ x: 0, y: 0, z: -23 }, true);
   for (let i = 0; i < 180; i++) {
-    car.position.z = 30 - 23 * i / 60;
+    car.position.z = 30 - (23 * i) / 60;
     control.update(car, ball, simulation, 1 / 60, false, i / 60);
     const distance = camera.position.distanceTo(car.position);
     assert.ok(distance > 3 && distance < 9, `camera distance ${distance}`);
@@ -151,7 +152,7 @@ for (const sign of [-1, 1])
             );
           }
           assert.ok(Math.abs(camera.rotation.z) < 1e-8);
-          assert.ok(Math.abs(camera.position.x) < P.arena.halfWidth);
+          assert.ok(camera.position.y >= 0.24, "Lens remains above the floor");
           const offset = camera.position.clone().sub(car.position),
             distance = offset.length();
           const blocked = simulation.world.castRay(
@@ -162,12 +163,12 @@ for (const sign of [-1, 1])
             undefined,
             simulation.cars[0].collider,
             simulation.cars[0].body,
-            (col) => col.parent() === null,
+            cameraCollisionPolicy(simulation).blockers,
           );
           assert.equal(
             blocked,
             null,
-            "smoothed camera remains on the visible side of the arena",
+            "smoothed camera does not cross a hard camera blocker",
           );
         }
         simulation.dispose();

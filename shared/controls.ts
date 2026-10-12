@@ -26,6 +26,10 @@ export const defaultBindings = {
   nextLevel: "BracketRight",
   pause: "Escape",
   debug: "F3",
+  cameraLeft: "",
+  cameraRight: "",
+  cameraUp: "",
+  cameraDown: "",
 };
 export type Action = keyof typeof defaultBindings;
 export type Bindings = Record<Action, string>;
@@ -57,6 +61,10 @@ export const actionLabels: Record<Action, string> = {
   nextLevel: "Challenge - Next Level",
   pause: "Pause",
   debug: "Physics diagnostics",
+  cameraLeft: "Look left",
+  cameraRight: "Look right",
+  cameraUp: "Look up",
+  cameraDown: "Look down",
 };
 export const trainingActions = [
   "trainingReset",
@@ -66,14 +74,14 @@ export const trainingActions = [
 ] as const;
 export type TrainingAction = (typeof trainingActions)[number];
 export const keyName = (code: string) =>
-  (({ BracketLeft: "[", BracketRight: "]" })[code] ?? code)
+  (({ BracketLeft: "[", BracketRight: "]" })[code] ?? (code || "Unbound"))
     .replace(/^Key|^Digit/, "")
     .replace("Arrow", "")
     .replace("Left", " L")
     .replace("Right", " R");
 export function conflicts(bindings: Bindings, action: Action) {
   // Retained in stored account payloads for compatibility; no longer a gameplay action.
-  if (action === "reset") return [];
+  if (action === "reset" || !bindings[action]) return [];
   return (Object.keys(bindings) as Action[]).filter(
     (k) => k !== "reset" && k !== action && bindings[k] === bindings[action],
   );

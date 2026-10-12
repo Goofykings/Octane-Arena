@@ -189,8 +189,9 @@ for (const sign of [-1, 1]) {
     let bottom = 0;
     for (let i = 0; i < v.length; i += 3)
       if (
-        Math.abs(v[i] - side * P.arena.goalHalf) < 1e-5 &&
-        Math.abs(v[i + 2] - sign * P.arena.halfLength) < 1e-5 &&
+        Math.abs(v[i] - side * (P.arena.goalHalf + P.arena.goalLip)) < 1e-5 &&
+        Math.abs(v[i + 2] - sign * (P.arena.halfLength - P.arena.ramp)) <
+          1e-5 &&
         v[i + 1] < P.arena.ramp - 0.001
       ) {
         assert.ok(v[i + 1] < 1e-5, "old post-base pocket remains");

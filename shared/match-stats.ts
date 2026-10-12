@@ -17,6 +17,18 @@ export const STAT_TUNING = {
   touchHistory: 128,
 } as const;
 export type StatKind = keyof typeof MATCH_POINTS;
+export const STAT_FIELD = {
+  BALL_TOUCH: "touches",
+  SHOT: "shots",
+  SAVE: "saves",
+  ASSIST: "assists",
+  GOAL: "goals",
+} as const;
+/** Called only by the stat authority when it awards an already classified event. */
+export function applyStatAward(stats: PlayerMatchStats, type: StatKind) {
+  stats[STAT_FIELD[type]]++;
+  stats.score += MATCH_POINTS[type];
+}
 export interface PlayerMatchStats {
   playerId: string;
   score: number;

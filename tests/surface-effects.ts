@@ -165,7 +165,7 @@ check("configured ball dimensions and speed cap", () => {
     ),
   };
 });
-check("rotating ball streaks, team colors and low-speed suppression", () => {
+check("ball path ribbon, smooth team colors and low-speed suppression", () => {
   const trails = new BallTrails(new Scene()),
     ball = new Group();
   for (let i = 0; i < 20; i++) {
@@ -175,10 +175,17 @@ check("rotating ball streaks, team colors and low-speed suppression", () => {
   }
   assert.ok(trails.mesh.visible);
   assert.equal(trails.mesh.material.uniforms.color.value.getHex(), 0x69cfff);
-  assert.ok(trails.tracks[1].some((p) => Math.abs(p.point.y) > 0.3));
+  assert.ok(trails.renderedLength > 5);
+  assert.ok(
+    trails.history.every((v, i) => i % 3 !== 1 || v === 0),
+    "Spin cannot corrupt the flight path",
+  );
   trails.updateBall(ball, 18, 1, 1 / 60, true);
+  assert.notEqual(trails.mesh.material.uniforms.color.value.getHex(), 0xffa34a);
+  for (let i = 0; i < 120; i++) trails.updateBall(ball, 18, 1, 1 / 60, true);
   assert.equal(trails.mesh.material.uniforms.color.value.getHex(), 0xffa34a);
   trails.updateBall(ball, 18, null, 1 / 60, true);
+  for (let i = 0; i < 120; i++) trails.updateBall(ball, 18, null, 1 / 60, true);
   assert.equal(trails.mesh.material.uniforms.color.value.getHex(), 0xc4c4c4);
   for (let i = 0; i < 30; i++) trails.updateBall(ball, 0, null, 1 / 60, true);
   assert.equal(trails.mesh.visible, false);
@@ -226,8 +233,11 @@ for (const sign of [-1, 1])
   check(`rectangular goal mouth ${sign}`, () => {
     const mesh = goalShell(sign),
       v = mesh.vertices;
-    for (const x of [-P.arena.goalHalf, P.arena.goalHalf])
-      for (const y of [0, P.arena.goalHeight]) {
+    for (const x of [
+      -P.arena.goalHalf - P.arena.goalLip,
+      P.arena.goalHalf + P.arena.goalLip,
+    ])
+      for (const y of [P.arena.ramp, P.arena.goalHeight + P.arena.goalLip]) {
         let found = false;
         for (let i = 0; i < v.length; i += 3)
           found ||=

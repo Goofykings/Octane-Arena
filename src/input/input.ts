@@ -1,13 +1,28 @@
 import { neutral, type Controls } from "./types";
 import { defaultBindings, type Bindings, type Action } from "./bindings";
+import { ControllerInput } from "./controller";
+import {
+  controllerDefaults,
+  controllerActions,
+  type ControllerSettings,
+} from "../../shared/controller";
 export class Input {
   keys = new Set<string>();
   actions = new Set<string>();
-  private padPrevious = new Set<number>();
+  readonly controller: ControllerInput;
+  private controllerActions = new Set<Action>();
+  private previousValues = new Map<Action, number>();
+  readonly justPressed = new Set<Action>();
+  readonly justReleased = new Set<Action>();
+  gameplayEnabled = true;
   capturing = false;
   typing = false;
   scoreboardActive = false;
-  constructor(public bindings: Bindings = { ...defaultBindings }) {
+  constructor(
+    public bindings: Bindings = { ...defaultBindings },
+    controller: ControllerSettings = controllerDefaults(),
+  ) {
+    this.controller = new ControllerInput(controller);
     window.addEventListener("keydown", (e) => {
       if (
         (e.target as HTMLElement)?.matches(
@@ -35,85 +50,123 @@ export class Input {
   clear() {
     this.keys.clear();
     this.actions.clear();
+    this.controllerActions.clear();
+    this.controller.quarantine();
+    this.justPressed.clear();
+    this.justReleased.clear();
   }
   take(code: string) {
     const has = this.actions.has(code);
     this.actions.delete(code);
     return has;
   }
+  takeControllerAction(action: Action) {
+    const has = this.controllerActions.has(action);
+    this.controllerActions.delete(action);
+    return has;
+  }
   takeAction(action: Action) {
-    return this.take(this.bindings[action]);
+    const keyboard = this.take(this.bindings[action]);
+    const controller = this.takeControllerAction(action);
+    return keyboard || controller;
+  }
+  requestAction(action: Action) {
+    this.controllerActions.add(action);
+  }
+  get blocked() {
+    return (
+      this.capturing ||
+      this.controller.binding ||
+      this.typing ||
+      !!document.querySelector("dialog[open]") ||
+      !!document.hidden
+    );
+  }
+  getAction(action: Action) {
+    if (this.blocked) return 0;
+    return Math.max(
+      Number(this.keys.has(this.bindings[action])),
+      this.controller.values[action],
+    );
   }
   isHeld(action: Action) {
-    if (
-      this.capturing ||
-      this.typing ||
-      document.querySelector("dialog[open]") ||
-      document.hidden
-    )
-      return false;
-    const pad = Array.from(navigator.getGamepads?.() ?? []).find(
-      (p) => p?.connected,
-    );
-    return (
-      this.keys.has(this.bindings[action]) ||
-      (action === "reverseCam" && !!pad?.buttons[11]?.pressed) ||
-      (action === "scoreboard" && !!pad?.buttons[8]?.pressed)
-    );
+    return this.getAction(action) > 0.5;
   }
-  sample(): Controls {
-    const c = neutral(),
-      down = (action: Action) => this.keys.has(this.bindings[action]);
-    if (this.capturing || this.typing || document.querySelector("dialog[open]"))
-      return c;
-    c.throttle = Number(down("throttle")) - Number(down("reverse"));
-    c.steer = Number(down("right")) - Number(down("left"));
-    c.pitch =
-      c.throttle + Number(down("pitchForward")) - Number(down("pitchBack"));
-    c.yaw = c.steer + Number(down("yawRight")) - Number(down("yawLeft"));
-    c.roll = Number(down("rollRight")) - Number(down("rollLeft"));
-    c.jump = down("jump") || this.actions.has(this.bindings.jump);
-    c.boost = down("boost");
-    c.slide = down("slide");
+  poll() {
+    this.controller.poll();
+    this.justPressed.clear();
+    this.justReleased.clear();
+    const blocked = this.blocked;
+    for (const action of controllerActions) {
+      const value = blocked
+          ? 0
+          : Math.max(
+              Number(this.keys.has(this.bindings[action])),
+              this.controller.values[action],
+            ),
+        previous = this.previousValues.get(action) ?? 0;
+      if (value > 0.5 && previous <= 0.5) this.justPressed.add(action);
+      if (value <= 0.5 && previous > 0.5) this.justReleased.add(action);
+      this.previousValues.set(action, value);
+      if (
+        !blocked &&
+        (this.gameplayEnabled || action === "pause") &&
+        this.controller.pressed.has(action)
+      )
+        this.controllerActions.add(action);
+    }
+    if (blocked) {
+      this.actions.clear();
+      this.controllerActions.clear();
+    }
+  }
+  sample(poll = true): Controls {
+    if (poll) this.poll();
+    const c = neutral();
+    if (this.blocked || !this.gameplayEnabled) return c;
+    const key = (action: Action) =>
+      Number(this.keys.has(this.bindings[action]));
+    // Resolve opposing movement by strongest device magnitude; keyboard wins ties.
+    const strongest = (keyboard: number, controller: number) =>
+      Math.abs(keyboard) >= Math.abs(controller) ? keyboard : controller;
+    const pad = this.controller.values;
+    c.throttle = strongest(
+      key("throttle") - key("reverse"),
+      pad.throttle - pad.reverse,
+    );
+    c.steer = strongest(key("right") - key("left"), pad.right - pad.left);
+    // Keyboard W/S retain their historic aerial behavior; controller triggers are
+    // purely throttle/brake, and the left stick supplies independent pitch.
+    c.pitch = strongest(
+      key("throttle") - key("reverse") + key("pitchForward") - key("pitchBack"),
+      pad.pitchForward - pad.pitchBack,
+    );
+    c.yaw = strongest(
+      key("right") - key("left") + key("yawRight") - key("yawLeft"),
+      pad.right - pad.left + pad.yawRight - pad.yawLeft,
+    );
+    c.roll = strongest(
+      key("rollRight") - key("rollLeft"),
+      pad.rollRight - pad.rollLeft,
+    );
+    c.directionalRoll = c.roll;
+    c.jump =
+      this.isHeld("jump") ||
+      this.actions.has(this.bindings.jump) ||
+      this.controllerActions.has("jump");
+    c.boost = this.isHeld("boost");
+    c.slide = this.isHeld("slide");
     c.dodgeX = c.yaw || c.roll;
     c.dodgeY = c.pitch;
-    const pad = Array.from(navigator.getGamepads?.() ?? []).find(
-      (p) => p?.connected && p.buttons.length >= 10 && p.axes.length >= 2,
-    );
-    if (pad) {
-      const dead = (v: number) =>
-        Math.abs(v) < 0.12 ? 0 : ((Math.abs(v) - 0.12) / 0.88) * Math.sign(v);
-      c.throttle += pad.buttons[7].value - pad.buttons[6].value;
-      c.steer += dead(pad.axes[0]);
-      c.pitch -= dead(pad.axes[1]);
-      c.yaw += dead(pad.axes[0]);
-      c.roll += Number(pad.buttons[5].pressed) - Number(pad.buttons[4].pressed);
-      c.jump ||= pad.buttons[0].pressed;
-      c.boost ||= pad.buttons[1].pressed;
-      c.slide ||= pad.buttons[2].pressed;
-      for (const [button, code] of [
-        [3, this.bindings.camera],
-        [9, this.bindings.pause],
-      ] as const) {
-        if (pad.buttons[button].pressed && !this.padPrevious.has(button))
-          this.actions.add(code);
-        if (pad.buttons[button].pressed) this.padPrevious.add(button);
-        else this.padPrevious.delete(button);
-      }
-    }
-    if (pad) {
-      c.dodgeX = deadAxis(pad.axes[0]);
-      c.dodgeY = -deadAxis(pad.axes[1]);
-    }
-    if (down("airRoll") || c.slide) {
+    // A dedicated roll is explicit intent. Generic air roll may remap steering
+    // only when no dedicated roll is active; adding both could cancel roll.
+    if ((this.isHeld("airRoll") || c.slide) && c.directionalRoll === 0) {
       c.roll += c.steer;
       c.yaw = 0;
     }
-    for (const key of ["throttle", "steer", "pitch", "yaw", "roll"] as const)
-      c[key] = Math.max(-1, Math.min(1, c[key]));
+    for (const action of ["throttle", "steer", "pitch", "yaw", "roll"] as const)
+      c[action] = Math.max(-1, Math.min(1, c[action]));
+    c.directionalRoll = Math.max(-1, Math.min(1, c.directionalRoll));
     return c;
   }
-}
-function deadAxis(v: number) {
-  return Math.abs(v) < 0.15 ? 0 : v;
 }

@@ -189,6 +189,12 @@ const fs = require("node:fs"),
         };
       }, team);
       await page.waitForTimeout(250);
+      await page.waitForFunction(
+        (color) =>
+          window.__arena.ballTrails.mesh.material.uniforms.color.value.getHex() ===
+          color,
+        team === 0 ? 0x69cfff : team === 1 ? 0xffa34a : 0xc4c4c4,
+      );
       assert.equal(
         await page.evaluate(() =>
           window.__arena.ballTrails.mesh.material.uniforms.color.value.getHex(),

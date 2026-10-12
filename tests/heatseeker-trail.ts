@@ -153,7 +153,7 @@ for (let i = 0; i < 30; i++) {
 }
 assert.ok(normal.mesh.visible);
 assert.equal(normal.heatseeker.mesh.visible, false);
-assert.equal(normal.lifetime, 0.22);
+assert.equal(normal.maxLength, 9.5);
 h.touch("b", 0, 1);
 normal.updateBall(ball, 18, 0, 1 / 60, true, camera, 0, h.state);
 assert.equal(normal.mesh.visible, false);
@@ -163,5 +163,5 @@ normal.updateBall(ball, 18, 0, 1 / 60, true, camera);
 normal.updateBall(ball, 18, 0, 1 / 60, true, camera);
 assert.equal(normal.heatseeker.mesh.visible, false);
 console.log(
-  "PASS curved long trails at 30/60/144 FPS, fixed storage/history, quality budgets, smooth max/team color, state isolation, pause/reset/teleport cleanup and unchanged normal trail",
+  "PASS curved long trails at 30/60/144 FPS, fixed storage/history, quality budgets, smooth max/team color, state isolation, pause/reset/teleport cleanup and independent standard Soccar trail",
 );

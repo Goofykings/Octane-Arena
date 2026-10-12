@@ -1,5 +1,6 @@
 import * as T from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
+import { cameraFloorClearance } from "./space";
 
 const arenaOnly = (collider: RAPIER.Collider) => collider.parent() === null;
 const axes = [
@@ -29,10 +30,14 @@ export class CameraClearance {
   private world!: RAPIER.World;
   private pivot = new T.Vector3();
   private length = 0;
+  private reopening = false;
   private obstacles = arenaOnly;
+  private blockers = arenaOnly;
+  private outsideArena = false;
 
   reset() {
     this.length = 0;
+    this.reopening = false;
     this.previousTangent.set(0, 0, 0);
   }
 
@@ -43,8 +48,12 @@ export class CameraClearance {
     dt: number,
     first: boolean,
     obstacles = arenaOnly,
+    blockers = obstacles,
+    outsideArena = false,
   ) {
     this.obstacles = obstacles;
+    this.blockers = blockers;
+    this.outsideArena = outsideArena;
     this.world = world;
     this.pivot.copy(pivot);
     Object.assign(this.ray.origin, pivot);
@@ -89,6 +98,12 @@ export class CameraClearance {
    * This reference-frame step is separate from the final obstruction cast.
    * A wall-facing bearing is degenerate: retain a consistent tangent sign. */
   plan(offset: T.Vector3, distance: number, previous: T.Vector3) {
+    if (this.outsideArena) {
+      // Framing chooses the boom freely. An arena normal is context, not a
+      // camera half-space; don't stack wall/corner/backboard corrections.
+      cameraFloorClearance(offset, this.pivot);
+      return;
+    }
     const normal = this.surfaceUp;
     const wallWeight = T.MathUtils.smoothstep(
       1 - Math.abs(normal.y),
@@ -144,7 +159,9 @@ export class CameraClearance {
     actual: T.Vector3,
     dt: number,
     first: boolean,
+    followBoom = false,
   ) {
+    if (this.outsideArena) cameraFloorClearance(offset, pivot);
     const desired = offset.length();
     this.direction.copy(offset).divideScalar(Math.max(desired, 1e-6));
     const hit = world.castShape(
@@ -159,13 +176,16 @@ export class CameraClearance {
       undefined,
       undefined,
       undefined,
-      this.obstacles,
+      this.blockers,
     );
     const available = hit
       ? Math.max(0.05, hit.time_of_impact - 0.035)
       : desired;
     this.blocked = available < desired - 0.001;
-    if (first || this.length > available) this.length = available;
+    if (this.blocked) this.reopening = true;
+    else if (Math.abs(this.length - available) < 0.01) this.reopening = false;
+    if (first || this.length > available || (followBoom && !this.reopening))
+      this.length = available;
     else this.length += (available - this.length) * (1 - Math.exp(-10 * dt));
     actual.copy(pivot).addScaledVector(this.direction, this.length);
   }

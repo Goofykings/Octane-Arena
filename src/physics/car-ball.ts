@@ -16,6 +16,7 @@ export class CarBallContact {
   impulse = new Vector3();
   roofImpulse = new Vector3();
   closing = 0;
+  aerial = false;
   lastImpulse = new Vector3();
   impactAge = Infinity;
   impactCount = 0;
@@ -28,7 +29,9 @@ export class CarBallContact {
   private armed = true;
   private quietTicks = 0;
   private cooldown = 0;
+  private resetAwarded = false;
   reset() {
+    this.resetAwarded = false;
     this.kind = "NONE";
     this.armed = true;
     this.quietTicks = 0;
@@ -78,15 +81,80 @@ export class CarBallContact {
       .add(this.ballVelocity);
     this.relative.copy(this.pointVelocity).sub(ballPointVelocity);
     this.closing = Math.max(0, this.relative.dot(normal));
+    this.aerial = !car.grounded && car.supportKind === "air";
     const d = bodies[car.bodyId],
       up = new Vector3(0, 1, 0).applyQuaternion(car.body.rotation());
+    const localNormal = normal
+      .clone()
+      .applyQuaternion(new Quaternion().copy(car.body.rotation()).invert());
+    if (
+      this.aerial &&
+      !this.resetAwarded &&
+      localNormal.y < -0.75 &&
+      this.local.y < d.hitboxY - d.halfHeight + 0.07 &&
+      Math.abs(this.local.x) < d.halfWidth * 0.75 &&
+      Math.abs(this.local.z) < d.axle * 0.85
+    ) {
+      car.acquireFlipReset(point, normal);
+      this.resetAwarded = true;
+    }
     const roof =
       normal.dot(up) > 0.7 && this.local.y > d.hitboxY + d.halfHeight - 0.06;
     this.kind = this.closing >= P.hit.minClosing ? "IMPACT" : "DRIBBLE";
     if (this.closing < P.hit.rearmClosing) {
       if (++this.quietTicks >= 2) this.armed = true;
     } else this.quietTicks = 0;
-    if (this.kind === "IMPACT" && this.armed && this.cooldown === 0) {
+    if (
+      this.aerial &&
+      this.closing > 0.05 &&
+      this.armed &&
+      this.cooldown === 0
+    ) {
+      // Rapier has already solved this pair. Correct only the remaining normal
+      // velocity to a physical restitution target; never stack the speed bonus.
+      const armCar = point.clone().sub(car.body.worldCom()),
+        armBall = point.clone().sub(ball.worldCom());
+      const rotational = (body: RAPIER.RigidBody, arm: Vector3) => {
+        const r = arm.clone().cross(normal),
+          I = body.effectiveWorldInvInertia();
+        return (
+          r.x * (I.m11 * r.x + I.m12 * r.y + I.m13 * r.z) +
+          r.y * (I.m21 * r.x + I.m22 * r.y + I.m23 * r.z) +
+          r.z * (I.m31 * r.x + I.m32 * r.y + I.m33 * r.z)
+        );
+      };
+      const inverseMass =
+        car.body.invMass() +
+        ball.invMass() +
+        rotational(car.body, armCar) +
+        rotational(ball, armBall);
+      const contactVelocity = (body: RAPIER.RigidBody, arm: Vector3) =>
+        new Vector3().copy(body.angvel()).cross(arm).add(body.linvel());
+      const postClosing = contactVelocity(car.body, armCar)
+        .sub(contactVelocity(ball, armBall))
+        .dot(normal);
+      const target = P.hit.airRestitution * this.closing;
+      const bound =
+        ((1 + P.hit.airRestitution) * this.closing) /
+        Math.max(inverseMass, 1e-8);
+      const correction = Math.max(
+        -bound,
+        Math.min(bound, (postClosing + target) / Math.max(inverseMass, 1e-8)),
+      );
+      this.impulse.copy(normal).multiplyScalar(correction);
+      ball.applyImpulseAtPoint(this.impulse, point, true);
+      car.body.applyImpulseAtPoint(this.impulse.clone().negate(), point, true);
+      this.lastImpulse.copy(this.impulse);
+      this.impactAge = 0;
+      this.impactCount++;
+      this.armed = false;
+      this.cooldown = P.hit.cooldown;
+    } else if (
+      !this.aerial &&
+      this.kind === "IMPACT" &&
+      this.armed &&
+      this.cooldown === 0
+    ) {
       // RocketSim-inspired speed curve, scaled by true normal approach so a
       // grazing/sliding contact cannot launch the ball using tangential speed.
       const speed = Math.min(P.hit.maxRelative, this.relative.length());
@@ -145,7 +213,16 @@ export class CarBallContact {
       );
     }
   }
-  separate() {
+  separate(car?: Car, ball?: RAPIER.RigidBody) {
+    if (this.resetAwarded && car && ball) {
+      const p = car.collider.projectPoint(ball.translation(), false);
+      if (
+        p &&
+        new Vector3().copy(p.point).distanceTo(ball.translation()) >
+          P.ball.radius + 0.04
+      )
+        this.resetAwarded = false;
+    } else if (!car) this.resetAwarded = false;
     if (++this.quietTicks >= 2) this.armed = true;
     this.kind = "NONE";
   }

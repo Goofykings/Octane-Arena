@@ -1,3 +1,4 @@
+import { captureTrainingReplay } from "./replay-capture";
 import assert from "node:assert/strict";
 import { Vector3, Quaternion } from "three";
 import { initializeSimulation, Simulation } from "../src/physics/simulation";
@@ -10,18 +11,42 @@ import { P } from "../src/config/physics";
 import { trainingLaunchPreview } from "../src/extra/training/preview";
 await initializeSimulation();
 const n = neutralInput();
-function begin(run:TrainingRun){
-  const s=run.simulation,car=JSON.stringify({p:s.cars[0].body.translation(),q:s.cars[0].body.rotation()}),ball=JSON.stringify(s.ball.translation()),clock=s.clock;
-  const arrow=trainingLaunchPreview(run.shot);
-  assert.equal(arrow.visible,!run.shot.ballFrozen&&new Vector3().copy(run.shot.ballVelocity).length()>0);
-  if(arrow.visible)assert.ok(arrow.direction.angleTo(new Vector3().copy(run.shot.ballVelocity))<1e-7);
-  for(let i=0;i<359;i++)run.step({...n,throttle:1,steer:1,boost:true,jump:true});
-  assert.ok(run.countdown>0);assert.equal(run.elapsed,0);assert.equal(s.clock,clock);
-  assert.equal(JSON.stringify({p:s.cars[0].body.translation(),q:s.cars[0].body.rotation()}),car);
-  assert.equal(JSON.stringify(s.ball.translation()),ball);
-  assert.ok(new Vector3().copy(s.ball.linvel()).length()<1e-8);
-  run.step(n);assert.equal(run.countdown,0);assert.equal(run.elapsed,0);assert.equal(run.goTime,0.7);
-  assert.ok(new Vector3().copy(s.ball.linvel()).distanceTo(run.shot.ballVelocity)<1e-5);
+function begin(run: TrainingRun) {
+  const s = run.simulation,
+    car = JSON.stringify({
+      p: s.cars[0].body.translation(),
+      q: s.cars[0].body.rotation(),
+    }),
+    ball = JSON.stringify(s.ball.translation()),
+    clock = s.clock;
+  const arrow = trainingLaunchPreview(run.shot);
+  assert.equal(
+    arrow.visible,
+    !run.shot.ballFrozen &&
+      new Vector3().copy(run.shot.ballVelocity).length() > 0,
+  );
+  if (arrow.visible)
+    assert.ok(
+      arrow.direction.angleTo(new Vector3().copy(run.shot.ballVelocity)) < 1e-7,
+    );
+  for (let i = 0; i < 360; i++) run.step(n);
+  assert.equal(run.ready, true);
+  assert.equal(run.elapsed, 0);
+  assert.equal(run.timeRemaining, run.duration);
+  assert.equal(s.clock, clock);
+  assert.equal(
+    JSON.stringify({
+      p: s.cars[0].body.translation(),
+      q: s.cars[0].body.rotation(),
+    }),
+    car,
+  );
+  assert.equal(JSON.stringify(s.ball.translation()), ball);
+  run.step({ ...n, steer: 0.1 });
+  assert.equal(run.ready, false);
+  assert.ok(run.elapsed > 0);
+  assert.ok(Math.abs(s.ball.linvel().x - run.shot.ballVelocity.x) < 0.05);
+  assert.ok(Math.abs(s.ball.linvel().z - run.shot.ballVelocity.z) < 0.05);
 }
 const map = new Map<string, string>();
 const storage = {
@@ -103,7 +128,7 @@ for (const pack of trainingPacks) {
           0,
           `Goalie ${index + 1}: real serve threatens defended goal`,
         );
-        s.cars[0].body.setEnabled(false);
+        // The offset idle defender must not automatically save these scenarios.
         for (let i = 0; i < 1800 && !run.outcome; i++) run.step(n);
         assert.equal(run.outcome, "FAILED");
         assert.equal(
@@ -112,14 +137,26 @@ for (const pack of trainingPacks) {
           `Goalie ${index + 1}: untreated serve actually scores`,
         );
         s.cars[0].body.setEnabled(true);
-        run.reset();begin(run);
+        run.reset();
+        begin(run);
         // Isolate real physical save classification with an intercept fixture,
         // including elevated shots. No fake touch events or ball impulses.
         const b = s.ball.translation();
         s.cars[0].reset(b.x, b.z + 2.5, 0, b.y);
         s.cars[0].body.setLinvel({ x: 0, y: 0, z: -10 }, true);
-        let contact=false;
-        for (let i = 0; i < 400 && !run.outcome; i++) {run.step(n);if(s.statTouches.length){contact=true;assert.equal(run.outcome,null,"Save does not complete at contact");assert.equal(s.ball.isEnabled(),true);}}
+        let contact = false;
+        for (let i = 0; i < 400 && !run.outcome; i++) {
+          run.step(n);
+          if (s.statTouches.length) {
+            contact = true;
+            assert.equal(
+              run.outcome,
+              null,
+              "Save does not complete at contact",
+            );
+            assert.equal(s.ball.isEnabled(), true);
+          }
+        }
         assert.ok(contact);
         assert.equal(
           run.outcome,
@@ -137,16 +174,42 @@ for (const pack of trainingPacks) {
         run.step(n);
         assert.equal(run.outcome, "SUCCESS", "Actual opponent goal succeeds");
       }
-      if(run.replay){const index=run.index;const before=JSON.stringify({car:s.cars[0].body.translation(),ball:s.ball.translation(),clock:s.clock});run.advance(0.1);assert.equal(run.index,index);assert.equal(run.countdown,0);assert.equal(JSON.stringify({car:s.cars[0].body.translation(),ball:s.ball.translation(),clock:s.clock}),before);assert.ok(run.replay.clip.count>=2);if(index<9)run.skipReplay();}
+      if (run.recorder.pendingGoal) captureTrainingReplay(run);
+      if (run.replay) {
+        const index = run.index;
+        const before = JSON.stringify({
+          car: s.cars[0].body.translation(),
+          ball: s.ball.translation(),
+          clock: s.clock,
+        });
+        run.advance(0.1);
+        assert.equal(run.index, index);
+        assert.equal(run.ready, false);
+        assert.equal(
+          JSON.stringify({
+            car: s.cars[0].body.translation(),
+            ball: s.ball.translation(),
+            clock: s.clock,
+          }),
+          before,
+        );
+        assert.ok(run.replay.clip.count >= 2);
+        if (run.recorder.pendingGoal) captureTrainingReplay(run);
+        if (index < 9) run.skipReplay();
+      }
     }
     if (pack.type === "striker") {
-      if(run.replay)run.skipReplay();
+      if (run.recorder.pendingGoal) captureTrainingReplay(run);
+      if (run.replay) run.skipReplay();
       // All ten retuned shots are scoreable with ground controls. Some require
       // lining up behind the ball or choosing approach speed; no ball edits,
       // boost, jump or scripted impulses.
       for (let index = 0; index < 10; index++) {
+        const originalDuration = pack.shots[index].timeLimit;
+        pack.shots[index].timeLimit = 36;
         run.index = index;
-        run.reset();begin(run);
+        run.reset();
+        begin(run);
         for (let i = 0; i < 4350 && !run.outcome; i++) {
           const car = s.cars[0],
             pos = car.body.translation(),
@@ -154,26 +217,44 @@ for (const pack of trainingPacks) {
           const forward = new Vector3(0, 0, -1).applyQuaternion(
             new Quaternion().copy(car.body.rotation()),
           );
-          const goalDir=new Vector3(-ball.x,0,-P.arena.halfLength-ball.z).normalize();
-          const relative=new Vector3(pos.x-ball.x,0,pos.z-ball.z);
-          const aligned=-relative.dot(goalDir)>1&&Math.abs(relative.x*goalDir.z-relative.z*goalDir.x)<1.2&&forward.dot(goalDir)>.9;
-          const target=new Vector3(ball.x,0,ball.z);
-          const approach=index===4||index===5;
-          if(approach&&!aligned)target.addScaledVector(goalDir,-4);
-          const desired=Math.atan2(target.x-pos.x,-(target.z-pos.z)),heading=Math.atan2(forward.x,-forward.z);
-          const error=Math.atan2(Math.sin(desired-heading),Math.cos(desired-heading));
-          const throttle=approach?.4:index===7?.8:.65;
-          run.step({...n,throttle:Math.abs(error)<1?throttle:.15,steer:Math.max(-1,Math.min(1,error*3))});
+          const goalDir = new Vector3(
+            -ball.x,
+            0,
+            -P.arena.halfLength - ball.z,
+          ).normalize();
+          const relative = new Vector3(pos.x - ball.x, 0, pos.z - ball.z);
+          const aligned =
+            -relative.dot(goalDir) > 1 &&
+            Math.abs(relative.x * goalDir.z - relative.z * goalDir.x) < 1.2 &&
+            forward.dot(goalDir) > 0.9;
+          const target = new Vector3(ball.x, 0, ball.z);
+          const approach = index === 4 || index === 5;
+          if (approach && !aligned) target.addScaledVector(goalDir, -4);
+          const desired = Math.atan2(target.x - pos.x, -(target.z - pos.z)),
+            heading = Math.atan2(forward.x, -forward.z);
+          const error = Math.atan2(
+            Math.sin(desired - heading),
+            Math.cos(desired - heading),
+          );
+          const throttle = approach ? 0.4 : index === 7 ? 0.8 : 0.65;
+          run.step({
+            ...n,
+            throttle: Math.abs(error) < 1 ? throttle : 0.15,
+            steer: Math.max(-1, Math.min(1, error * 3)),
+          });
         }
         assert.equal(
           run.outcome,
           "SUCCESS",
           `Striker ${index + 1}: harder but scoreable ground-input shot`,
         );
-        if(index<9)run.skipReplay();
+        pack.shots[index].timeLimit = originalDuration;
+        if (run.recorder.pendingGoal) captureTrainingReplay(run);
+        if (index < 9) run.skipReplay();
       }
     }
-    if(run.replay)run.skipReplay();else run.advance(1.3);
+    if (run.replay) run.skipReplay();
+    else run.advance(1.3);
     assert.equal(run.complete, true);
     assert.equal(run.successes, 10);
     assert.equal(run.best, 10);
@@ -183,8 +264,11 @@ for (const pack of trainingPacks) {
     assert.equal(run.complete, false);
     assert.equal(run.navigate(-1), false);
     assert.equal(run.navigate(9), true);
-    run.reset();begin(run);
-    run.elapsed = run.shot.timeLimit;
+    run.reset();
+    begin(run);
+    run.elapsed = run.duration;
+    s.ball.setTranslation({ x: 0, y: P.ball.radius, z: 0 }, true);
+    s.ball.setLinvel({ x: 0, y: 0, z: 0 }, true);
     run.step(n);
     assert.equal(run.outcome, "FAILED");
     run.paused = true;

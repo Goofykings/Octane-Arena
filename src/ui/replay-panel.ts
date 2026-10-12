@@ -17,6 +17,9 @@ export class ReplayPanel {
     private skip: () => void,
   ) {
     this.root.id = "goal-replay";
+    this.root.dataset.navScope = "replay";
+    this.root.dataset.navPriority = "50";
+    this.root.dataset.navDefault = "#replay-skip-button";
     this.root.hidden = true;
     this.root.innerHTML =
       '<div class="replay-label">REPLAY</div><section class="replay-scorer"><div class="replay-avatar"></div><div><strong id="replay-scorer-name"></strong><small>GOAL SPEED</small><b id="replay-goal-speed"></b></div></section><section class="replay-skip"><h3>SKIP REPLAY</h3><ul id="replay-players"></ul><button id="replay-skip-button">PRESS SPACE TO SKIP</button></section><pre id="replay-debug" hidden></pre>';

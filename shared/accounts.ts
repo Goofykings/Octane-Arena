@@ -2,6 +2,11 @@ import { z } from "zod";
 import { inventory, palette, type Preset } from "./catalog.js";
 import { cameraRanges, type Preferences } from "./settings.js";
 import { defaultBindings } from "./controls.js";
+import {
+  controllerActions,
+  controllerDefaults,
+  validControllerBinding,
+} from "./controller.js";
 export const avatars = [
   { id: "helmet", name: "Helmet" },
   { id: "robot", name: "Robot" },
@@ -82,17 +87,41 @@ export const preferencesSchema = z
     bindings: z
       .object(
         Object.fromEntries(
-          Object.keys(defaultBindings).map((k) => [
-            k,
-            z
+          Object.entries(defaultBindings).map(([k, fallback]) => {
+            const binding = z
               .string()
               .regex(
-                /^(Key[A-Z]|Digit[0-9]|Arrow(Up|Down|Left|Right)|[A-Za-z]{2,20}|F[1-9][0-2]?)$/,
-              ),
-          ]),
+                /^(Key[A-Z]|Digit[0-9]|Arrow(Up|Down|Left|Right)|[A-Za-z]{2,20}|F[1-9][0-2]?)?$/,
+              );
+            // Only new look actions are optional in pre-controller payloads.
+            return [
+              k,
+              ["cameraLeft", "cameraRight", "cameraUp", "cameraDown"].includes(
+                k,
+              )
+                ? binding.default(fallback)
+                : binding,
+            ];
+          }),
         ),
       )
       .strict(),
+    controller: z
+      .object({
+        deadzone: z.number().finite().min(0.05).max(0.3),
+        bindings: z
+          .object(
+            Object.fromEntries(
+              controllerActions.map((k) => [
+                k,
+                z.custom(validControllerBinding),
+              ]),
+            ),
+          )
+          .strict(),
+      })
+      .strict()
+      .default(controllerDefaults),
     quality: z.enum(["low", "medium", "high", "ultra"]),
     audio: z
       .object({

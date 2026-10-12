@@ -8,6 +8,7 @@ import type { PlayerInput } from "../../../shared/player";
 import { bodies, type BodyId } from "../../../shared/catalog";
 import type { DribbleCourse } from "./levels";
 import { ribbonGeometry } from "./geometry";
+import { DribbleFinishGoal } from "./finish-goal";
 
 const group = (membership: number, filter: number) =>
   ((membership << 16) | filter) >>> 0;
@@ -35,6 +36,8 @@ export class DribblePhysics {
   private surfaces: { triangle: Triangle; normal: Vector3 }[] = [];
   private previousBall = new Vector3();
   private crossedFinish = false;
+  finishGoal!: DribbleFinishGoal;
+  readonly goalColliders: RAPIER.Collider[] = [];
   roofContactAge = Infinity;
   constructor(
     public course: DribbleCourse,
@@ -72,7 +75,24 @@ export class DribblePhysics {
     this.colliders = [];
     this.surfaces = [];
     this.obstacles.clear();
+    this.goalColliders.length = 0;
     this.course = course;
+    this.finishGoal = new DribbleFinishGoal(course.finish);
+    for (const part of this.finishGoal.parts) {
+      const pose = this.finishGoal.worldPart(part);
+      const col = this.world.createCollider(
+        RAPIER.ColliderDesc.capsule(part.halfHeight, this.finishGoal.radius)
+          .setTranslation(pose.position.x, pose.position.y, pose.position.z)
+          .setRotation(pose.rotation)
+          .setCollisionGroups(DRIBBLE_GROUPS.obstacle)
+          .setFriction(0.3)
+          .setRestitution(0.05)
+          .setRestitutionCombineRule(RAPIER.CoefficientCombineRule.Max),
+      );
+      this.colliders.push(col);
+      this.goalColliders.push(col);
+      this.obstacles.add(col.handle);
+    }
     course.obstacles.forEach((obstacle, obstacleIndex) => {
       const { piece, center, heading, width } = obstacle;
       const rotation = new Quaternion().setFromAxisAngle(
@@ -175,6 +195,7 @@ export class DribblePhysics {
     this.reset();
   }
   reset() {
+    this.finishGoal.reset();
     this.obstacleTime = 0;
     for (const { body, obstacleIndex } of this.spinners) {
       const rotation = new Quaternion().setFromAxisAngle(
@@ -225,7 +246,6 @@ export class DribblePhysics {
       );
     }
     this.previousBall.copy(this.ball.translation());
-    this.crossedFinish = false;
     this.car.pose.before();
     this.ballPose.before();
     this.car.boost = 100;
@@ -255,7 +275,7 @@ export class DribblePhysics {
           roof = true;
       },
     );
-    if (!touched) this.contact.separate();
+    if (!touched) this.contact.separate(this.car, this.ball);
     this.roofContactAge = roof ? 0 : this.roofContactAge + P.dt;
     this.car.constrainSurface(true);
     const cap = (body: RAPIER.RigidBody, speed: number, angular: number) => {
@@ -269,7 +289,7 @@ export class DribblePhysics {
     this.car.boost = 100;
     this.car.pose.after();
     this.ballPose.after();
-    this.crossedFinish = this.detectFinishCrossing();
+    this.crossedFinish ||= this.detectFinishCrossing();
   }
   failed() {
     const car = this.car.body.translation(),
@@ -294,22 +314,10 @@ export class DribblePhysics {
     return null;
   }
   private detectFinishCrossing() {
-    const f = this.course.finish;
-    const rotation = new Quaternion().setFromAxisAngle(
-      new Vector3(0, 1, 0),
-      f.heading,
-    );
-    const local = (p: Vector3) =>
-      p.clone().sub(f.center).applyQuaternion(rotation);
-    const before = local(this.previousBall),
-      after = local(new Vector3().copy(this.ball.translation()));
-    // Forward is local -Z; touching or moving backwards does not count.
-    if (before.z < 0 || after.z >= 0 || before.z === after.z) return false;
-    const crossing = before.lerp(after, before.z / (before.z - after.z));
-    return (
-      Math.abs(crossing.x) + P.ball.radius <= f.width / 2 &&
-      crossing.y >= P.ball.radius &&
-      crossing.y + P.ball.radius <= f.height
+    return this.finishGoal.crossed(
+      this.previousBall,
+      new Vector3().copy(this.ball.translation()),
+      P.ball.radius,
     );
   }
   finished() {

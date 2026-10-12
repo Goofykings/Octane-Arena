@@ -15,11 +15,32 @@ export interface GoalPrediction {
   time: number;
   point: { x: number; y: number; z: number };
 }
+export interface TrajectoryPoint {
+  time: number;
+  position: Vector3;
+  velocity: Vector3;
+}
+export function predictBallTrajectory(
+  sample: BallSample,
+  world: RAPIER.World,
+  horizon: number,
+) {
+  const samples: TrajectoryPoint[] = [];
+  const goal = predictGoal(sample, world, horizon, (time, position, velocity) =>
+    samples.push({
+      time,
+      position: position.clone(),
+      velocity: velocity.clone(),
+    }),
+  );
+  return { samples, goal };
+}
 /** Read-only sphere sweep against actual static arena geometry. No simulation step. */
 export function predictGoal(
   sample: BallSample,
   world: RAPIER.World,
   horizon: number = STAT_TUNING.predictionHorizon,
+  onSample?: (time: number, position: Vector3, velocity: Vector3) => void,
 ): GoalPrediction | null {
   const position = new Vector3().copy(sample.position),
     velocity = new Vector3().copy(sample.velocity);
@@ -32,7 +53,9 @@ export function predictGoal(
       time: 0,
       point: { x: position.x, y: position.y, z: position.z },
     };
-  if (velocity.lengthSq() < 0.01 && !sample.heat?.active) return null;
+  onSample?.(0, position, velocity);
+  if (!onSample && velocity.lengthSq() < 0.01 && !sample.heat?.active)
+    return null;
   const sphere = new RAPIER.Ball(P.ball.radius),
     rotation = { x: 0, y: 0, z: 0, w: 1 },
     dt = STAT_TUNING.predictionStep;
@@ -107,6 +130,7 @@ export function predictGoal(
         break;
       }
     }
+    onSample?.(time + duration, position, velocity);
   }
   return null;
 }

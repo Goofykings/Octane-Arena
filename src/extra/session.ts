@@ -32,9 +32,13 @@ export interface ExtraReadout {
   packName?: string;
   outcomeSequence?: number;
   countdownText?: string;
+  timeRemaining?: number;
+  duration?: number;
+  zeroTime?: boolean;
 }
 
 export interface ExtraSession {
+  readonly replayCapturing?: boolean;
   readonly replayActive?: boolean;
   readonly replayClip?: import("../../shared/replay").ReplayClip | null;
   readonly replayState?: import("../../shared/replay").ReplayState | null;
@@ -110,6 +114,7 @@ export class RingsSession implements ExtraSession {
     this.car.add(this.model);
     this.level.scene.add(this.car);
     this.cameraControl = new GameCamera(options.camera);
+    this.cameraControl.mouseLook = options.mouseLook;
     this.cameraControl.ballMode = false;
     this.oldFar = options.camera.far;
     this.oldPosition = options.camera.position.clone();

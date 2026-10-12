@@ -63,6 +63,14 @@ const car = z
     wheels: z.array(z.boolean()).length(4),
     wheelHits: z.array(vec).length(4),
     flipLeft: finite,
+    flipReset: z
+      .object({
+        sequence: z.number().int().nonnegative(),
+        age: finite.nonnegative(),
+        origin: vec,
+        normal: vec,
+      })
+      .optional(),
     enabled: z.boolean(),
     normalJump: z
       .object({

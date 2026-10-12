@@ -10,6 +10,7 @@ import { Heatseeker } from "../src/game/heatseeker";
 import { P } from "../src/config/physics";
 import { LocalProfile } from "../src/game/local-profile";
 import { scoreboardOrder } from "../shared/match-stats";
+import { scoringTeam } from "../src/game/goals";
 await initializeSimulation();
 const n = neutralInput(),
   s = new Simulation();
@@ -33,10 +34,35 @@ try {
     "Above crossbar is not a shot",
   );
   assert.equal(
-    predictGoal(ball(P.arena.goalHalf - 0.1, 2, -48), s.world),
+    predictGoal(
+      ball(P.arena.goalHalf + P.arena.goalLip + P.ball.radius + 0.1, 2, -48),
+      s.world,
+    ),
     null,
-    "Radius/post edge must miss",
+    "A shot wholly outside the rounded entrance must miss",
   );
+  // The flush rounded entrance legitimately redirects this former beam-edge
+  // miss into the mouth. Verify prediction against the real rigid-body result.
+  const glance = ball(P.arena.goalHalf - 0.63, 4, -48);
+  assert.equal(predictGoal(glance, s.world)?.team, 1);
+  const probe = new Simulation();
+  try {
+    probe.cars.forEach((c) => c.body.setEnabled(false));
+    probe.ball.setTranslation(glance.position, true);
+    probe.ball.setLinvel(glance.velocity, true);
+    let scored = false;
+    for (let i = 0; i < 240; i++) {
+      probe.step([n, n], true);
+      scored ||= scoringTeam(probe.ball.translation()) === 0;
+    }
+    assert.ok(
+      scored,
+      "Rounded entrance prediction matches an actual physical ricochet goal",
+    );
+    assert.equal(probe.containmentRecoveries, 0);
+  } finally {
+    probe.dispose();
+  }
   assert.equal(
     predictGoal(ball(0, 2, -51.3), s.world)?.team,
     1,

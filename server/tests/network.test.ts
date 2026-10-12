@@ -7,6 +7,7 @@ import { starter } from "../../shared/catalog";
 import { neutralInput } from "../../shared/player";
 import type { MatchSnapshot, NetPlayer } from "../../shared/network";
 import { isArenaId } from "../../shared/arenas";
+import { P } from "../../src/config/physics";
 
 test("server-owned physics, pads, goals, reset, clock and bots", async () => {
   await initializeMatchPhysics();
@@ -127,8 +128,17 @@ test("server-owned physics, pads, goals, reset, clock and bots", async () => {
     assert.equal(game.match.phase, "countdown");
     game.match.phase = "playing";
     game.match.remaining = 0;
-    game.simulation.ball.setTranslation({ x: 0, y: 0.93, z: 0 }, true);
-    game.match.tick(game.simulation);
+    game.simulation.ball.setTranslation({ x: 0, y: P.ball.radius, z: 0 }, true);
+    game.simulation.ball.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    for (let i = 0; i < 8 && game.match.phase === "playing"; i++) {
+      game.simulation.step(roster.map(() => neutralInput()));
+      game.match.tick(game.simulation);
+    }
+    assert.equal(
+      game.simulation.ballGround.grounded,
+      true,
+      "Regulation ends on actual floor contact",
+    );
     assert.equal(game.match.phase, "finished");
   } finally {
     game.dispose();

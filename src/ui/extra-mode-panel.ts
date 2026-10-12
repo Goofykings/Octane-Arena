@@ -18,7 +18,7 @@ export class ExtraModePanel {
     this.actions = actions;
     if (session.id === "training") {
       this.root.id = "training-ui";
-      this.root.innerHTML = `<aside id="training-hud"><small id="training-name"></small><b id="training-shot"></b><small id="training-score"></small></aside><div id="training-message" role="status"></div><div class="dribble-actions"><button id="training-previous" class="back-button">PREVIOUS SHOT</button><button id="training-next" class="back-button">NEXT SHOT</button><button id="training-reset" class="back-button">RESET SHOT</button><button id="training-pause" class="back-button">MENU</button></div><section id="training-modal" class="modal" hidden><div class="modal-card"><h2 id="training-title">PAUSED</h2><b id="training-result" hidden></b><button id="training-resume" class="nav-button primary">RESUME</button><button id="training-retry" class="nav-button">RETRY SHOT</button><button id="training-settings" class="nav-button">SETTINGS</button><button id="training-exit" class="nav-button">EXIT</button></div></section>`;
+      this.root.innerHTML = `<aside id="training-hud"><small id="training-name"></small><b id="training-shot"></b><small id="training-score"></small><div id="training-timer"><div class="training-time-track"><i id="training-time-fill"></i></div><time id="training-time">10.0</time><small id="training-time-state">READY</small></div></aside><div id="training-message" role="status"></div><div class="dribble-actions"><button id="training-previous" class="back-button">PREVIOUS SHOT</button><button id="training-next" class="back-button">NEXT SHOT</button><button id="training-reset" class="back-button">RESET SHOT</button><button id="training-pause" class="back-button">MENU</button></div><section id="training-modal" data-nav-scope="training-pause" data-nav-priority="60" class="modal" hidden><div class="modal-card"><h2 id="training-title">PAUSED</h2><b id="training-result" hidden></b><button id="training-resume" data-nav-back class="nav-button primary">RESUME</button><button id="training-retry" class="nav-button">RETRY SHOT</button><button id="training-settings" class="nav-button">SETTINGS</button><button id="training-exit" data-nav-back class="nav-button">EXIT</button></div></section>`;
       root.append(this.root);
       const on = (id: string, work: () => void) =>
         (this.root.querySelector<HTMLButtonElement>(`#${id}`)!.onclick = work);
@@ -37,7 +37,7 @@ export class ExtraModePanel {
       this.root.id = "dribble-ui";
       this.root.innerHTML = `<aside id="dribble-hud"><small>DRIBBLE CHALLENGE</small><div class="dribble-stats"><div><small>LEVEL</small><b id="dribble-level"></b></div><div><small>BEST</small><b id="dribble-best"></b></div></div></aside><div id="dribble-message" role="status"></div>
       <div class="dribble-actions"><button id="dribble-previous" class="back-button">← PREVIOUS</button><button id="dribble-next" class="back-button">NEXT →</button><button id="dribble-restart" class="back-button">RESTART</button><button id="dribble-menu" class="back-button">MENU</button></div>
-      <section id="dribble-modal" class="modal" hidden><div class="modal-card"><h2 id="dribble-title">PAUSED</h2><button id="dribble-resume" class="nav-button primary">RESUME</button><button id="dribble-modal-restart" class="nav-button">RESTART LEVEL</button><button id="dribble-final-previous" class="nav-button" hidden>PREVIOUS LEVEL</button><button id="dribble-settings" class="nav-button">SETTINGS</button><button id="dribble-exit" class="nav-button">EXIT</button></div></section>`;
+      <section id="dribble-modal" data-nav-scope="dribble-pause" data-nav-priority="60" class="modal" hidden><div class="modal-card"><h2 id="dribble-title">PAUSED</h2><button id="dribble-resume" data-nav-back class="nav-button primary">RESUME</button><button id="dribble-modal-restart" class="nav-button">RESTART LEVEL</button><button id="dribble-final-previous" class="nav-button" hidden>PREVIOUS LEVEL</button><button id="dribble-settings" class="nav-button">SETTINGS</button><button id="dribble-exit" data-nav-back class="nav-button">EXIT</button></div></section>`;
       root.append(this.root);
       const on = (id: string, work: () => void) =>
         (this.root.querySelector<HTMLButtonElement>(`#${id}`)!.onclick = work);
@@ -54,7 +54,7 @@ export class ExtraModePanel {
     }
     this.root.innerHTML = `<aside id="rings-hud"><div><small>TIME</small><time id="rings-time">0:00.000</time></div><div class="rings-stats"><div><small>${session.id.toUpperCase()}</small><b id="rings-progress">0 / ${session.readout(0).total}</b></div><div><small>BEST</small><b id="rings-best">0</b></div></div></aside>
       <div class="rings-actions"><button id="rings-restart" class="back-button">RESTART</button><button id="rings-menu" class="back-button">MENU</button></div>
-      <section id="rings-modal" class="modal" hidden><div class="modal-card"><h2 id="rings-title">PAUSED</h2><div id="rings-result" hidden><small>TIME</small><time id="rings-final"></time><small>BEST TIME</small><time id="rings-best-time"></time></div><button id="rings-resume" class="nav-button primary">RESUME</button><button id="rings-modal-restart" class="nav-button">RESTART</button><button id="rings-settings" class="nav-button">SETTINGS</button><button id="rings-exit" class="nav-button">EXIT</button></div></section>`;
+      <section id="rings-modal" data-nav-scope="rings-pause" data-nav-priority="60" class="modal" hidden><div class="modal-card"><h2 id="rings-title">PAUSED</h2><div id="rings-result" hidden><small>TIME</small><time id="rings-final"></time><small>BEST TIME</small><time id="rings-best-time"></time></div><button id="rings-resume" data-nav-back class="nav-button primary">RESUME</button><button id="rings-modal-restart" class="nav-button">RESTART</button><button id="rings-settings" class="nav-button">SETTINGS</button><button id="rings-exit" data-nav-back class="nav-button">EXIT</button></div></section>`;
     root.append(this.root);
     const on = (id: string, fn: () => void) =>
       (this.root.querySelector<HTMLButtonElement>(`#${id}`)!.onclick = fn);
@@ -79,8 +79,20 @@ export class ExtraModePanel {
         `${run.successes ?? 0} SUCCESSFUL · BEST ${run.bestProgress}`,
       );
       set("training-message", run.message ?? "");
-      document.getElementById("countdown")!.textContent=this.session.replayActive?"":run.countdownText??"";
-      document.getElementById("hud")!.hidden=!!this.session.replayActive;
+      document.getElementById("countdown")!.textContent = "";
+      const remaining = run.timeRemaining ?? 10,
+        duration = run.duration ?? 10;
+      set("training-time", remaining.toFixed(1));
+      const bar = this.root.querySelector<HTMLElement>("#training-time-fill")!;
+      bar.style.transform = `scaleX(${duration > 0 ? Math.max(0, Math.min(1, remaining / duration)) : 0})`;
+      this.root
+        .querySelector("#training-timer")!
+        .classList.toggle("zero-time", !!run.zeroTime);
+      set(
+        "training-time-state",
+        run.zeroTime ? "ZERO TIME" : run.phase === "ready" ? "READY" : "",
+      );
+      document.getElementById("hud")!.hidden = !!this.session.replayActive;
       this.root.querySelector<HTMLElement>("#training-modal")!.hidden =
         !this.session.paused && !this.session.complete;
       this.root.querySelector<HTMLElement>("#training-result")!.hidden =
@@ -96,8 +108,13 @@ export class ExtraModePanel {
         "#training-previous",
       )!.disabled = run.progress <= 1;
       this.root.querySelector<HTMLButtonElement>("#training-next")!.disabled =
-        run.progress >= run.total || !!this.session.replayActive;
-      this.root.querySelector<HTMLButtonElement>("#training-previous")!.disabled = run.progress<=1 || !!this.session.replayActive;
+        run.progress >= run.total ||
+        !!(this.session.replayActive || this.session.replayCapturing);
+      this.root.querySelector<HTMLButtonElement>(
+        "#training-previous",
+      )!.disabled =
+        run.progress <= 1 ||
+        !!(this.session.replayActive || this.session.replayCapturing);
       // Attempt IDs survive navigation/retries; each outcome plays once.
       if (run.message && (run.outcomeSequence ?? 0) > this.outcomeSequence) {
         this.actions.outcome?.(run.message === "SUCCESS");

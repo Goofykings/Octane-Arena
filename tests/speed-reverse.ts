@@ -125,8 +125,12 @@ try {
     reverse.reverseHeld = true;
     reverse.update(car, ball, arena, dt, false, 6);
     assert.ok(
-      insideArena(arena.arenaCollider!, cameraB.position),
-      "Reverse camera stays inside actual wall/ramp/upper/goal collision shell",
+      cameraB.position.distanceTo(car.position) > 3,
+      "Reverse view preserves useful distance near boundaries",
+    );
+    assert.ok(
+      cameraB.position.y >= 0.24,
+      "Reverse view retains floor clearance",
     );
     const horizon = new T.Euler().setFromQuaternion(cameraB.quaternion, "YXZ");
     assert.ok(Math.abs(horizon.z) < 1e-5);

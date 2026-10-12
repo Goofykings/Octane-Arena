@@ -1,254 +1,266 @@
+import { newLocalPlayerId as newPacketId } from "../../shared/local-profile";
 import type { Garage } from "./inventory";
-import type { PartyReply, PartyState, PartyActions } from "../../shared/party";
-import { loadBackendEndpoints } from "./backend";
-import type { IceConfig, RtcEnvelope, RtcSignal } from "../../shared/rtc";
-const unavailable = "Unable to connect to multiplayer server. Try again.";
-const lost = "Multiplayer connection lost. Retrying…";
+import type { PartyState, PartyActions } from "../../shared/party";
+import { normalizePartyCode } from "../../shared/party";
+import {
+  localIdentitySchema,
+  defaultAvatarColor,
+} from "../../shared/local-profile";
+import {
+  generatePeerCode,
+  validPeerCode,
+  helloSchema,
+  peerMember,
+  peerPartySchema,
+  createPeerParty,
+  PeerPartyAuthority,
+} from "../../shared/peer-party";
+import { GAME_VERSION } from "../config/version";
+import { PeerTransport, type PeerLink } from "../network/peer-transport";
 export class PartyClient {
   state: PartyState | null = null;
-  playerId = "local";
+  playerId: string;
   message = "";
   busy = false;
-  private url = "";
-  private websocketUrl = "";
-  private configurationError = "";
-  private lastPresence = 0;
-  private lastEvent = 0;
-  private connected = false;
-  private fingerprint = "";
-  private ready: Promise<void>;
-  private token = "";
-  private stream: AbortController | null = null;
-  private streamHealthy = false;
   connection: "offline" | "connected" = "offline";
-  onSignal: (signal: RtcEnvelope) => void = () => {};
-  private signalCursor = 0;
-  get streaming() {
-    return this.streamHealthy;
-  }
-  get matchConnection() {
-    return {
-      url: this.websocketUrl + "/api/match/socket",
-      token: this.token,
-    };
-  }
+  readonly transport = new PeerTransport();
+  private authority: PeerPartyAuthority | null = null;
+  private hostLink: PeerLink | null = null;
+  private leaving = false;
+  private joinResolve: (() => void) | null = null;
+  private joinReject: ((error: Error) => void) | null = null;
+  private pending = new Map<
+    string,
+    { resolve: (ok: boolean) => void; timer: ReturnType<typeof setTimeout> }
+  >();
+  private fingerprint = "";
+  private joinCode = "";
+  private intent: "create" | "join" | null = null;
+  private joinTimer: ReturnType<typeof setTimeout> | null = null;
   constructor(
     private garage: Garage,
     public changed = () => {},
   ) {
-    try {
-      this.token = sessionStorage.getItem("arena-party-session") ?? "";
-    } catch {
-      /* Isolated in-memory identity if browser storage is disabled. */
-    }
-    this.ready = this.initialize();
-    window.setInterval(() => void this.poll(), 2000);
-    window.addEventListener("pagehide", () => {
-      this.stream?.abort();
-      if (this.url && this.connected)
-        void fetch(this.url + "/api/party/disconnect", {
-          method: "POST",
-          credentials: "include",
-          keepalive: true,
-          headers: {
-            "Content-Type": "application/json",
-            "X-Arena-Client": "1",
-            "X-Arena-Party": this.token,
-          },
-          body: "{}",
-        }).catch(() => {});
-    });
-  }
-  private async initialize() {
-    try {
-      const endpoints = await loadBackendEndpoints();
-      this.url = endpoints.apiUrl;
-      this.websocketUrl = endpoints.websocketUrl;
-      this.configurationError = "";
-      if (!this.url) return;
-      await this.connect();
-    } catch (error) {
-      if (!this.url) this.configurationError = (error as Error).message;
-      /* Local menus remain usable when the configured backend is offline. */
-    }
-  }
-  private apply(reply: PartyReply) {
-    if (this.playerId !== reply.playerId) this.signalCursor = 0;
-    this.playerId = reply.playerId;
-    this.state = reply.party;
-    if (reply.sessionToken) {
-      this.token = reply.sessionToken;
-      try {
-        sessionStorage.setItem("arena-party-session", this.token);
-      } catch {
-        /* Party can still run in this tab. */
+    this.playerId = this.hello().profile.localPlayerId;
+    this.transport.onOpen = (link) => {
+      if (!this.authority && link === this.hostLink) {
+        this.transport.sendLink(link, this.hello());
+        this.transport.trace("HELLO sent");
       }
-    }
-    if (reply.notice) this.message = reply.notice;
-    this.changed();
-  }
-  private async request(
-    path: string,
-    method = "GET",
-    body?: unknown,
-  ): Promise<PartyReply> {
-    if (!this.url)
-      throw Error(
-        this.configurationError || "Multiplayer server is not configured yet.",
-      );
-    let r: Response;
-    try {
-      r = await fetch(this.url + "/api/party" + path, {
-        method,
-        credentials: "include",
-        headers: {
-          ...(method === "GET"
-            ? {}
-            : { "Content-Type": "application/json", "X-Arena-Client": "1" }),
-          ...(this.token ? { "X-Arena-Party": this.token } : {}),
-        },
-        body: body === undefined ? undefined : JSON.stringify(body),
-        signal: AbortSignal.timeout(7000),
-      });
-    } catch {
-      throw Error(unavailable);
-    }
-    const data = await r.json().catch(() => null);
-    if (!r.ok) {
-      if (r.status >= 500 || r.status === 401) this.connection = "offline";
-      if (r.status === 401) {
-        this.connected = false;
-        this.state = null;
-        this.changed();
+    };
+    this.transport.onParty = (link, message) => this.receive(link, message);
+    this.transport.onClose = (id) => {
+      if (this.leaving) return;
+      if (this.authority && id) {
+        this.authority.remove(id);
+        this.message = "PLAYER DISCONNECTED";
+        this.publish();
+      } else if (this.hostLink) {
+        this.failJoin("HOST DISCONNECTED");
+        this.dispose("HOST DISCONNECTED");
       }
-      // Fastify's missing-route response has a string `error`, unlike our
-      // structured application errors. An older running API has no party routes.
-      if (r.status === 404 && data?.error?.code !== "PARTY")
-        throw Error(
-          "PARTY SERVER NEEDS AN UPDATE — RESTART THE BACKEND OR RUN npm run lan",
-        );
-      throw Error(
-        data?.error?.message ??
-          (typeof data?.message === "string"
-            ? data.message
-            : `PARTY REQUEST FAILED (${r.status})`),
-      );
-    }
-    this.lastPresence = Date.now();
-    if (r.status === 204)
-      return { playerId: this.playerId, party: this.state, notice: "" };
-    if (!data || typeof data.playerId !== "string" || !("party" in data))
-      throw Error("INVALID PARTY SERVER RESPONSE — CHECK THE API ADDRESS");
-    return data;
-  }
-  private async connect() {
-    this.apply(
-      await this.request("/session", "POST", {
-        preset: this.garage.current,
-        profile: this.identity(),
-        newSession: !this.token,
-      }),
-    );
-    this.connected = true;
-    this.connection = "connected";
-    this.fingerprint = this.signature();
-    this.lastPresence = Date.now();
-    this.openStream();
-  }
-  private openStream() {
-    if (this.stream || !this.connected) return;
-    const controller = new AbortController();
-    this.stream = controller;
-    this.streamHealthy = false;
-    this.lastEvent = Date.now();
-    void (async () => {
-      try {
-        const response = await fetch(this.url + "/api/party/events", {
-          credentials: "include",
-          headers: { "X-Arena-Party": this.token },
-          signal: controller.signal,
-        });
-        if (
-          !response.ok ||
-          !response.body ||
-          !response.headers.get("content-type")?.includes("text/event-stream")
-        )
-          return;
-        this.streamHealthy = true;
-        const reader = response.body.getReader(),
-          decoder = new TextDecoder();
-        let buffer = "";
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          this.lastEvent = Date.now();
-          buffer += decoder.decode(value, { stream: true });
-          let end: number;
-          while ((end = buffer.indexOf("\n\n")) >= 0) {
-            const event = buffer.slice(0, end);
-            buffer = buffer.slice(end + 2);
-            if (event.startsWith("data: "))
-              this.apply(JSON.parse(event.slice(6)));
-            else if (event.startsWith("event: signal\ndata: "))
-              this.deliverSignal(
-                JSON.parse(event.slice("event: signal\ndata: ".length)),
-              );
-          }
-        }
-      } catch {
-        // The existing poll reconnects and remains a fallback on older APIs.
-      } finally {
-        if (this.stream === controller) {
-          this.stream = null;
-          this.streamHealthy = false;
-        }
+    };
+    this.transport.onSignaling = (online, message) => {
+      this.connection =
+        online || this.transport.peers.size > 0 ? "connected" : "offline";
+      if (!online && message) {
+        this.message = message;
+        if (this.joinReject && !this.state) this.failJoin(message);
       }
-    })();
+      if (
+        online &&
+        this.state &&
+        /SIGNALING|CONNECTION FAILED/.test(this.message)
+      )
+        this.message = this.authority ? "PARTY READY" : "CONNECTED";
+      this.changed();
+    };
+    window.setInterval(() => this.pump(), 250);
+    window.addEventListener("pagehide", () => this.dispose(""));
   }
-  private signature() {
-    return JSON.stringify([this.garage.current, this.garage.profile]);
+  get streaming() {
+    return this.connection === "connected";
   }
-  private deliverSignal(signal: RtcEnvelope) {
-    if (
-      !Number.isSafeInteger(signal.sequence) ||
-      signal.sequence <= this.signalCursor
-    )
-      return;
-    this.signalCursor = signal.sequence;
-    this.onSignal(signal);
-  }
-  async signal(signal: RtcSignal) {
-    await this.ready;
-    await this.request("/signal", "POST", signal);
-  }
-  private async rtcRequest<T>(path: string): Promise<T> {
-    await this.ready;
-    if (!this.url || !this.token) throw Error(unavailable);
-    const response = await fetch(this.url + "/api/party/" + path, {
-      credentials: "include",
-      headers: { "X-Arena-Party": this.token },
-      signal: AbortSignal.timeout(7000),
-    });
-    if (!response.ok) throw Error(unavailable);
-    return response.json();
-  }
-  iceConfig() {
-    return this.rtcRequest<IceConfig>("rtc-config");
-  }
-  async recoverSignals() {
-    const result = await this.rtcRequest<{ signals: RtcEnvelope[] }>(
-      "signals?after=" + this.signalCursor,
-    );
-    for (const signal of result.signals) this.deliverSignal(signal);
-  }
-  private identity() {
+  private hello() {
     const p = this.garage.profile;
-    return {
+    const profile = localIdentitySchema.parse({
       localPlayerId: p.localPlayerId,
       name: p.name,
-      avatarId: p.avatarId,
-      avatarColor: p.avatarColor,
+      avatarId: p.avatarId ?? "helmet",
+      avatarColor: p.avatarColor ?? defaultAvatarColor,
+    });
+    return {
+      type: "party-hello" as const,
+      version: GAME_VERSION,
+      profile,
+      preset: structuredClone(this.garage.current),
     };
+  }
+  private failJoin(message: string) {
+    const reject = this.joinReject;
+    this.joinReject = this.joinResolve = null;
+    if (this.joinTimer) clearTimeout(this.joinTimer);
+    this.joinTimer = null;
+    reject?.(Error(message));
+  }
+  private publish() {
+    if (!this.authority) return;
+    this.state = this.authority.state;
+    for (const [id] of this.transport.peers)
+      this.transport.send(id, { type: "party-state", party: this.state });
+    this.changed();
+  }
+  private receive(link: PeerLink, packet: Record<string, unknown>) {
+    if (this.authority) {
+      if (packet.type === "party-hello") {
+        try {
+          const hello = helloSchema.parse(packet);
+          if (hello.version !== GAME_VERSION)
+            throw Error("GAME VERSION MISMATCH");
+          if (link.playerId) throw Error("ALREADY JOINED");
+          this.authority.join(peerMember(hello));
+          this.transport.associate(link, hello.profile.localPlayerId);
+          this.transport.sendLink(link, {
+            type: "party-welcome",
+            version: GAME_VERSION,
+            playerId: hello.profile.localPlayerId,
+            slot: this.state!.members.findIndex(
+              (m) => m.id === hello.profile.localPlayerId,
+            ),
+            party: this.state,
+          });
+          this.publish();
+        } catch (error) {
+          this.transport.sendLink(link, {
+            type: "party-rejected",
+            message:
+              error instanceof Error &&
+              error.message === "GAME VERSION MISMATCH"
+                ? error.message
+                : error instanceof Error && !("issues" in error)
+                  ? error.message
+                  : "INVALID PLAYER PROFILE",
+          });
+          setTimeout(() => this.transport.remove(link), 150);
+        }
+        return;
+      }
+      const id = link.playerId;
+      if (!id || !this.state?.members.some((m) => m.id === id)) return;
+      if (packet.type === "party-appearance") {
+        const parsed = helloSchema.safeParse(packet.hello);
+        if (
+          parsed.success &&
+          parsed.data.profile.localPlayerId === id &&
+          parsed.data.version === GAME_VERSION
+        ) {
+          this.authority.appearance(id, parsed.data);
+          this.publish();
+        }
+        return;
+      }
+      if (
+        packet.type === "party-action" &&
+        typeof packet.requestId === "string" &&
+        packet.requestId.length < 80
+      ) {
+        try {
+          this.hostAction(
+            id,
+            packet.action as keyof PartyActions,
+            packet.data ?? {},
+          );
+          this.transport.sendLink(link, {
+            type: "party-result",
+            requestId: packet.requestId,
+            ok: true,
+          });
+        } catch (error) {
+          this.transport.sendLink(link, {
+            type: "party-result",
+            requestId: packet.requestId,
+            ok: false,
+            message:
+              error instanceof Error ? error.message : "PARTY REQUEST FAILED",
+          });
+        }
+      }
+    } else if (link === this.hostLink) {
+      if (packet.type === "party-rejected") {
+        this.failJoin(
+          typeof packet.message === "string"
+            ? packet.message
+            : "CONNECTION FAILED",
+        );
+        return;
+      }
+      if (packet.type === "party-closed" || packet.type === "party-kicked") {
+        this.dispose(
+          packet.type === "party-kicked"
+            ? "YOU WERE REMOVED FROM THE PARTY"
+            : "HOST DISCONNECTED",
+        );
+        return;
+      }
+      if (packet.type === "party-welcome" || packet.type === "party-state") {
+        const parsed = peerPartySchema.safeParse(packet.party);
+        if (
+          !parsed.success ||
+          parsed.data.code !== this.joinCode ||
+          !parsed.data.members.some((m) => m.id === this.playerId)
+        )
+          return;
+        if (packet.type === "party-welcome") {
+          if (
+            packet.version !== GAME_VERSION ||
+            packet.playerId !== this.playerId
+          ) {
+            this.failJoin("GAME VERSION MISMATCH");
+            return;
+          }
+          this.transport.associate(link, parsed.data.hostId);
+          if (this.joinTimer) clearTimeout(this.joinTimer);
+          this.joinTimer = null;
+          this.joinResolve?.();
+          this.joinResolve = this.joinReject = null;
+        } else if (!link.playerId) return;
+        this.state = parsed.data;
+        this.connection = "connected";
+        this.message = "CONNECTED";
+        this.changed();
+      }
+      if (
+        packet.type === "party-result" &&
+        typeof packet.requestId === "string"
+      ) {
+        const pending = this.pending.get(packet.requestId);
+        if (!pending) return;
+        clearTimeout(pending.timer);
+        this.pending.delete(packet.requestId);
+        if (!packet.ok)
+          this.message =
+            typeof packet.message === "string"
+              ? packet.message
+              : "PARTY REQUEST FAILED";
+        pending.resolve(packet.ok === true);
+        this.changed();
+      }
+    }
+  }
+  private hostAction(id: string, action: keyof PartyActions, data: any) {
+    const s = this.state!;
+    this.authority!.action(id, action, data);
+    if (action === "kick") {
+      this.transport.send(data.playerId, { type: "party-kicked" });
+      const link = this.transport.peers.get(data.playerId);
+      if (link) setTimeout(() => this.transport.remove(link), 150);
+    }
+    if (action === "leave" || action === "disconnect") {
+      const link = this.transport.peers.get(id);
+      if (link) setTimeout(() => this.transport.remove(link), 150);
+    }
+    this.state = s;
+    this.publish();
   }
   async action(
     action: keyof PartyActions,
@@ -256,16 +268,106 @@ export class PartyClient {
   ) {
     if (this.busy) return false;
     this.busy = true;
-    this.message = "";
     this.changed();
     try {
-      await this.ready;
-      if (!this.connected) await this.connect();
-      this.apply(await this.request("/" + action, "POST", data));
-      return true;
-    } catch (e) {
-      if ((e as Error).message === unavailable) this.connection = "offline";
-      this.message = e instanceof Error ? e.message : "PARTY REQUEST FAILED";
+      if (action === "create") {
+        this.intent = "create";
+        this.dispose("");
+        this.busy = true;
+        this.message = "CREATING PARTY";
+        this.changed();
+        for (let attempt = 0; attempt < 7; attempt++) {
+          const code = generatePeerCode();
+          try {
+            await this.transport.register(code);
+            this.authority = new PeerPartyAuthority(
+              createPeerParty(code, peerMember(this.hello())),
+            );
+            this.state = this.authority.state;
+            this.message = "PARTY READY";
+            this.connection = "connected";
+            this.changed();
+            return true;
+          } catch (error) {
+            this.transport.close();
+            if ((error as { type?: string }).type !== "unavailable-id")
+              throw error;
+          }
+        }
+        throw Error("COULD NOT RESERVE A PARTY CODE — TRY AGAIN");
+      }
+      if (action === "join") {
+        this.intent = "join";
+        const code = normalizePartyCode((data as { code: string }).code ?? "");
+        if (!validPeerCode(code))
+          throw Error("ENTER A VALID SIX-CHARACTER PARTY CODE");
+        this.dispose("");
+        this.busy = true;
+        this.joinCode = code;
+        this.message = `JOINING ${code}...`;
+        this.changed();
+        await this.transport.register();
+        await new Promise<void>((resolve, reject) => {
+          this.joinResolve = resolve;
+          this.joinReject = reject;
+          this.joinTimer = setTimeout(
+            () =>
+              this.failJoin(
+                "CONNECTION FAILED — THIS NETWORK MAY BLOCK WEBRTC",
+              ),
+            12000,
+          );
+          this.hostLink = this.transport.connect(code);
+        });
+        this.message = "CONNECTED";
+        return true;
+      }
+      if (action === "leave" || action === "disconnect") {
+        if (this.authority)
+          for (const [id] of this.transport.peers)
+            this.transport.send(id, { type: "party-closed" });
+        else if (this.hostLink)
+          this.transport.sendLink(this.hostLink, {
+            type: "party-action",
+            requestId: newPacketId(),
+            action: "leave",
+            data: {},
+          });
+        this.dispose("");
+        return true;
+      }
+      if (!this.state) throw Error("JOIN A PARTY FIRST");
+      if (this.authority) {
+        this.hostAction(this.playerId, action, data);
+        this.message = "PARTY READY";
+        return true;
+      }
+      const requestId = newPacketId();
+      return await new Promise<boolean>((resolve) => {
+        const timer = setTimeout(() => {
+          this.pending.delete(requestId);
+          this.message = "PARTY REQUEST TIMED OUT";
+          resolve(false);
+          this.changed();
+        }, 7000);
+        this.pending.set(requestId, { resolve, timer });
+        if (
+          !this.transport.send(this.state!.hostId, {
+            type: "party-action",
+            requestId,
+            action,
+            data,
+          })
+        ) {
+          clearTimeout(timer);
+          this.pending.delete(requestId);
+          throw Error("CONNECTION FAILED");
+        }
+      });
+    } catch (error) {
+      this.message =
+        error instanceof Error ? error.message : "CONNECTION FAILED";
+      if (!this.state) this.dispose(this.message);
       return false;
     } finally {
       this.busy = false;
@@ -273,73 +375,55 @@ export class PartyClient {
     }
   }
   async retry() {
-    if (this.busy) return;
-    this.busy = true;
-    this.message = "";
-    this.changed();
+    if (this.transport.peer?.disconnected) {
+      try {
+        this.transport.peer.reconnect();
+      } catch {
+        this.message = "CONNECTION FAILED";
+      }
+    } else if (!this.state && this.intent === "create")
+      await this.action("create");
+    else if (this.joinCode && !this.state)
+      await this.action("join", { code: this.joinCode });
+  }
+  private pump() {
+    this.transport.pump(performance.now());
+    const signature = JSON.stringify([
+      this.garage.current,
+      this.garage.profile,
+    ]);
+    if (signature === this.fingerprint) return;
+    this.fingerprint = signature;
+    if (!this.state) return;
     try {
-      await this.ready;
-      this.stream?.abort();
-      this.stream = null;
-      this.streamHealthy = false;
-      this.connected = false;
-      this.url = "";
-      const endpoints = await loadBackendEndpoints();
-      this.url = endpoints.apiUrl;
-      this.websocketUrl = endpoints.websocketUrl;
-      this.configurationError = "";
-      await this.connect();
-    } catch (error) {
-      this.connection = "offline";
-      this.message = (error as Error).message;
-    } finally {
-      this.busy = false;
-      this.changed();
+      const hello = this.hello();
+      if (this.authority) {
+        this.authority.appearance(this.playerId, hello);
+        this.publish();
+      } else
+        this.transport.send(this.state.hostId, {
+          type: "party-appearance",
+          hello,
+        });
+    } catch {
+      /* Keep current validated identity. */
     }
   }
-  private async poll() {
-    await this.ready;
-    if (!this.url || this.busy) return;
-    if (this.stream && Date.now() - this.lastEvent > 15000) {
-      this.stream.abort();
-      this.stream = null;
-      this.streamHealthy = false;
+  private dispose(message: string) {
+    this.leaving = true;
+    this.transport.close();
+    this.leaving = false;
+    this.state = null;
+    this.authority = null;
+    this.hostLink = null;
+    this.connection = "offline";
+    this.failJoin(message || "PARTY CLOSED");
+    for (const pending of this.pending.values()) {
+      clearTimeout(pending.timer);
+      pending.resolve(false);
     }
-    const signature = this.signature();
-    if (
-      this.streamHealthy &&
-      signature === this.fingerprint &&
-      Date.now() - this.lastPresence < 10000
-    )
-      return;
-    this.busy = true;
+    this.pending.clear();
+    this.message = message;
     this.changed();
-    try {
-      if (!this.connected) await this.connect();
-      this.openStream();
-      const streaming = this.streamHealthy;
-      const reply =
-        signature !== this.fingerprint
-          ? await this.request("/appearance", "PUT", {
-              preset: this.garage.current,
-              profile: this.identity(),
-            })
-          : streaming
-            ? await this.request("/heartbeat", "POST", {})
-            : await this.request("");
-      this.fingerprint = signature;
-      this.connection = "connected";
-      this.apply(reply);
-      if (this.message === lost || this.message === unavailable)
-        this.message = "";
-    } catch (e) {
-      this.connection = "offline";
-      if (this.state || this.message)
-        this.message = this.connected ? lost : (e as Error).message;
-      this.changed();
-    } finally {
-      this.busy = false;
-      this.changed();
-    }
   }
 }

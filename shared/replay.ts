@@ -3,6 +3,7 @@ import type { Vec } from "./network";
 import type { HeatseekerState } from "./soccer";
 
 export const REPLAY_HZ = 120;
+export const REPLAY_POST_GOAL = 1;
 export const REPLAY_CAPACITY = 6 * REPLAY_HZ + 1;
 export const BALL_STRIDE = 14;
 export const CAR_STRIDE = 52;
@@ -48,7 +49,9 @@ export interface ReplayGoal {
 }
 export interface ReplayEvent {
   time: number;
-  kind: "touch" | "pickup" | "demolition" | "goal";
+  kind: "touch" | "pickup" | "demolition" | "goal" | "flip-reset";
+  point?: Vec;
+  normal?: Vec;
   playerId: string;
   index?: number;
 }
@@ -97,7 +100,7 @@ export function decodeReplay(message: ReplayMessage): ReplayClip {
   if (
     c.count < 1 ||
     c.count > REPLAY_CAPACITY ||
-    c.carIds.length > 4 ||
+    c.carIds.length > 6 ||
     c.stride !== BALL_STRIDE + c.carIds.length * CAR_STRIDE + c.padCount ||
     c.times.length !== c.count ||
     c.frames.length !== c.count * c.stride
@@ -147,11 +150,15 @@ export class ReplayBuffer {
   clip(goal: ReplayGoal): ReplayClip {
     const indices: number[] = [];
     const newest = (this.head + REPLAY_CAPACITY - 1) % REPLAY_CAPACITY;
+    const end = this.count
+      ? Math.min(this.times[newest], goal.time + REPLAY_POST_GOAL)
+      : goal.time;
     for (let n = 0; n < this.count; n++) {
       const i =
         (this.head + REPLAY_CAPACITY - this.count + n) % REPLAY_CAPACITY;
       if (
         this.times[i] >= goal.time - 5 - 1 / REPLAY_HZ &&
+        this.times[i] <= end + 1e-8 &&
         this.resets[i] === this.resets[newest]
       )
         indices.push(i);
@@ -173,7 +180,7 @@ export class ReplayBuffer {
           (this.eventHead + this.events.length - this.eventCount + n) %
             this.events.length
         ];
-      if (e && e.time >= start && e.time <= goal.time) events.push({ ...e });
+      if (e && e.time >= start && e.time <= end + 1e-8) events.push({ ...e });
     }
     return {
       goal,
@@ -182,7 +189,7 @@ export class ReplayBuffer {
       stride: this.stride,
       count: times.length,
       start,
-      end: goal.time,
+      end,
       times,
       frames,
       events,

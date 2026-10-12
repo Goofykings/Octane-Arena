@@ -43,6 +43,7 @@ export class NetworkMatchView {
   private demos: DemolitionFlash[];
   private explosion: GoalExplosion;
   private labels: HTMLDivElement;
+  private labelsById = new Map<string, HTMLElement>();
   private reset = -1;
   private phase = "";
   constructor(
@@ -105,9 +106,11 @@ export class NetworkMatchView {
     for (const player of players) {
       const label = document.createElement("span");
       label.className = "network-name";
+      label.dataset.player = player.id;
       label.textContent = displayIdentity(player);
       label.dataset.team = String(player.team);
       this.labels.append(label);
+      this.labelsById.set(player.id, label);
     }
     document.getElementById("app")!.append(this.labels);
   }
@@ -214,6 +217,12 @@ export class NetworkMatchView {
       car.normal.copy(b.normal);
       car.wheelContact = [...b.wheels];
       car.jump.flipLeft = b.flipLeft;
+      car.flipResetSequence = b.flipReset?.sequence ?? 0;
+      car.flipResetAge = b.flipReset?.age ?? Infinity;
+      if (b.flipReset) {
+        car.flipResetOrigin.copy(b.flipReset.origin);
+        car.flipResetNormal.copy(b.flipReset.normal);
+      }
       car.normalJumpSequence = b.normalJump?.sequence ?? 0;
       car.normalJumpAge = b.normalJump?.age ?? Infinity;
       if (b.normalJump) {
@@ -320,7 +329,7 @@ export class NetworkMatchView {
           .clone()
           .add(new T.Vector3(0, 1.2, 0))
           .project(this.camera.camera),
-        label = this.labels.children[i] as HTMLElement;
+        label = this.labelsById.get(this.simulation.cars[i].id)!;
       label.hidden =
         i === 0 ||
         !model.visible ||
@@ -338,6 +347,7 @@ export class NetworkMatchView {
     this.group.removeFromParent();
     disposeModel(this.group);
     this.labels.remove();
+    this.labelsById.clear();
     this.simulation.dispose();
   }
 }

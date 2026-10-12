@@ -79,9 +79,21 @@ export class Car {
   pitchInput = 0;
   flipPitchAcceleration = 0;
   flipCancelAcceleration = 0;
+  flipResetSequence = 0;
+  flipResetAge = Infinity;
+  readonly flipResetOrigin = new Vector3();
+  readonly flipResetNormal = new Vector3(0, 1, 0);
+  acquireFlipReset(point: Vector3, normal: Vector3) {
+    this.jump.acquireReset();
+    this.flipResetSequence++;
+    this.flipResetAge = 0;
+    this.flipResetOrigin.copy(point);
+    this.flipResetNormal.copy(normal);
+  }
   get pitchLocked() {
     return (
-      this.jump.second &&
+      !this.jump.stall &&
+      Number.isFinite(this.jump.flipAge) &&
       this.jump.flipAge < P.jump.flipTime + P.jump.pitchLockExtra
     );
   }
@@ -157,6 +169,8 @@ export class Car {
     this.jump.reset();
     this.normalJumpSequence = 0;
     this.normalJumpAge = Infinity;
+    this.flipResetSequence = 0;
+    this.flipResetAge = Infinity;
     this.jump.wasDown = false;
     this.boost = 100;
     this.pose.snap();
@@ -594,6 +608,7 @@ export class Car {
       );
       this.boost = Math.max(0, this.boost - c.boostUse * dt);
     }
+    this.flipResetAge += dt;
     const action = this.jump.step(
       this.recovering ? { ...input, jump: false } : input,
       this.grounded,
@@ -648,14 +663,16 @@ export class Car {
     if (this.aerialControl > 0) {
       const flipping = this.jump.flipLeft > 0;
       const cancel = input.pitch * this.jump.direction.z > 0;
-      const pitchScale = Math.max(
-        0,
-        Math.min(
-          1,
-          (this.jump.flipAge - P.jump.flipTime - P.jump.pitchLockExtra) /
-            P.jump.controlReturn,
-        ),
-      );
+      const pitchScale = this.jump.stall
+        ? 1
+        : Math.max(
+            0,
+            Math.min(
+              1,
+              (this.jump.flipAge - P.jump.flipTime - P.jump.pitchLockExtra) /
+                P.jump.controlReturn,
+            ),
+          );
       // A cancel removes pitch flip torque; it never applies reverse pitch torque.
       if (!flipping || cancel) {
         this.angular
@@ -663,10 +680,19 @@ export class Car {
             this.right,
             -input.pitch * c.airPitch * pitchScale * this.aerialControl,
           )
-          .addScaledVector(this.up, -input.yaw * c.airYaw * this.aerialControl)
+          .addScaledVector(
+            this.up,
+            -(this.jump.stallChordHeld ? 0 : input.yaw) *
+              c.airYaw *
+              this.aerialControl,
+          )
           .addScaledVector(
             this.forward,
-            input.roll * c.airRoll * this.aerialControl,
+            (this.jump.stallChordHeld
+              ? input.roll - (input.directionalRoll ?? 0)
+              : input.roll) *
+              c.airRoll *
+              this.aerialControl,
           )
           .addScaledVector(this.w, -c.airDamping * this.aerialControl);
       }
@@ -674,6 +700,7 @@ export class Car {
     if (
       this.jump.used &&
       !this.jump.second &&
+      !this.jump.resetAvailable &&
       this.jump.age < P.jump.holdTime &&
       (input.jump || this.jump.age < P.jump.stickyTime)
     ) {
@@ -697,6 +724,8 @@ export class Car {
           -this.w.dot(this.right) * P.jump.cancelDamping * cancelAmount;
         this.angular.addScaledVector(this.right, this.flipCancelAcceleration);
       }
+    }
+    if (this.jump.verticalDampingActive) {
       if (
         this.jump.flipAge >= P.jump.verticalDampStart &&
         (this.v.y < 0 || this.jump.flipAge < P.jump.verticalDampEnd)

@@ -65,7 +65,7 @@ export const P = {
     fall: 2,
     lateralAtForward: 0.1,
     lateralAtSideways: 0,
-    minimumLateralGrip: 0.030,
+    minimumLateralGrip: 0.03,
     longitudinalAtForward: 0.5,
     longitudinalAtSideways: 1,
     slipGripFalloff: 0.8,
@@ -78,6 +78,8 @@ export const P = {
     partialContactScale: 0.5,
   },
   jump: {
+    stallThreshold: 0.85,
+    stallSimultaneousWindow: 0.12,
     impulse: 292 * UU,
     holdAcceleration: 1460 * UU,
     holdTime: 0.2,
@@ -110,6 +112,7 @@ export const P = {
     maxAngular: 6,
   },
   hit: {
+    airRestitution: 0.32, // Pair-specific aerial rebound; arena/floor restitution stays .48.
     minClosing: 1,
     rearmClosing: 0.35,
     impactRamp: 2,
@@ -136,7 +139,8 @@ export const P = {
     goalHalf: 8.93,
     goalHeight: 6.43,
     goalDepth: 8.8,
-    goalCurve: 2.4,
+    goalCurve: 1.35, // Compact goal interior fillets; field/wall ramps remain 2.4 m.
+    goalRoofDrop: 0.55, // Roof rises toward front; mouth height/score plane unchanged.
     goalLip: 1.2,
     postRadius: 0.22,
     crossbarBevel: 0.04, // Small rounded edges; the field-facing beam remains flat.

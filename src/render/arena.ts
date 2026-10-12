@@ -1,13 +1,14 @@
 import * as T from "three";
-import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { arenaShell, goalShell } from "../arena/geometry";
 import { goalFrame } from "../arena/posts";
+import { goalRoofHeight } from "../arena/goal";
 import { P } from "../config/physics";
 import { box, material } from "./models";
 import { polishMaterial } from "./material-polish";
 import { arenaThemes, isArenaId, type ArenaId } from "./arena-themes";
 import { drawEnvironment, disposeEnvironment } from "./arena-environments";
 import { createFieldArt, rampPaint } from "./field-art";
+import { registerCameraVisualOcclusion } from "./camera-occlusion";
 function turfTexture(id: ArenaId) {
   const c = document.createElement("canvas");
   c.width = c.height = 512;
@@ -32,7 +33,10 @@ function turfTexture(id: ArenaId) {
 }
 export function drawArena(scene: T.Scene, initial: ArenaId = "city") {
   const teamMaterials: {
-    material: T.MeshBasicMaterial | T.LineBasicMaterial;
+    material:
+      | T.MeshBasicMaterial
+      | T.MeshStandardMaterial
+      | T.LineBasicMaterial;
     color: number;
   }[] = [];
   const a = P.arena,
@@ -86,19 +90,23 @@ export function drawArena(scene: T.Scene, initial: ArenaId = "city") {
       color: 0x78969c,
       roughness: 0.66,
       metalness: 0.25,
-      side: T.DoubleSide,
+      side: T.FrontSide,
     }),
     new T.MeshStandardMaterial({
       color: 0x3e566b,
       roughness: 0.55,
       metalness: 0.3,
-      side: T.DoubleSide,
+      side: T.FrontSide,
       transparent: true,
       opacity: 0.72,
       depthWrite: false,
     }),
   ]);
   wall.name = "shared-arena-walls";
+  // The shell is wound toward the playable interior. Its back faces are not
+  // rendered: an outside view can look inward without a wall in front of it.
+  // Interior opacity/art remains exactly as selected by the arena theme.
+  wall.userData.cameraCollision = "ARENA_BOUNDARY";
   (wall.material as T.Material[]).forEach((mat) => polishMaterial(mat, "wall"));
   group.add(wall);
   // Ramp contour bands use the same generated positions as collision geometry.
@@ -171,6 +179,18 @@ export function drawArena(scene: T.Scene, initial: ArenaId = "city") {
     const color = sign > 0 ? 0x41d9f2 : 0xffb44f,
       glow = polishMaterial(new T.MeshBasicMaterial({ color }), "goal"),
       goal = new T.Group();
+    const trim = polishMaterial(
+      new T.MeshStandardMaterial({
+        color,
+        emissive: color,
+        emissiveIntensity: 0.12,
+        metalness: 0.3,
+        roughness: 0.45,
+        side: T.FrontSide,
+      }),
+      "goal",
+    );
+    teamMaterials.push({ material: trim, color });
     group.add(goal);
     const lining = goalShell(sign),
       liningGeo = new T.BufferGeometry();
@@ -179,36 +199,84 @@ export function drawArena(scene: T.Scene, initial: ArenaId = "city") {
       new T.BufferAttribute(lining.vertices, 3),
     );
     liningGeo.setIndex(new T.BufferAttribute(lining.indices, 1));
+    // Goal-shell front fascia patches originally relied on DoubleSide. Orient
+    // those render-only triangles toward the field; don't alter shared meshes.
+    const points = liningGeo.getAttribute("position"),
+      ids = liningGeo.index!;
+    const pa = new T.Vector3(),
+      pb = new T.Vector3(),
+      pc = new T.Vector3();
+    for (let i = 0; i < ids.count; i += 3) {
+      pa.fromBufferAttribute(points, ids.getX(i));
+      pb.fromBufferAttribute(points, ids.getX(i + 1));
+      pc.fromBufferAttribute(points, ids.getX(i + 2));
+      if (
+        [pa, pb, pc].every((p) => Math.abs(p.z - sign * a.halfLength) < 1e-4) &&
+        pb.sub(pa).cross(pc.sub(pa)).z * sign > 0
+      ) {
+        const b = ids.getX(i + 1);
+        ids.setX(i + 1, ids.getX(i + 2));
+        ids.setX(i + 2, b);
+      }
+    }
     liningGeo.computeVertexNormals();
+    // Assign the actual rear wall faces their own backing material. No second
+    // inset plane: render and collision agree even when a chassis reaches it.
+    const frameFaces = new Set<string>();
+    for (const part of goalFrame(sign))
+      for (let i = 0; i < part.indices.length; i += 3)
+        frameFaces.add(
+          Array.from(part.indices.slice(i, i + 3))
+            .sort((a, b) => a - b)
+            .join(","),
+        );
+    const interiorIndices: number[] = [],
+      rearIndices: number[] = [];
+    for (let i = 0; i < ids.count; i += 3) {
+      const tri = [ids.getX(i), ids.getX(i + 1), ids.getX(i + 2)];
+      if (frameFaces.has([...tri].sort((a, b) => a - b).join(","))) continue;
+      (tri.every(
+        (v) =>
+          Math.abs(points.getZ(v) - sign * (a.halfLength + a.goalDepth)) < 1e-5,
+      )
+        ? rearIndices
+        : interiorIndices
+      ).push(...tri);
+    }
+    const rearGeo = new T.BufferGeometry();
+    rearGeo.setAttribute("position", points);
+    rearGeo.setAttribute("normal", liningGeo.getAttribute("normal"));
+    rearGeo.setIndex(rearIndices);
+    liningGeo.setIndex(interiorIndices);
     const liningMesh = new T.Mesh(
       liningGeo,
       new T.MeshStandardMaterial({
         color: 0x456172,
         metalness: 0.3,
         roughness: 0.62,
-        side: T.DoubleSide,
+        side: T.FrontSide,
       }),
     );
     liningMesh.receiveShadow = true;
+    liningMesh.name = `goal-interior-${sign}`;
+    liningMesh.userData.cameraCollision = "ARENA_BOUNDARY";
     linings.push(liningMesh.material);
     goal.add(liningMesh);
     for (const part of goalFrame(sign)) {
-      const post = new T.Mesh(
-        part.kind === "bar"
-          ? new RoundedBoxGeometry(...part.size, 3, part.bevel)
-          : new T.CapsuleGeometry(part.radius, part.length, 8, 16),
-        glow,
-      );
-      post.position.set(...part.position);
-      post.quaternion.copy(part.rotation);
+      const frameGeo = new T.BufferGeometry();
+      frameGeo.setAttribute("position", points);
+      frameGeo.setAttribute("normal", liningGeo.getAttribute("normal"));
+      frameGeo.setIndex(new T.BufferAttribute(part.indices, 1));
+      const post = new T.Mesh(frameGeo, trim);
+      post.name = `goal-frame-${sign}-${part.kind}`;
+      post.userData.cameraCollision = "ARENA_BOUNDARY";
       goal.add(post);
     }
-    box(
-      goal,
-      [a.goalHalf * 2, a.goalHeight, 0.1],
-      [0, a.goalHeight / 2, sign * (a.halfLength + a.goalDepth)],
-      material(0x112a35),
-    );
+    const rear = new T.Mesh(rearGeo, material(0x112a35));
+    rear.name = `goal-rear-view-${sign}`;
+    rear.userData.cameraCollision = "ARENA_BOUNDARY";
+    rear.castShadow = rear.receiveShadow = true;
+    goal.add(rear);
     const net = new T.LineBasicMaterial({
       color,
       transparent: true,
@@ -217,26 +285,68 @@ export function drawArena(scene: T.Scene, initial: ArenaId = "city") {
     const marking = new T.LineBasicMaterial({ color });
     for (const material of [glow, net, marking])
       teamMaterials.push({ material, color });
-    for (let x = -a.goalHalf; x <= a.goalHalf; x += 0.65)
+    // Net lines occupy the actual flat rear/roof panels, offset into the cavity.
+    // Curved shoulders stay clean instead of an oversized rectangular wire cage.
+    const netWidth = a.goalHalf - a.goalCurve,
+      rearTop = goalRoofHeight(a.goalDepth) - a.goalCurve,
+      roofEnd = a.goalDepth - a.goalCurve;
+    for (let x = -netWidth; x <= netWidth; x += 0.65) {
       line(
         [
-          new T.Vector3(x, 0, sign * (a.halfLength + a.goalDepth - 0.1)),
           new T.Vector3(
             x,
-            a.goalHeight,
-            sign * (a.halfLength + a.goalDepth - 0.1),
+            a.goalCurve,
+            sign * (a.halfLength + a.goalDepth - 0.08),
           ),
-          new T.Vector3(x, a.goalHeight, sign * a.halfLength),
+          new T.Vector3(x, rearTop, sign * (a.halfLength + a.goalDepth - 0.08)),
         ],
         net,
       );
-    for (let y = 0; y <= a.goalHeight; y += 0.65)
       line(
         [
-          new T.Vector3(-a.goalHalf, y, sign * a.halfLength),
-          new T.Vector3(-a.goalHalf, y, sign * (a.halfLength + a.goalDepth)),
-          new T.Vector3(a.goalHalf, y, sign * (a.halfLength + a.goalDepth)),
-          new T.Vector3(a.goalHalf, y, sign * a.halfLength),
+          new T.Vector3(
+            x,
+            goalRoofHeight(a.goalLip) - 0.035,
+            sign * (a.halfLength + a.goalLip),
+          ),
+          new T.Vector3(
+            x,
+            goalRoofHeight(roofEnd) - 0.035,
+            sign * (a.halfLength + roofEnd),
+          ),
+        ],
+        net,
+      );
+    }
+    for (let y = a.goalCurve; y <= rearTop; y += 0.65)
+      line(
+        [
+          new T.Vector3(
+            -netWidth,
+            y,
+            sign * (a.halfLength + a.goalDepth - 0.08),
+          ),
+          new T.Vector3(
+            netWidth,
+            y,
+            sign * (a.halfLength + a.goalDepth - 0.08),
+          ),
+        ],
+        net,
+      );
+    for (let depth = a.goalLip; depth <= roofEnd; depth += 0.65)
+      line(
+        [
+          new T.Vector3(
+            -netWidth,
+            goalRoofHeight(depth) - 0.035,
+            sign * (a.halfLength + depth),
+          ),
+          new T.Vector3(
+            netWidth,
+            goalRoofHeight(depth) - 0.035,
+            sign * (a.halfLength + depth),
+          ),
         ],
         net,
       );
@@ -258,19 +368,30 @@ export function drawArena(scene: T.Scene, initial: ArenaId = "city") {
   const citySeating = new T.Group();
   group.add(citySeating);
   const seats = material(0x1d3945);
+  const viewOccluders: T.Mesh[] = [];
   for (const side of [-1, 1])
     for (let tier = 0; tier < 7; tier++) {
-      box(
+      const seat = box(
         citySeating,
         [3, 0.45, 112],
         [side * (44 + tier * 2.5), 3 + tier * 1.4, 0],
         seats,
       );
+      seat.userData.cameraCollision = "FADE";
+      viewOccluders.push(seat);
     }
   const beacon = new T.MeshBasicMaterial({ color: 0xb7e6ef });
   for (const side of [-1, 1])
     for (let z = -45; z <= 45; z += 15) {
-      box(group, [0.3, 20, 0.3], [side * 44, 10, z], material(0x304754));
+      const pillar = box(
+        group,
+        [0.3, 20, 0.3],
+        [side * 44, 10, z],
+        material(0x304754),
+      );
+      pillar.name = `arena-exterior-pillar-${side}-${z}`;
+      pillar.userData.cameraCollision = "FADE";
+      viewOccluders.push(pillar);
       box(group, [4, 0.15, 1], [side * 42, 21, z], beacon);
     }
   // Light structural grid makes the enclosed ceiling visible without busy artwork.
@@ -339,6 +460,7 @@ export function drawArena(scene: T.Scene, initial: ArenaId = "city") {
     });
   };
   setMap(initial);
+  registerCameraVisualOcclusion(scene, viewOccluders);
   return {
     group,
     floor,
@@ -351,8 +473,11 @@ export function drawArena(scene: T.Scene, initial: ArenaId = "city") {
     },
     setMap,
     setNeutral(neutral: boolean) {
-      for (const entry of teamMaterials)
+      for (const entry of teamMaterials) {
         entry.material.color.setHex(neutral ? 0xa8a8a8 : entry.color);
+        if (entry.material instanceof T.MeshStandardMaterial)
+          entry.material.emissive.setHex(neutral ? 0xa8a8a8 : entry.color);
+      }
     },
   };
 }

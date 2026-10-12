@@ -1,5 +1,12 @@
 # Physics reference and calibration
 
+Current aerial contact changes are documented in
+[Training / zero-time / aerial contact](TRAINING-ZERO-TIME-AERIAL.md).
+The live tuning in `src/config/physics.ts` uses car mass 150, ball mass 50,
+ball radius 0.95 m and airborne-pair restitution 0.32; normal ball/arena
+restitution remains 0.48. Historical calibration values below describe earlier
+passes; the configuration file is the source for current values.
+
 ## Public research consulted
 
 - [RLBot useful game values](https://wiki.rlbot.org/v4/botmaking/useful-game-values/): SI conversion, masses, speed limits, gravity, boost, bounce and pad timing.

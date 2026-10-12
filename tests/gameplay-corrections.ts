@@ -10,6 +10,7 @@ import { trainingAction } from "../src/game/training";
 import { trainingActions } from "../shared/controls";
 import { bodies } from "../shared/catalog";
 import { goalShell } from "../src/arena/geometry";
+import { goalRoofHeight } from "../src/arena/goal";
 
 await RAPIER.init();
 const results: {
@@ -479,14 +480,19 @@ for (const sign of [-1, 1])
       s.ballCollider.setCollisionGroups(0);
       const a = P.arena,
         r = a.goalCurve,
-        n = new Vector3(-side * Math.SQRT1_2, -Math.SQRT1_2, 0);
+        n = new Vector3(
+          -side * Math.SQRT1_2,
+          -Math.SQRT1_2,
+          -sign * (a.goalRoofDrop / a.goalDepth) * Math.SQRT1_2,
+        ).normalize();
       const forward = new Vector3(0, 0, -sign),
-        right = forward.clone().cross(n);
+        right = forward.clone().cross(n).normalize();
+      forward.addScaledVector(n, -forward.dot(n)).normalize();
       const position = new Vector3(
         side * (a.goalHalf - r + r * Math.SQRT1_2),
-        a.goalHeight - r + r * Math.SQRT1_2,
+        goalRoofHeight(3.5) - r + r * Math.SQRT1_2,
         sign * (a.halfLength + 3.5),
-      ).addScaledVector(n, 0.34);
+      ).addScaledVector(n, 0.42);
       c.reset(position.x, position.z, 0, position.y);
       c.body.setRotation(
         new Quaternion().setFromRotationMatrix(

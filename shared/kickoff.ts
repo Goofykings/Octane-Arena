@@ -52,6 +52,24 @@ export function kickoffSpawn(
   // Exactly face the ball even if the arena's aspect ratio differs.
   return { x, z, yaw: Math.atan2(x, z) };
 }
+export const trioKickoffs: readonly KickoffFormation[] = [
+  {
+    id: "three-diagonal-center",
+    slots: ["right-diagonal", "left-diagonal", "far-back-center"],
+  },
+  {
+    id: "three-back-spread",
+    slots: ["back-right", "back-left", "far-back-center"],
+  },
+  {
+    id: "three-right-rotation",
+    slots: ["right-diagonal", "back-left", "far-back-center"],
+  },
+  {
+    id: "three-left-rotation",
+    slots: ["left-diagonal", "back-right", "far-back-center"],
+  },
+];
 
 /** One selector per match, never per team or client. No boundary repeats. */
 export class KickoffBag {
@@ -59,11 +77,17 @@ export class KickoffBag {
   private previous = new Map<number, string>();
   constructor(private random: () => number = Math.random) {}
   next(teamSize: number): KickoffFormation {
-    if (teamSize !== 1 && teamSize !== 2)
-      throw Error("Kickoffs support one or two players per team");
+    if (teamSize !== 1 && teamSize !== 2 && teamSize !== 3)
+      throw Error("Kickoffs support one to three players per team");
     let bag = this.bags.get(teamSize);
     if (!bag?.length) {
-      bag = [...(teamSize === 1 ? soloKickoffs : duoKickoffs)];
+      bag = [
+        ...(teamSize === 1
+          ? soloKickoffs
+          : teamSize === 2
+            ? duoKickoffs
+            : trioKickoffs),
+      ];
       for (let i = bag.length - 1; i > 0; i--) {
         const j = Math.floor(this.random() * (i + 1));
         [bag[i], bag[j]] = [bag[j], bag[i]];

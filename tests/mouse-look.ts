@@ -138,9 +138,17 @@ for (const ballMode of [false, true]) {
     base.update(car, ball, simulation, 1 / 60, false, t);
     rig.update(car, ball, simulation, 1 / 60, false, t);
     assert.ok(
-      baseCamera.position.distanceTo(finalCamera.position) < 1e-10,
-      "Free look must preserve collision-corrected camera position",
+      Math.abs(
+        baseCamera.position.distanceTo(car.position) -
+          finalCamera.position.distanceTo(car.position),
+      ) < 1e-6,
+      "Manual gameplay orbit preserves the automatic boom length",
     );
+    if (i > 500)
+      assert.ok(
+        baseCamera.position.distanceTo(finalCamera.position) < 1e-6,
+        "Released orbit returns to the current automatic position",
+      );
     assert.ok(
       Math.abs(baseCamera.fov - finalCamera.fov) < 1e-10,
       "Framing continues independently of manual look",

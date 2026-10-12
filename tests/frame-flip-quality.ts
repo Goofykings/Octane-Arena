@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { Quaternion, Vector3 } from "three";
 import { Simulation } from "../src/physics/simulation";
+import { goalCeilingHeight } from "../src/arena/goal";
 import { P } from "../src/config/physics";
 import { neutralInput } from "../shared/player";
 
@@ -29,6 +30,22 @@ function impact(sign: number, kind: string, p: Vector3, velocity: Vector3) {
   s.ball.setLinvel(velocity, true);
   s.ball.setAngvel({ x: 0.7, y: -0.4, z: 0.3 }, true);
   const initialEnergy = energy();
+  const hit = s.world.castShape(
+    p,
+    new Quaternion(),
+    velocity,
+    new RAPIER.Ball(P.ball.radius),
+    0,
+    2,
+    false,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    (col) => col.parent() === null,
+  );
+  assert.ok(hit, `no sphere sweep contact for ${kind}`);
+  const normal = new Vector3().copy(hit.normal1).normalize();
   let result: Vector3 | undefined;
   for (let i = 0; i < 160; i++) {
     const before = new Vector3().copy(s.ball.linvel());
@@ -37,6 +54,10 @@ function impact(sign: number, kind: string, p: Vector3, velocity: Vector3) {
     if (v.distanceTo(before) > velocity.length() * 0.02) {
       result = v;
       assert.ok(energy() <= initialEnergy * 1.01, `energy added: ${kind}`);
+      assert.ok(
+        v.dot(normal) > 0,
+        `rebound must leave actual contact surface: ${kind}`,
+      );
       assert.ok(
         new Vector3().copy(s.ball.angvel()).length() > 0.01,
         "spin erased",
@@ -48,118 +69,69 @@ function impact(sign: number, kind: string, p: Vector3, velocity: Vector3) {
   impacts++;
   return result;
 }
+// The post/bar are now convex rounded entrance regions of one shell. Test
+// their actual contact normals, including field joins and glancing angles.
 for (const sign of [-1, 1])
-  for (const speed of [8, 25, 60]) {
-    for (const offset of [-0.15, 0, 0.15, 0.35, 0.7]) {
-      const v = impact(
-        sign,
-        "front",
-        new Vector3(
-          0,
-          a.goalHeight + a.postRadius + offset,
-          sign * (a.halfLength - 3),
-        ),
-        new Vector3(0, 0, sign * speed),
-      );
-      assert.ok(
-        Math.abs(v.y) < speed * 0.1,
-        `front launch: ${offset}/${speed}: ${v.y}`,
-      );
-      assert.ok(
-        Math.abs(v.z) > speed * 0.3 && Math.abs(v.z) < speed * 0.6,
-        "front restitution changed",
-      );
-    }
-    for (const offset of [-0.3, -0.5, -0.7]) {
-      const v = impact(
-        sign,
-        "lower edge",
-        new Vector3(
-          0,
-          a.goalHeight + a.postRadius + offset,
-          sign * (a.halfLength - 3),
-        ),
-        new Vector3(0, 0, sign * speed),
-      );
-      assert.ok(v.y < -speed * 0.02, `lower edge must deflect down: ${v.y}`);
-    }
-    for (const slope of [-0.15, 0.15])
-      for (const sideSpeed of [-0.1, 0.1]) {
-        const v = impact(
-          sign,
-          "angled front",
-          new Vector3(
-            -sideSpeed * 2,
-            a.goalHeight + a.postRadius + 0.35 - slope * 2,
-            sign * (a.halfLength - 3),
-          ),
-          new Vector3(sideSpeed * speed, slope * speed, sign * speed),
-        );
-        assert.ok(
-          v.z * sign < -speed * 0.25,
-          "angled front must rebound toward field",
-        );
-        assert.ok(
-          Math.abs(v.y) < (Math.abs(slope) + 0.1) * speed,
-          "angled front added an upward launch",
-        );
+  for (const speed of [8, 25, 60])
+    for (const side of [0, -1, 1])
+      for (let step = 1; step <= 20; step++) {
+        const t = ((step / 21) * Math.PI) / 2,
+          l = a.goalLip;
+        const depth = l * (1 - Math.cos(t));
+        const point =
+          side === 0
+            ? new Vector3(
+                0,
+                goalCeilingHeight(depth),
+                sign * (a.halfLength + depth),
+              )
+            : new Vector3(
+                side * (a.goalHalf + l - l * Math.sin(t)),
+                3,
+                sign * (a.halfLength + depth),
+              );
+        const normal =
+          side === 0
+            ? new Vector3(
+                0,
+                -Math.sin(t),
+                -sign *
+                  (Math.cos(t) + (a.goalRoofDrop / a.goalDepth) * Math.sin(t)),
+              ).normalize()
+            : new Vector3(-side * Math.sin(t), 0, -sign * Math.cos(t));
+        const tangent = new Vector3()
+          .crossVectors(
+            normal,
+            side === 0 ? new Vector3(1, 0, 0) : new Vector3(0, 1, 0),
+          )
+          .normalize();
+        for (const glance of [0, 0.2]) {
+          const velocity = normal
+            .clone()
+            .negate()
+            .addScaledVector(tangent, glance)
+            .normalize()
+            .multiplyScalar(speed);
+          const v = impact(
+            sign,
+            side === 0 ? "integrated crossbar" : "integrated post",
+            point.clone().addScaledVector(normal, P.ball.radius + 0.5),
+            velocity,
+          );
+          assert.ok(
+            v.length() <= speed * 1.01,
+            "rounded entrance cannot add rebound energy",
+          );
+          if (glance === 0)
+            assert.ok(
+              v.dot(normal) > speed * 0.25 && v.dot(normal) < speed * 0.65,
+              "normal-aligned entrance hit must retain normal restitution",
+            );
+        }
       }
-    const under = impact(
-      sign,
-      "under",
-      new Vector3(
-        0,
-        a.goalHeight - P.ball.radius - 0.5,
-        sign * (a.halfLength + a.postRadius),
-      ),
-      new Vector3(0, speed, 0),
-    );
-    assert.ok(under.y < -speed * 0.3, "underside rebound should be downward");
-    // Fine adjacent sampling verifies a smooth, physical lower-edge transition.
-    let previous: Vector3 | undefined;
-    for (let y = a.goalHeight - 0.55; y <= a.goalHeight + 0.1; y += 0.025) {
-      const v = impact(
-        sign,
-        "edge sweep",
-        new Vector3(0, y, sign * (a.halfLength - 3)),
-        new Vector3(0, 0, sign * speed),
-      );
-      if (previous)
-        assert.ok(
-          v.distanceTo(previous) < speed * 0.16,
-          "discontinuous edge rebound",
-        );
-      previous = v;
-    }
-  }
-// The top of the beam is embedded in the solid fascia. Test its actual rounded
-// shape in isolation to approach it from above without starting in solid arena.
-for (const sign of [-1, 1]) {
-  s.world.forEachCollider((col) => {
-    if (col.parent()) return;
-    const p = col.translation();
-    col.setEnabled(
-      Math.abs(p.z - sign * (a.halfLength + a.postRadius + a.crossbarBevel)) <
-        0.001 && Math.abs(p.y - a.goalHeight - a.postRadius) < 0.001,
-    );
-  });
-  for (const speed of [8, 25, 60]) {
-    const above = impact(
-      sign,
-      "above",
-      new Vector3(
-        0,
-        a.goalHeight + 2 * a.postRadius + P.ball.radius + 0.5,
-        sign * (a.halfLength + a.postRadius),
-      ),
-      new Vector3(0, -speed, 0),
-    );
-    assert.ok(above.y > speed * 0.3, "physical top rebound should be upward");
-  }
-}
 s.dispose();
 console.log(
-  `PASS ${impacts} crossbar impacts: front, underside, lower edge, top, smooth angle sweep; restitution/spin/energy`,
+  `PASS ${impacts} integrated post/crossbar impacts: normal/glancing angle sweeps; restitution/spin/energy`,
 );
 
 function flip(

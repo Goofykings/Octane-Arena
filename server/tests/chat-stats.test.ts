@@ -1,3 +1,4 @@
+import { captureGoalReplay } from "../../tests/replay-capture";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { NetworkMatch, initializeMatchPhysics } from "../src/network-match";
@@ -38,6 +39,7 @@ test("shared authority owns chat identity, rate limits, ping, stats and replay p
     m.tick(s);
     assert.equal(m.stats!.players.get("p0")!.goals, 1);
     assert.equal(m.stats!.players.get("p0")!.score, 100);
+    captureGoalReplay(m, s, game.pads);
     m.freeze = 0;
     m.tick(s);
     assert.equal(m.phase, "replay");

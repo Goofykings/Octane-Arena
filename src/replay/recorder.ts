@@ -6,11 +6,15 @@ import {
   CAR_STRIDE,
   RC,
   ReplayBuffer,
+  REPLAY_POST_GOAL,
   type ReplayGoal,
 } from "../../shared/replay";
 import type { Vec } from "../../shared/network";
 
 export class ReplayRecorder {
+  pendingGoal: ReplayGoal | null = null;
+  private recordedGoalId: string | null = null;
+  private resetSequences: number[] = [];
   buffer: ReplayBuffer | null = null;
   private touchSequence = -1;
   private heatHistory: NonNullable<
@@ -19,6 +23,9 @@ export class ReplayRecorder {
   private wheelStates = new Float64Array(4 * 6);
   private padCooldowns = new Float32Array(20);
   reset() {
+    this.pendingGoal = null;
+    this.recordedGoalId = null;
+    this.resetSequences = [];
     this.heatHistory = [];
     this.buffer?.reset();
     this.touchSequence = -1;
@@ -35,6 +42,7 @@ export class ReplayRecorder {
         s.cars.map((c) => c.id),
         20,
       );
+      this.wheelStates = new Float64Array(s.cars.length * 6);
       this.reset();
     }
     const b = this.buffer,
@@ -56,6 +64,18 @@ export class ReplayRecorder {
     };
     rigid(base, s.ball);
     s.cars.forEach((c, i) => {
+      if (
+        c.flipResetSequence > 0 &&
+        c.flipResetSequence !== this.resetSequences[i]
+      )
+        b.event({
+          kind: "flip-reset",
+          playerId: c.id,
+          time: s.clock,
+          point: { ...c.flipResetOrigin },
+          normal: { ...c.flipResetNormal },
+        });
+      this.resetSequences[i] = c.flipResetSequence;
       const offset = base + BALL_STRIDE + i * CAR_STRIDE;
       rigid(offset, c.body);
       data[offset + RC.boost] = c.boost;
@@ -157,12 +177,29 @@ export class ReplayRecorder {
         this.heatHistory.shift();
     }
   }
-  clip(goal: ReplayGoal) {
+  private markGoal(goal: ReplayGoal) {
+    if (this.recordedGoalId === goal.id) return;
+    this.recordedGoalId = goal.id;
     this.buffer!.event({
       kind: "goal",
       playerId: goal.scorerId,
       time: goal.time,
     });
+  }
+  beginGoal(goal: ReplayGoal) {
+    this.markGoal(goal);
+    this.pendingGoal = goal;
+  }
+  capturePostGoal(s: Simulation, reset: number, pads?: Pads) {
+    const goal = this.pendingGoal;
+    if (!goal) return null;
+    this.capture(s, reset, pads);
+    if (s.clock - goal.time < REPLAY_POST_GOAL - 1e-8) return null;
+    this.pendingGoal = null;
+    return this.clip(goal);
+  }
+  clip(goal: ReplayGoal) {
+    this.markGoal(goal);
     const clip = this.buffer!.clip(goal);
     if (this.heatHistory.length)
       clip.heatseeker = this.heatHistory.map((entry) => ({

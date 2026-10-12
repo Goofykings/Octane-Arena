@@ -163,7 +163,10 @@ try {
   solo.ball.setTranslation({ x: 0, y: 1, z: -P.arena.halfLength - 2 }, true);
   m.tick(solo);
   assert.equal(m.phase, "goal");
-  while (m.phase === "goal") m.tick(solo);
+  while (m.phase === "goal") {
+    solo.step(solo.cars.map(() => neutralInput()));
+    m.tick(solo);
+  }
   assert.equal(m.phase, "replay");
   assert.ok(m.skipReplay(solo.cars[0].id, m.replay!.clip.goal.id, solo));
   assert.notEqual(m.kickoffFormationId, first);

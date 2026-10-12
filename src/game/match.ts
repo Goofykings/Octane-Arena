@@ -12,7 +12,10 @@ import {
 import type { Pads } from "./pads";
 import type { SoccerMode } from "../../shared/soccer";
 import { MatchStats } from "./match-stats";
-import { advanceKickoffCountdown, KICKOFF_GO_TIME } from "../../shared/kickoff-countdown";
+import {
+  advanceKickoffCountdown,
+  KICKOFF_GO_TIME,
+} from "../../shared/kickoff-countdown";
 export type Phase =
   | "home"
   | "countdown"
@@ -32,6 +35,7 @@ export class Match {
     votes: Set<string>;
   } | null = null;
   private goalSequence = 0;
+  private pendingEligible: Set<string> | null = null;
   get replayActive() {
     return (
       this.phase === "replay" ||
@@ -82,10 +86,11 @@ export class Match {
     this.remaining = 300;
     this.overtime = false;
     this.kickoff(s);
-    if (mode !== "network" && s.cars[1]) {
-      s.cars[1].collider.setCollisionGroups(this.rules.bot ? 0xffffffff : 0);
-      s.cars[1].body.setEnabled(this.rules.bot);
-    }
+    if (mode !== "network")
+      for (let i = 1; i < s.cars.length; i++) {
+        s.cars[i].collider.setCollisionGroups(this.rules.bot ? 0xffffffff : 0);
+        s.cars[i].body.setEnabled(this.rules.bot);
+      }
   }
   kickoff(s: Simulation) {
     this.stats?.kickoff();
@@ -108,6 +113,7 @@ export class Match {
     this.lastGoal = null;
     this.replay = null;
     this.recorder.reset();
+    this.pendingEligible = null;
     this.goalFocus = null;
     this.countdown = this.rules.countdown;
     this.phase = this.countdown ? "countdown" : "playing";
@@ -139,8 +145,20 @@ export class Match {
       return;
     }
     if (this.phase === "goal") {
+      const clip = this.recorder.capturePostGoal(s, this.resetSequence, pads);
+      if (!clip && !this.recorder.pendingGoal && this.replay)
+        this.recorder.capture(s, this.resetSequence, pads); // Keep live wheel/pickup state moving; finalized clip is an immutable copy.
+      if (clip) {
+        this.replay = {
+          clip,
+          clock: new ReplayClock(clip),
+          eligible: this.pendingEligible ?? new Set(),
+          votes: new Set(),
+        };
+        this.pendingEligible = null;
+      }
       this.freeze -= P.dt;
-      if (this.freeze <= 0) {
+      if (this.freeze <= 0 && !this.recorder.pendingGoal) {
         if (this.replay) this.phase = "replay";
         else this.endReplay(s);
       }
@@ -152,9 +170,7 @@ export class Match {
       this.recorder.capture(s, this.resetSequence, pads);
     this.goTime = Math.max(0, this.goTime - P.dt);
     if (this.rules.clock) this.remaining = Math.max(0, this.remaining - P.dt);
-    const p = s.ball.translation(),
-      a = P.arena,
-      r = P.ball.radius;
+    const p = s.ball.translation();
     const scoring = scoringTeam(p);
     if (scoring !== null) {
       this.goalFocus = {
@@ -197,25 +213,20 @@ export class Match {
         ),
         focus: { ...this.goalFocus },
       };
-      const clip = this.recorder.clip(goal);
+      this.recorder.beginGoal(goal);
       this.stats?.goal(goal, s.clock);
-      this.replay = {
-        clip,
-        clock: new ReplayClock(clip),
-        eligible: new Set(
-          s.cars
-            .filter((_, i) => s.players[i].controller !== "bot")
-            .map((c) => c.id),
-        ),
-        votes: new Set(),
-      };
+      this.pendingEligible = new Set(
+        s.cars
+          .filter((_, i) => s.players[i].controller !== "bot")
+          .map((c) => c.id),
+      );
       this.message = `${scorer.displayName.toUpperCase()} SCORED`;
       this.phase = "goal";
       this.freeze = P.match.celebration;
       s.explode(p);
       return;
     }
-    if (this.rules.clock && this.remaining === 0 && p.y < r + 0.08) {
+    if (this.rules.clock && this.remaining === 0 && s.ballGround.grounded) {
       if (this.score[0] === this.score[1]) {
         if (!this.overtime) {
           this.overtime = true;
@@ -248,6 +259,7 @@ export class Match {
     return true;
   }
   replayDisconnected(id: string, s: Simulation) {
+    this.pendingEligible?.delete(id);
     this.replay?.eligible.delete(id);
     if (
       this.phase === "replay" &&
@@ -263,6 +275,9 @@ export class Match {
     ) {
       this.replay = null;
       this.finish();
-    } else this.kickoff(s);
+    } else {
+      if (this.rules.clock && this.remaining <= 0) this.overtime = true;
+      this.kickoff(s);
+    }
   }
 }

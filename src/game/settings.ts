@@ -1,5 +1,9 @@
 import { defaultBindings, type Bindings } from "../input/bindings";
 import {
+  controllerActions,
+  validControllerBinding,
+} from "../../shared/controller";
+import {
   defaults,
   qualities,
   cameraRanges,
@@ -46,11 +50,22 @@ export class Settings {
         const code = saved.bindings?.[key];
         if (
           typeof code === "string" &&
-          /^(Key[A-Z]|Digit[0-9]|Arrow(Up|Down|Left|Right)|[A-Za-z]{2,20}|F[1-9][0-2]?)$/.test(
+          /^(Key[A-Z]|Digit[0-9]|Arrow(Up|Down|Left|Right)|[A-Za-z]{2,20}|F[1-9][0-2]?)?$/.test(
             code,
           )
         )
           this.value.bindings[key] = code;
+      }
+      this.value.controller.deadzone = clamp(
+        saved.controller?.deadzone,
+        0.05,
+        0.3,
+        0.12,
+      );
+      for (const action of controllerActions) {
+        const binding = saved.controller?.bindings?.[action];
+        if (validControllerBinding(binding))
+          this.value.controller.bindings[action] = binding;
       }
     } catch {
       /* Optional local persistence. */

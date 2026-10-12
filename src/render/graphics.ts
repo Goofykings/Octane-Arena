@@ -7,6 +7,7 @@ import { FXAAShader } from "three/addons/shaders/FXAAShader.js";
 import { qualities, type Quality } from "../game/settings";
 import { setMaterialPolish } from "./material-polish";
 import { GlowExtractPass, compositePolishPass } from "./polish-pass";
+import { updateCameraVisualOcclusion } from "./camera-occlusion";
 export class Graphics {
   quality: Quality = "high";
   private applied: Quality | null = null;
@@ -95,6 +96,7 @@ export class Graphics {
     );
   }
   render(scene: T.Scene, camera: T.Camera) {
+    updateCameraVisualOcclusion(scene, camera);
     if (this.effectsUnavailable && this.polish.enabled) this.configurePolish();
     if (qualities[this.quality].aa && !this.directFallback) {
       this.renderPass.scene = scene;

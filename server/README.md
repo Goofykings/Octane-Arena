@@ -1,3 +1,10 @@
+# Optional server tooling
+
+The current frontend uses PeerJS Cloud and does not connect to this server for
+parties, signaling or gameplay. This project remains optional static/LAN hosting
+and legacy integration regression tooling. See [PeerJS multiplayer](../docs/PEERJS-MULTIPLAYER.md)
+for the current production flow. The setup below documents the legacy API.
+
 ﻿# Octane Arena party/match server
 
 The game uses browser-local profiles. This server runs anonymous LAN parties and

@@ -2,6 +2,7 @@ import * as T from "three";
 import type { CameraSettings } from "../game/settings";
 import type { CameraWorld } from "./camera";
 import { CameraClearance } from "./collision";
+import { cameraCollisionPolicy } from "./space";
 
 /** Radians per CSS-pixel delta, independent of resolution and frame rate. */
 export const MOUSE_LOOK = {
@@ -119,6 +120,23 @@ export class MouseLook {
     this.dragging = false;
     if (this.behavior === "look") this.targetYaw = this.targetPitch = 0;
   }
+  /** Controller shares the existing view-only offsets; pointer dragging wins.
+   * Stick release follows the normal eased return, never a camera snap. */
+  controllerLook(x: number, y: number, dt: number) {
+    if (this.behavior !== "look" || this.dragging) return;
+    if (Math.abs(x) + Math.abs(y) > 0) {
+      this.targetYaw = softAngle(
+        this.targetYaw,
+        x * 2.8 * dt,
+        MOUSE_LOOK.yawLimit,
+      );
+      this.targetPitch = softAngle(
+        this.targetPitch,
+        y * 1.8 * dt,
+        MOUSE_LOOK.pitchLimit,
+      );
+    } else this.targetYaw = this.targetPitch = 0;
+  }
   reset() {
     this.end();
     this.yaw = this.pitch = 0;
@@ -201,6 +219,10 @@ export class MouseLook {
 
 /** Display cameras orbit a fixed focus. The car's pose is never modified. */
 export class MouseOrbit {
+  constructor(
+    private yawSign = 1,
+    private gameplaySpace = false,
+  ) {}
   readonly clearance = new CameraClearance();
   private offset = new T.Vector3();
   private first = true;
@@ -230,20 +252,24 @@ export class MouseOrbit {
       Math.min(basePitch, floorPitch),
       1.48,
     );
-    const yaw = Math.atan2(this.offset.x, this.offset.z) + look.yaw;
+    const yaw =
+      Math.atan2(this.offset.x, this.offset.z) + look.yaw * this.yawSign;
     this.offset.set(
       Math.sin(yaw) * Math.cos(pitch) * length,
       Math.sin(pitch) * length,
       Math.cos(yaw) * Math.cos(pitch) * length,
     );
     if (world) {
+      const policy = cameraCollisionPolicy(world);
       this.clearance.survey(
         world.world,
         focus,
         length + 1,
         dt,
         this.first,
-        world.cameraObstacles,
+        policy.surfaces,
+        this.gameplaySpace ? policy.blockers : policy.surfaces,
+        this.gameplaySpace && policy.outsideArena,
       );
       this.clearance.resolve(
         world.world,
@@ -252,6 +278,7 @@ export class MouseOrbit {
         camera.position,
         dt,
         this.first,
+        this.gameplaySpace,
       );
     } else camera.position.copy(focus).add(this.offset);
     this.first = false;

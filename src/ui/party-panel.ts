@@ -5,7 +5,8 @@ import {
 import { PartyClient } from "../game/party";
 import { icon } from "./icons";
 import { PartyFlow } from "./party-flow";
-import { normalizePartyCode, validPartyCode } from "../../shared/party";
+import { normalizePartyCode } from "../../shared/party";
+import { validPeerCode } from "../../shared/peer-party";
 export class PartyPanel {
   host = document.createElement("section");
   flow: PartyFlow;
@@ -14,7 +15,7 @@ export class PartyPanel {
   constructor(public party: PartyClient) {
     this.host.id = "party-panel";
     this.host.setAttribute("aria-label", "Party");
-    this.host.innerHTML = `<div class="party-top"><button id="party-code" title="Copy party code" hidden></button><div id="party-members" role="group" aria-label="Party members"></div><div id="party-actions" hidden><b></b><button id="party-kick">KICK</button><button id="party-dismiss" aria-label="Close player actions">×</button></div></div><div class="party-controls"><button id="party-create" class="party-button">CREATE PARTY</button><button id="party-join-open" class="party-button">JOIN PARTY</button><form id="party-join" hidden><input id="party-input" aria-label="Party code" placeholder="ENTER CODE" maxlength="6" autocomplete="off" spellcheck="false"><button class="party-button" type="submit">JOIN</button><button class="party-button" type="button" id="party-cancel">CANCEL</button></form><button id="party-leave" class="party-button" hidden>LEAVE PARTY</button></div><div id="party-message" role="status" aria-live="polite"></div>`;
+    this.host.innerHTML = `<div class="party-top"><button id="party-code" title="Copy party code" hidden></button><div id="party-members" role="group" aria-label="Party members"></div><div id="party-actions" data-nav-scope="party-actions" data-nav-priority="20" data-nav-back-target="#party-dismiss" hidden><b></b><button id="party-kick">KICK</button><button id="party-dismiss" aria-label="Close player actions">×</button></div></div><div class="party-controls"><button id="party-create" class="party-button">CREATE PARTY</button><button id="party-join-open" class="party-button">JOIN PARTY</button><form id="party-join" data-nav-scope="party-join" data-nav-priority="20" data-nav-back-target="#party-cancel" hidden><input id="party-input" aria-label="Party code" placeholder="ENTER CODE" maxlength="6" autocomplete="off" spellcheck="false"><button class="party-button" type="submit">JOIN</button><button class="party-button" type="button" id="party-cancel">CANCEL</button></form><button id="party-leave" class="party-button" hidden>LEAVE PARTY</button></div><div id="party-message" role="status" aria-live="polite"></div>`;
     document.getElementById("app")!.append(this.host);
     const retry = document.createElement("button");
     retry.id = "party-retry";
@@ -68,7 +69,7 @@ export class PartyPanel {
       const code = normalizePartyCode(
         this.host.querySelector<HTMLInputElement>("input")!.value,
       );
-      if (!validPartyCode(code)) {
+      if (!validPeerCode(code)) {
         party.message = "INVALID CODE";
         this.render();
         return;

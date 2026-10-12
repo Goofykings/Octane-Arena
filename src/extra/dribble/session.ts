@@ -134,6 +134,7 @@ export class DribbleSession implements ExtraSession {
     };
   }
   private resetView() {
+    this.level.finishGoal.reset();
     this.loop.accumulator = 0;
     this.cameraControl.reset();
     this.effects.reset();
@@ -173,6 +174,10 @@ export class DribbleSession implements ExtraSession {
           })
         : { alpha: 1, steps: 0 };
     if (sequence !== this.run.resetSequence) this.resetView();
+    this.level.finishGoal.update(
+      this.run.phase === "complete",
+      this.paused ? 0 : dt,
+    );
     const alpha = sequence === this.run.resetSequence ? result.alpha : 1;
     for (const { mesh, obstacleIndex } of this.level.spinners) {
       const spinner = this.physics.spinners.find(

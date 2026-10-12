@@ -1,3 +1,5 @@
+> Historical networking architecture. The current frontend uses [PeerJS Cloud](PEERJS-MULTIPLAYER.md) and needs no separate game backend or API URL.
+
 # Public parties with GitHub Pages
 
 The existing frontend stays at https://goofykings.github.io/Octane-Arena/.
