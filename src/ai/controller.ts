@@ -13,13 +13,31 @@ export class BotController {
   private last = -Infinity;
   private side = 0;
   private aerialJump = false;
+  private roofReleased = false;
+  private nextRecovery = 0;
   constructor(readonly difficulty: BotDifficulty) {}
   sample(car: Car, target: BotTarget, time: number) {
     if (time < this.last) {
       this.nextJump = 0;
       this.flipStarted = -Infinity;
+      this.roofReleased = false;
+      this.nextRecovery = 0;
     }
     this.last = time;
+    if (car.recovering) return neutralInput();
+    if (!car.grounded && car.up.y < -0.8 && car.chassisContacts > 0) {
+      if (time < this.nextRecovery) return neutralInput();
+      // Bots request the same deliberate release/repress as every other input source.
+      if (!this.roofReleased) {
+        this.roofReleased = true;
+        return neutralInput();
+      }
+      this.roofReleased = false;
+      this.nextRecovery =
+        time + P.car.recoveryDuration + P.car.recoveryCooldown;
+      return { ...neutralInput(), throttle: 1 };
+    }
+    this.roofReleased = false;
     const input = neutralInput(),
       local = target.point
         .clone()

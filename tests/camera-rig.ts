@@ -212,7 +212,9 @@ try {
             extent(camera, car.position, CAR_FRAME_RADIUS) < 1,
             `${name}/${fps}/${aspect} t=${t}: car clipped during mode transition extent=${extent(camera, car.position, CAR_FRAME_RADIUS)} fov=${camera.fov} car=${rig.framing.carScreen.toArray()} ball=${rig.framing.ballScreen.toArray()} boom=${camera.position.toArray()}`,
           );
-          if (rig.ballMode) {
+          if (rig.ballMode && !rig.transitioning) {
+            // A deliberate smooth switch cannot instantly frame a previously
+            // off-screen ball. Retain strict framing after the transition.
             const currentExtent = Math.max(
               extent(camera, car.position, CAR_FRAME_RADIUS),
               extent(camera, ball.position, goal ? 0.2 : P.ball.radius),

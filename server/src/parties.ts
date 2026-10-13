@@ -40,11 +40,11 @@ export async function registerParties(
   await initializeMatchPhysics();
   const players = new Map<string, Player>(),
     parties = new Map<string, PartyState>();
-  let previousRtcArena: ArenaId | undefined;
+  let previousPartyArena: ArenaId | undefined;
   const endRtc = (party: PartyState, notice = "") => {
     party.stage = "teams";
     delete party.matchId;
-    delete party.matchArenaId;
+    party.matchArenaId = chooseMatchArena(party.matchArenaId);
     delete party.matchHostId;
     delete party.matchFinished;
     for (const p of players.values())
@@ -71,7 +71,7 @@ export async function registerParties(
       if (party) {
         party.stage = "teams";
         delete party.matchId;
-        delete party.matchArenaId;
+        party.matchArenaId = chooseMatchArena(party.matchArenaId);
       }
       if (reason)
         for (const p of players.values())
@@ -477,11 +477,13 @@ export async function registerParties(
       return fail(409, "CHOOSE A MODE FIRST");
     if (stage === "teams" && party.mode !== "2v2" && party.members.length > 2)
       return fail(409, "CHOOSE 2 VS 2 FOR MORE THAN TWO PLAYERS");
-    if (stage === "teams")
+    if (stage === "teams") {
+      party.matchArenaId = chooseMatchArena(previousPartyArena);
       for (const m of party.members) {
         m.team = null;
         m.ready = false;
       }
+    }
     party.stage = stage;
     return state(p);
   });
@@ -491,7 +493,7 @@ export async function registerParties(
     p.notice = "";
     return state(p);
   });
-  app.post("/api/party/launch", async (req) => {
+  const launchMatch = async (req: FastifyRequest) => {
     const p = get(req),
       party = p.code ? parties.get(p.code) : null;
     if (!party || party.hostId !== p.member.id)
@@ -535,12 +537,14 @@ export async function registerParties(
       if (party.transport === "webrtc") {
         party.matchId = randomUUID();
         party.matchHostId = party.hostId;
-        party.matchArenaId = chooseMatchArena(previousRtcArena);
-        previousRtcArena = party.matchArenaId;
+        party.matchArenaId =
+          party.matchArenaId ?? chooseMatchArena(previousPartyArena);
+        previousPartyArena = party.matchArenaId;
         party.matchFinished = false;
       } else {
         const game = matches.start(party);
         party.matchId = game.id;
+        previousPartyArena = party.matchArenaId;
       }
       party.stage = "match";
       for (const member of players.values())
@@ -549,6 +553,22 @@ export async function registerParties(
       return fail(503, "MATCH COULD NOT START — TRY AGAIN");
     }
     return state(p);
+  };
+  app.post("/api/party/launch", launchMatch);
+  app.post("/api/party/rematch", async (req) => {
+    const p = get(req),
+      party = p.code ? parties.get(p.code) : null;
+    if (!party || party.hostId !== p.member.id)
+      return fail(403, "ONLY THE HOST CAN START");
+    if (party.transport === "webrtc") {
+      if (!party.matchFinished) return fail(409, "MATCH IS STILL PLAYING");
+      endRtc(party);
+    } else {
+      if (matches.matches.get(party.code)?.match.phase !== "finished")
+        return fail(409, "MATCH IS STILL PLAYING");
+      matches.stop(party.code);
+    }
+    return launchMatch(req);
   });
   app.post("/api/party/return", async (req) => {
     const p = get(req),

@@ -29,7 +29,7 @@ export class UI {
     <section id="garage-screen" data-nav-scope="garage" data-nav-priority="0" class="screen full-screen" hidden></section>
     <div id="hud" hidden><div class="scoreboard"><span id="score-cyan">0</span><time id="clock">5:00</time><span id="score-amber">0</span></div><div id="notice" aria-live="polite"></div><div id="countdown" aria-live="polite"></div><div class="camera-status"><i></i><b id="camera-mode">BALL CAMERA</b></div><div class="boost-hud"><svg viewBox="0 0 160 160" aria-hidden="true"><path class="boost-track" d="M128 128 A68 68 0 1 0 32 128" pathLength="100"/><path id="boost-fill" d="M32 128 A68 68 0 1 1 128 128" pathLength="100"/></svg><div id="boost">100</div><div id="boost-label">BOOST</div></div><div id="bot-tag" hidden></div></div>
     <section id="pause" data-nav-scope="pause" data-nav-priority="60" data-nav-default="#resume" class="modal" hidden><div class="modal-card"><h2>PAUSED</h2><button id="resume" data-nav-back class="nav-button primary">RESUME</button><button id="pause-settings" class="nav-button">SETTINGS</button><button id="pause-controls" class="nav-button">CONTROLS</button><button id="pause-reset" class="nav-button">RESET</button><button id="pause-home" class="nav-button">LEAVE MATCH</button></div></section>
-    <section id="result" data-nav-scope="result" data-nav-priority="60" data-nav-default="#again" class="modal" hidden><div class="modal-card"><h2 id="result-title"></h2><p id="result-score"></p><button id="again" class="nav-button primary">PLAY AGAIN</button><button id="home" data-nav-back class="nav-button">HOME</button></div></section><dialog id="settings"></dialog><dialog id="account" aria-label="Account"></dialog><pre id="debug" hidden></pre>`;
+    <section id="result" data-nav-scope="result" data-nav-priority="60" data-nav-default="#again" class="modal results-screen" hidden><header><h2 id="result-title"></h2><p id="result-score"></p></header><nav class="results-actions"><button id="again" class="nav-button primary">PLAY AGAIN</button><button id="home" data-nav-back class="nav-button">HOME</button><button id="results-leave" class="nav-button" hidden>LEAVE PARTY</button><p id="results-error" role="status"></p></nav><div id="results-board"></div></section><dialog id="settings"></dialog><dialog id="account" aria-label="Account"></dialog><pre id="debug" hidden></pre>`;
   }
   on(id: string, fn: () => void) {
     document.getElementById(id)!.addEventListener("click", fn);
@@ -168,6 +168,6 @@ export class UI {
     );
     set("camera-mode", ballCamera ? "BALL CAMERA" : "CAR CAMERA");
     set("result-title", m.message);
-    set("result-score", `${m.score[0]} — ${m.score[1]}`);
+    set("result-score", `BLUE  ${m.score[0]}  -  ${m.score[1]}  ORANGE`);
   }
 }

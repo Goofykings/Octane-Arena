@@ -11,6 +11,9 @@ export const MOUSE_LOOK = {
   pitchLimit: 1.12,
   orbitFriction: 5.5,
   orbitMaxSpeed: 8,
+  controllerYaw: Math.PI * 0.8,
+  controllerPitch: 0.9,
+  controllerResponse: 24,
 };
 const up = new T.Vector3(0, 1, 0);
 
@@ -51,6 +54,7 @@ export class MouseLook {
   yawVelocity = 0;
   pitchVelocity = 0;
   private idleTime = 0;
+  private controllerDriven = false;
   private yawRotation = new T.Quaternion();
   private pitchRotation = new T.Quaternion();
   private direction = new T.Vector3();
@@ -78,6 +82,7 @@ export class MouseLook {
     this.behavior = behavior;
   }
   begin() {
+    this.controllerDriven = false;
     this.dragging = true;
     this.targetYaw = this.yaw;
     this.targetPitch = this.pitch;
@@ -87,15 +92,12 @@ export class MouseLook {
   move(dx: number, dy: number, elapsed = 1 / 60) {
     if (!this.dragging || !Number.isFinite(dx) || !Number.isFinite(dy)) return;
     const oldPitch = this.targetPitch;
-    const yawMovement = -dx * MOUSE_LOOK.sensitivity;
+    const yawMovement =
+      (this.behavior === "orbit" ? -dx : dx) * MOUSE_LOOK.sensitivity;
     this.targetYaw =
       this.behavior === "orbit"
         ? this.targetYaw + yawMovement
-        : softAngle(
-            this.targetYaw,
-            -dx * MOUSE_LOOK.sensitivity,
-            MOUSE_LOOK.yawLimit,
-          );
+        : softAngle(this.targetYaw, yawMovement, MOUSE_LOOK.yawLimit);
     this.targetPitch = softAngle(
       this.targetPitch,
       dy * MOUSE_LOOK.sensitivity,
@@ -122,22 +124,14 @@ export class MouseLook {
   }
   /** Controller shares the existing view-only offsets; pointer dragging wins.
    * Stick release follows the normal eased return, never a camera snap. */
-  controllerLook(x: number, y: number, dt: number) {
+  controllerLook(x: number, y: number, _dt: number) {
     if (this.behavior !== "look" || this.dragging) return;
-    if (Math.abs(x) + Math.abs(y) > 0) {
-      this.targetYaw = softAngle(
-        this.targetYaw,
-        x * 2.8 * dt,
-        MOUSE_LOOK.yawLimit,
-      );
-      this.targetPitch = softAngle(
-        this.targetPitch,
-        y * 1.8 * dt,
-        MOUSE_LOOK.pitchLimit,
-      );
-    } else this.targetYaw = this.targetPitch = 0;
+    if (Math.abs(x) + Math.abs(y) > 0) this.controllerDriven = true;
+    this.targetYaw = T.MathUtils.clamp(x, -1, 1) * MOUSE_LOOK.controllerYaw;
+    this.targetPitch = T.MathUtils.clamp(y, -1, 1) * MOUSE_LOOK.controllerPitch;
   }
   reset() {
+    this.controllerDriven = false;
     this.end();
     this.yaw = this.pitch = 0;
     this.targetYaw =
@@ -194,7 +188,11 @@ export class MouseLook {
       }
       return;
     }
-    const rate = this.dragging ? settings.swivel * 8 : settings.transition * 5;
+    const rate = this.controllerDriven
+      ? MOUSE_LOOK.controllerResponse
+      : this.dragging
+        ? settings.swivel * 8
+        : settings.transition * 5;
     const alpha = 1 - Math.exp(-Math.max(0, rate) * Math.max(0, dt));
     this.yaw += (this.targetYaw - this.yaw) * alpha;
     this.pitch += (this.targetPitch - this.pitch) * alpha;
@@ -226,6 +224,10 @@ export class MouseOrbit {
   readonly clearance = new CameraClearance();
   private offset = new T.Vector3();
   private first = true;
+  private direction = new T.Vector3();
+  private right = new T.Vector3();
+  private yawRotation = new T.Quaternion();
+  private pitchRotation = new T.Quaternion();
   apply(
     camera: T.PerspectiveCamera,
     focus: T.Vector3,
@@ -234,7 +236,9 @@ export class MouseOrbit {
     world?: CameraWorld,
     minY = 0.2,
   ) {
-    if (!look?.active) {
+    if (!look || (look.yaw === 0 && look.pitch === 0)) {
+      // Capturing a pointer is not a view change. In particular, do not run
+      // another boom solve or replace Ball Cam framing before any movement.
       this.first = true;
       return;
     }
@@ -282,8 +286,27 @@ export class MouseOrbit {
       );
     } else camera.position.copy(focus).add(this.offset);
     this.first = false;
-    camera.up.copy(up);
-    camera.lookAt(focus);
+    if (this.gameplaySpace) {
+      // Apply relative orbit angles to the automatic rendered orientation.
+      // Looking at the car here replaced the existing ball/car framing even
+      // for an infinitesimal drag, causing the first-frame teleport.
+      this.direction.set(0, 0, -1).applyQuaternion(camera.quaternion);
+      const baseViewPitch = Math.asin(
+        T.MathUtils.clamp(this.direction.y, -1, 1),
+      );
+      const viewPitch = pitchOffset(baseViewPitch, -look.pitch, -1.48, 1.48);
+      this.yawRotation.setFromAxisAngle(up, look.yaw * this.yawSign);
+      camera.quaternion.premultiply(this.yawRotation);
+      this.right.set(1, 0, 0).applyQuaternion(camera.quaternion);
+      this.pitchRotation.setFromAxisAngle(
+        this.right,
+        viewPitch - baseViewPitch,
+      );
+      camera.quaternion.premultiply(this.pitchRotation).normalize();
+    } else {
+      camera.up.copy(up);
+      camera.lookAt(focus);
+    }
     camera.updateMatrixWorld(true);
   }
 }

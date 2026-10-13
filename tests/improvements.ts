@@ -164,15 +164,19 @@ for (const sign of [-1, 1]) {
   c.updateSupersonic(P.dt);
   c.wheelContact = [true, true, true, true];
   fx.update(c, 0.1, 1, true);
-  const visibleBefore = scene.children.some((o) => o.visible);
+  const trailMeshes = scene.children.filter(
+    (o) => o.name === "supersonic-tire-trail",
+  );
+  const visibleBefore =
+    trailMeshes.length === 2 && trailMeshes.some((o) => o.visible);
   c.wheelContact = [false, false, false, false];
   fx.update(c, 0.016, 2, true);
   check(
     "supersonic ground trails disappear airborne",
-    visibleBefore && scene.children.every((o) => !o.visible),
+    visibleBefore && trailMeshes.every((o) => !o.visible),
     {
       visibleBefore,
-      visibleAfter: scene.children.filter((o) => o.visible).length,
+      visibleAfter: trailMeshes.filter((o) => o.visible).length,
     },
   );
   check(

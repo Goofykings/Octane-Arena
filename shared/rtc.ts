@@ -51,6 +51,7 @@ const car = z
     rotation,
     velocity: vec,
     angularVelocity: vec.optional(),
+    teleportSequence: z.number().int().nonnegative().optional(),
     wheelAngle: finite.optional(),
     wheelSteer: finite.optional(),
     boost: finite.min(0).max(100),
@@ -170,9 +171,15 @@ export function peerSnapshot(
         new Set(result.data.rumble.players.map((p) => p.playerId)).size !==
           playerIds.length ||
         result.data.rumble.players.some(
-          (p) => !playerIds.includes(p.playerId),
+          (p) =>
+            !playerIds.includes(p.playerId) ||
+            (!!p.targetPlayerId && !playerIds.includes(p.targetPlayerId)),
         ) ||
-        result.data.rumble.events.some((p) => !playerIds.includes(p.playerId))))
+        result.data.rumble.events.some(
+          (p) =>
+            !playerIds.includes(p.playerId) ||
+            (!!p.targetPlayerId && !playerIds.includes(p.targetPlayerId)),
+        )))
   )
     return null;
   return result.data as unknown as MatchSnapshot;

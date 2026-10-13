@@ -199,9 +199,22 @@ for (const slide of [false, true]) {
     assert.ok(half > 0.49 && half < 0.51);
     run(s, 0.3, {});
     assert.equal(c.handbrake, 0);
-    assert.ok(slip(s) < 0.2);
-    results.release = { half, slip: slip(s) };
-  } else assert.ok(slip(s) < 0.2);
+    const releaseSlip = slip(s);
+    assert.ok(
+      releaseSlip < atTouch,
+      "Releasing drift progressively restores grip",
+    );
+    run(s, 0.5, {});
+    assert.ok(slip(s) < 0.2, "Finite grip still settles after release");
+    results.release = { half, releaseSlip, slip: slip(s) };
+  } else {
+    assert.ok(
+      slip(s) > 0.2 && slip(s) < atTouch * 0.65,
+      "Ordinary tires allow finite landing slip without losing strong grip",
+    );
+    run(s, 0.7, {});
+    assert.ok(slip(s) < 0.2, "Ordinary lateral slip settles progressively");
+  }
   s.dispose();
 }
 {
@@ -235,7 +248,11 @@ for (const slide of [false, true]) {
   results[`wall${slide}`] = { slip: slip(s), contacts: c.contacts };
   assert.ok(c.contacts >= 2);
   if (slide) assert.ok(slip(s) > 3);
-  else assert.ok(slip(s) < 1);
+  else {
+    assert.ok(slip(s) < 3, "Finite wall grip remains much stronger than drift");
+    run(s, 0.25, { slide: false, throttle: 0.02 });
+    assert.ok(slip(s) < 1, "Wall slip converges under finite traction");
+  }
   s.dispose();
 }
 {

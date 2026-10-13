@@ -287,11 +287,15 @@ export class Simulation {
     this.hits = this.hits.filter((h) => (h.age += P.dt) < 0.6);
     this.cars.forEach((c, i) => {
       c.pose.before();
-      if (!passive && c.body.isEnabled())
+      if (!passive && c.body.isEnabled()) {
+        c.grapplePulling =
+          this.rumble?.players.get(c.id)?.phase === "active" &&
+          this.rumble.players.get(c.id)?.item === "GRAPPLING_HOOK";
         c.tick(
           (Array.isArray(inputs) ? inputs[i] : inputs.get(c.id)) ??
             neutralInput(),
         );
+      }
       c.constrainSurface();
       c.updateSupersonic(P.dt);
       this.velocities[i].copy(c.body.linvel());

@@ -255,7 +255,7 @@ export class NetworkMatches {
     if (this.matches.has(party.code)) return this.matches.get(party.code)!;
     if (this.matches.size >= 8) throw Error("SERVER IS FULL");
     const players = partyRoster(party);
-    const arenaId = chooseMatchArena(this.previousArena);
+    const arenaId = party.matchArenaId ?? chooseMatchArena(this.previousArena);
     const game = new NetworkMatch(
       players,
       arenaId,

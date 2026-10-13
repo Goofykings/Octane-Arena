@@ -1738,3 +1738,26 @@ output {
 
 /* Three standard gamemode selectors remain visible alongside match setup. */
 @media(min-width:601px){#bot-setup .bot-selectors{grid-template-columns:repeat(3,minmax(0,1fr));width:min(1080px,94vw);gap:clamp(10px,2vw,30px)}#bot-setup .bot-cycle{grid-template-columns:32px minmax(0,1fr) 32px;gap:4px}#bot-setup .bot-cycle strong{font-size:clamp(15px,1.8vw,25px)}}
+
+#match-loading{position:fixed;inset:0;z-index:180;background:#071524;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;pointer-events:auto}#match-loading strong{font-size:clamp(24px,4vw,48px)}#match-loading span{font-size:14px;color:#b4cfdf}#match-loading progress{width:min(340px,72vw);height:5px;accent-color:#78d9f3}
+
+/* Final scoreboard reuses the live board and keeps the arena visible. */
+#result.results-screen {background:rgba(5,12,24,.38);display:grid;grid-template-columns:clamp(160px,18vw,260px) minmax(0,900px);grid-template-rows:auto minmax(0,1fr);gap:clamp(16px,3vw,48px);padding:clamp(24px,5vh,64px) clamp(18px,5vw,100px);align-content:center;align-items:center;justify-content:center;}
+#result.results-screen[hidden] {display:none;}
+.results-screen > header {grid-column:1/-1;text-align:center;}
+#result-score {font-size:clamp(20px,3vw,46px);font-weight:900;word-spacing:.2em;margin:12px;}
+.results-actions {display:flex;flex-direction:column;gap:16px;}
+.results-actions .nav-button {width:100%;font-size:clamp(13px,1.3vw,20px);}
+#results-board {min-width:0;}
+#match-board.results-board {position:relative;inset:auto;transform:none;width:100%;max-height:70vh;overflow:auto;margin:0;}
+.mvp-badge {display:inline-block;color:#ffdf7e;font-size:.7em;border:1px solid #ffdf7e88;border-radius:4px;padding:2px 4px;vertical-align:middle;}
+@media(max-width:740px){#result.results-screen {grid-template-columns:minmax(0,1fr);gap:12px;padding:20px;} .results-screen > header {grid-column:1;} .results-actions {grid-row:3;flex-direction:row;gap:8px;} #match-board.results-board {max-height:60vh;} }
+
+#match-award.mvp-notice {z-index:calc(var(--layer-menu) + 5);top:12px;flex-direction:column;gap:2px;}
+
+#result.results-screen > header {padding-top:56px;}
+#result .results-actions, #results-board {width:100%;}
+#result .results-actions .nav-button {min-width:0;}
+
+#party-continue {min-width:180px;}
+#party-launch:not(:disabled) {background:linear-gradient(135deg,#9ceafa,#49bfd6);color:#071828;box-shadow:0 0 20px #7adbea33;}

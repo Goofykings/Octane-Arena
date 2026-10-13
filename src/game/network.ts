@@ -85,6 +85,12 @@ export class NetworkClient {
   readonly rtc: RtcPeers;
   private authority: Worker | null = null;
   private readyPeers = new Set<string>();
+  private sceneReadyPeers = new Set<string>();
+  scenePrepared = false;
+  private simulationStarted = false;
+  prepared() {
+    this.scenePrepared = true;
+  }
   private replaySent = new Map<string, string>();
   private rtcReplay: ServerMessage | null = null;
   private rtcStartedAt = 0;
@@ -96,6 +102,7 @@ export class NetworkClient {
     this.rtc.onData = (id, data) => this.peerData(id, data);
     this.rtc.onClose = (id) => {
       this.readyPeers.delete(id);
+      this.sceneReadyPeers.delete(id);
       this.replaySent.delete(id);
       this.command({ type: "disconnected", id });
     };
@@ -110,7 +117,9 @@ export class NetworkClient {
     });
   }
   input(value: PlayerInput) {
-    const edge = value.jump !== this.lastInput.jump || !!value.usePowerup !== !!this.lastInput.usePowerup;
+    const edge =
+      value.jump !== this.lastInput.jump ||
+      !!value.usePowerup !== !!this.lastInput.usePowerup;
     this.lastInput = { ...value };
     this.inputTime = performance.now();
     if (edge) this.sendInput();
@@ -239,6 +248,8 @@ export class NetworkClient {
           });
         }
         this.readyPeers.add(id);
+      } else if ((value as { type: string }).type === "match-scene-ready") {
+        this.sceneReadyPeers.add(id);
       } else if (message.type === "chat-send")
         this.command({ type: "chat", id, text: message.text });
       else if (message.type === "input")
@@ -293,6 +304,11 @@ export class NetworkClient {
     if (host !== this.party.playerId) {
       if (this.rtc.ready(host) && now >= this.readyAt) {
         this.rtc.send(host, { type: "match-ready", matchId: this.desired });
+        if (this.scenePrepared)
+          this.rtc.send(host, {
+            type: "match-scene-ready",
+            matchId: this.desired,
+          });
         this.readyAt = now + 500;
       }
       this.sendInput();
@@ -373,6 +389,17 @@ export class NetworkClient {
         this.reportEnd("disconnect");
       }
     }
+    if (
+      this.authority &&
+      !this.simulationStarted &&
+      this.scenePrepared &&
+      guests.every(
+        (g) => this.sceneReadyPeers.has(g.id) && this.rtc.ready(g.id),
+      )
+    ) {
+      this.simulationStarted = true;
+      this.command({ type: "ready" });
+    }
     this.sendInput();
     if (this.latest?.phase === "finished" && !this.reportedFinished)
       this.reportEnd("finished");
@@ -389,6 +416,9 @@ export class NetworkClient {
     this.authority?.terminate();
     this.authority = null;
     this.readyPeers.clear();
+    this.sceneReadyPeers.clear();
+    this.scenePrepared = false;
+    this.simulationStarted = false;
     this.replaySent.clear();
     this.rtcReplay = null;
     this.readyAt = this.endAt = this.arrived = 0;

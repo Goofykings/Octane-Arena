@@ -17,6 +17,7 @@ export type AuthorityCommand =
       matchId: string;
       gameMode?: SoccerMode;
     }
+  | { type: "ready" }
   | { type: "input"; id: string; sequence: number; input: PlayerInput }
   | { type: "connected" | "disconnected"; id: string }
   | { type: "skip"; id: string; replayId: string }
@@ -25,6 +26,7 @@ export type AuthorityCommand =
   | { type: "stats-debug"; enabled: boolean };
 let game: NetworkMatch | null = null;
 let timer: ReturnType<typeof setInterval> | undefined;
+let startTimer: (() => void) | null = null;
 const scope = self as unknown as {
   onmessage: ((e: MessageEvent<AuthorityCommand>) => void) | null;
   postMessage: (data: unknown) => void;
@@ -45,28 +47,32 @@ scope.onmessage = (event) => {
       let previous = performance.now(),
         lastTick = -4,
         replayId = "";
-      scope.postMessage(game.snapshot());
-      timer = setInterval(() => {
-        try {
-          const now = performance.now();
-          loop.advance((now - previous) / 1000, () => game!.step(now));
-          previous = now;
-          if (game!.tick - lastTick < 4) return;
-          lastTick = game!.tick;
-          const clip = game!.match.replay?.clip;
-          if (clip && clip.goal.id !== replayId) {
-            replayId = clip.goal.id;
-            scope.postMessage(replayMessage(game!.id, clip));
+      startTimer = () => {
+        if (timer) return;
+        previous = performance.now();
+        timer = setInterval(() => {
+          try {
+            const now = performance.now();
+            loop.advance((now - previous) / 1000, () => game!.step(now));
+            previous = now;
+            if (game!.tick - lastTick < 4) return;
+            lastTick = game!.tick;
+            const clip = game!.match.replay?.clip;
+            if (clip && clip.goal.id !== replayId) {
+              replayId = clip.goal.id;
+              scope.postMessage(replayMessage(game!.id, clip));
+            }
+            scope.postMessage(game!.snapshot());
+          } catch {
+            clearInterval(timer);
+            scope.postMessage({
+              type: "error",
+              message: "Match simulation stopped. Return to the lobby.",
+            });
           }
-          scope.postMessage(game!.snapshot());
-        } catch {
-          clearInterval(timer);
-          scope.postMessage({
-            type: "error",
-            message: "Match simulation stopped. Return to the lobby.",
-          });
-        }
-      }, 8);
+        }, 8);
+      };
+      scope.postMessage(game.snapshot()); // Resource bootstrap; clock is stopped until every scene is ready.
     })().catch(() =>
       scope.postMessage({
         type: "error",
@@ -76,6 +82,10 @@ scope.onmessage = (event) => {
     return;
   }
   if (!game) return;
+  if (message.type === "ready") {
+    startTimer?.();
+    return;
+  }
   if (message.type === "chat") {
     const result = game.acceptChat(message.id, message.text);
     scope.postMessage(

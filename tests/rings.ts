@@ -142,8 +142,8 @@ for (let i = 0; i < 40; i++) {
     );
   assert.equal(cast(0), null, "invisible geometry inside opening");
   const scale = ringScale(ring);
-  const inner = cast(scale * (1 - ringTubeRadius * 0.6)),
-    outer = cast(scale * (1 + ringTubeRadius * 0.6));
+  const inner = cast(scale - ringTubeRadius * 0.6),
+    outer = cast(scale + ringTubeRadius * 0.6);
   assert.ok(inner && outer, `ring ${i + 1} inner/outer collider missing`);
   assert.ok(
     new Vector3().copy(inner.normal).dot(x) < -0.2,
@@ -197,10 +197,7 @@ for (const id of ["ion", "vector"] as const)
       ).applyQuaternion(ring.rotation);
       const origin = ring.center
         .clone()
-        .addScaledVector(
-          radial,
-          ringScale(ring) * (1 + side * ringTubeRadius * 0.7),
-        )
+        .addScaledVector(radial, ringScale(ring) + side * ringTubeRadius * 0.7)
         .addScaledVector(ring.normal, -2);
       p.car.setBody(id);
       p.car.reset(origin.x, origin.z, 0, origin.y);
@@ -425,7 +422,10 @@ assert.equal(controller.debug.mode, "Car Cam");
 normal.dispose();
 const colliderCount = p.world.colliders.len();
 const level = new RingsLevel(course, "stadium");
-assert.ok(ringTubeRadius > 0.055 && ringTubeRadius < 0.08);
+assert.ok(
+  ringTubeRadius >= 0.25 && ringTubeRadius <= 0.45,
+  "Constant world tube radius remains a readable thin band",
+);
 assert.ok(level.clouds.count > 300);
 assert.equal(
   p.world.colliders.len(),

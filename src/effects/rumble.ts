@@ -6,7 +6,14 @@ interface Fx {
   root: T.Group;
   spikes: T.Group;
   aura: T.LineSegments;
-  tether: T.Line;
+  tether: T.Mesh<T.CylinderGeometry, T.MeshBasicMaterial>;
+  fist: T.Group;
+  fistAge: number;
+  from: T.Vector3;
+  to: T.Vector3;
+  arrival: T.Mesh<T.RingGeometry, T.MeshBasicMaterial>;
+  warp: T.Mesh<T.CylinderGeometry, T.MeshBasicMaterial>;
+  swapAge: number;
   line: Float32Array;
   arcs: Float32Array;
   flash: T.Mesh<T.RingGeometry, T.MeshBasicMaterial>;
@@ -88,14 +95,20 @@ export class RumbleEffects {
         "position",
         new T.BufferAttribute(line, 3).setUsage(T.DynamicDrawUsage),
       );
-      const tether = new T.Line(
-        lineGeom,
-        new T.LineBasicMaterial({
+      const tether = new T.Mesh(
+        new T.CylinderGeometry(
+          R.visual.tetherRadius * 0.7,
+          R.visual.tetherRadius,
+          1,
+          8,
+        ),
+        new T.MeshBasicMaterial({
           color: R.visual.neutral,
           transparent: true,
           opacity: R.visual.lineOpacity,
         }),
       );
+      lineGeom.dispose();
       tether.name = "rumble-tether";
       tether.frustumCulled = false;
       scene.add(tether);
@@ -111,7 +124,31 @@ export class RumbleEffects {
       );
       flash.name = "rumble-punch-flash";
       scene.add(flash);
+      const arrival = flash.clone();
+      arrival.material = flash.material.clone();
+      const warp = tether.clone();
+      warp.material = tether.material.clone();
+      const fist = new T.Group(),
+        fistMat = new T.MeshBasicMaterial({ color: 0xff354b });
+      const palm = new T.Mesh(new T.BoxGeometry(0.32, 0.28, 0.38), fistMat);
+      fist.add(palm);
+      for (let finger = 0; finger < 4; finger++) {
+        const knuckle = new T.Mesh(new T.BoxGeometry(0.1, 0.13, 0.15), fistMat);
+        knuckle.position.set((finger - 1.5) * 0.095, 0.16, -0.12);
+        fist.add(knuckle);
+      }
+      fist.name = "rumble-red-fist";
+      arrival.name = "rumble-swap-arrival";
+      warp.name = "rumble-swap-warp";
+      scene.add(fist, arrival, warp);
       this.slots.push({
+        fist,
+        fistAge: -1,
+        from: new T.Vector3(),
+        to: new T.Vector3(),
+        arrival,
+        warp,
+        swapAge: -1,
         id: "",
         root,
         spikes,
@@ -128,8 +165,16 @@ export class RumbleEffects {
   reset() {
     this.lastEvent = 0;
     for (const fx of this.slots) {
-      fx.root.visible = fx.tether.visible = fx.flash.visible = false;
+      fx.root.visible =
+        fx.tether.visible =
+        fx.flash.visible =
+        fx.fist.visible =
+        fx.arrival.visible =
+        fx.warp.visible =
+          false;
       fx.pulse = 0;
+      fx.fistAge = fx.swapAge = -1;
+      fx.fist.visible = fx.arrival.visible = fx.warp.visible = false;
       fx.id = "";
     }
   }
@@ -144,7 +189,13 @@ export class RumbleEffects {
   ) {
     if (!state) {
       for (const fx of this.slots)
-        fx.root.visible = fx.tether.visible = fx.flash.visible = false;
+        fx.root.visible =
+          fx.tether.visible =
+          fx.flash.visible =
+          fx.fist.visible =
+          fx.arrival.visible =
+          fx.warp.visible =
+            false;
       return;
     }
     for (const st of state.players)
@@ -165,7 +216,13 @@ export class RumbleEffects {
         st = state.players[i],
         pose = st ? getPose(st.playerId) : undefined;
       if (!st || !pose?.visible) {
-        fx.root.visible = fx.tether.visible = fx.flash.visible = false;
+        fx.root.visible =
+          fx.tether.visible =
+          fx.flash.visible =
+          fx.fist.visible =
+          fx.arrival.visible =
+          fx.warp.visible =
+            false;
         continue;
       }
       if (fx.id !== st.playerId) {
@@ -205,10 +262,46 @@ export class RumbleEffects {
         fx.line[3] = ball.position.x;
         fx.line[4] = ball.position.y;
         fx.line[5] = ball.position.z;
-        fx.tether.geometry.attributes.position.needsUpdate = true;
-        (fx.tether.material as T.LineBasicMaterial).color.setHex(
-          st.item === "PLUNGER" ? R.visual.colors[1] : R.visual.colors[0],
+        fx.tether.position.copy(pose.position).lerp(ball.position, 0.5);
+        this.a.copy(ball.position).sub(pose.position);
+        fx.tether.scale.set(1, this.a.length(), 1);
+        fx.tether.quaternion.setFromUnitVectors(
+          this.b.set(0, 1, 0),
+          this.a.normalize(),
         );
+        fx.tether.material.color.setHex(R.visual.colors[st.team ?? 0]);
+        fx.tether.material.depthWrite = false;
+        fx.tether.material.blending = T.AdditiveBlending;
+      }
+      if (fx.fistAge >= 0) fx.fistAge += dt;
+      fx.fist.visible =
+        fx.fistAge >= 0 && fx.fistAge < R.haymaker.visualTravelTime;
+      if (fx.fist.visible) {
+        fx.fist.position.lerpVectors(
+          fx.from,
+          fx.to,
+          fx.fistAge / R.haymaker.visualTravelTime,
+        );
+        this.a.copy(fx.to).sub(fx.from).normalize();
+        fx.fist.quaternion.setFromUnitVectors(this.b.set(0, 0, -1), this.a);
+      }
+      if (fx.swapAge >= 0) fx.swapAge += dt;
+      const swapping = fx.swapAge >= 0 && fx.swapAge < R.swapper.effectDuration;
+      fx.arrival.visible = fx.warp.visible = swapping;
+      if (swapping) {
+        const progress = fx.swapAge / R.swapper.effectDuration;
+        fx.arrival.position.copy(fx.to);
+        fx.arrival.quaternion.copy(camera.quaternion);
+        fx.arrival.scale.setScalar(0.5 + 2 * progress);
+        fx.arrival.material.opacity = 1 - progress;
+        fx.warp.position.copy(fx.from).lerp(fx.to, 0.5);
+        this.a.copy(fx.to).sub(fx.from);
+        fx.warp.scale.set(1 - progress, this.a.length(), 1 - progress);
+        fx.warp.quaternion.setFromUnitVectors(
+          this.b.set(0, 1, 0),
+          this.a.normalize(),
+        );
+        fx.warp.material.opacity = 1 - progress;
       }
       fx.pulse = Math.max(0, fx.pulse - dt);
       fx.flash.visible = fx.pulse > 0;
@@ -225,7 +318,40 @@ export class RumbleEffects {
         continue;
       const fx = this.slots.find((f) => f.id === event.playerId);
       if (!fx) continue;
-      if (event.kind === "POWERUP_USED" && !replay) this.sound?.(event.item);
+      if ((event.kind === "POWERUP_USED" || event.kind === "SWAP") && !replay)
+        this.sound?.(event.item);
+      if (event.kind === "SWAP" && event.source) {
+        fx.from.copy(event.source);
+        fx.to.copy(event.point);
+        fx.swapAge = 0;
+        fx.flash.position.copy(event.source);
+        fx.pulse = R.swapper.effectDuration;
+        fx.flash.visible = fx.arrival.visible = fx.warp.visible = true;
+        fx.flash.material.opacity =
+          fx.arrival.material.opacity =
+          fx.warp.material.opacity =
+            1;
+        fx.flash.scale.setScalar(0.5);
+        fx.arrival.scale.setScalar(0.5);
+        fx.arrival.position.copy(fx.to);
+        fx.arrival.quaternion.copy(camera.quaternion);
+        fx.warp.position.copy(fx.from).lerp(fx.to, 0.5);
+        this.a.copy(fx.to).sub(fx.from);
+        fx.warp.scale.set(1, this.a.length(), 1);
+        fx.warp.quaternion.setFromUnitVectors(
+          this.b.set(0, 1, 0),
+          this.a.normalize(),
+        );
+      }
+      if (event.item === "HAYMAKER" && event.kind === "POWERUP_USED") {
+        fx.from.copy(event.source ?? getPose(event.playerId)!.position);
+        fx.to.copy(event.point);
+        fx.fistAge = 0;
+        fx.fist.visible = true;
+        fx.fist.position.copy(fx.from);
+        this.a.copy(fx.to).sub(fx.from).normalize();
+        fx.fist.quaternion.setFromUnitVectors(this.b.set(0, 0, -1), this.a);
+      }
       if (event.kind === "SPIKE_ATTACHED" && !replay)
         this.sound?.(event.item, true);
       if (
@@ -235,11 +361,20 @@ export class RumbleEffects {
         fx.flash.position.copy(event.point);
         fx.pulse = R.visual.flashDuration;
         fx.flash.visible = true;
+        fx.flash.material.opacity = 1;
+        fx.flash.scale.setScalar(0.2);
       }
     }
   }
   dispose() {
     for (const fx of this.slots) {
+      fx.fist.removeFromParent();
+      fx.arrival.removeFromParent();
+      fx.warp.removeFromParent();
+      fx.arrival.material.dispose();
+      fx.warp.material.dispose();
+      fx.fist.children.forEach((c) => (c as T.Mesh).geometry.dispose());
+      ((fx.fist.children[0] as T.Mesh).material as T.Material).dispose();
       fx.root.removeFromParent();
       fx.tether.removeFromParent();
       fx.flash.removeFromParent();

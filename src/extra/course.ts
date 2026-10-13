@@ -23,9 +23,9 @@ export interface RingsCourse {
   rings: RingCheckpoint[];
 }
 export const ringColors = { green: 0x65f69a, yellow: 0xffd76b, red: 0xff667b };
-export const ringTubeRadius = 0.07;
-// One reusable torus. Scaling gives the requested *inner* radius, with a
-// proportionally rounded tube. Visual and physical geometry use identical data.
+export const ringTubeRadius = 0.35; // World-space band radius; independent of ring diameter.
+// One reusable source torus. CPU collider deformation and the instanced shader
+// scale its centerline while retaining the same world-space tube thickness.
 export function ringGeometry() {
   const geometry = new TorusGeometry(1, ringTubeRadius, 10, 48);
   const positions = geometry.getAttribute("position");
@@ -51,7 +51,14 @@ export function ringGeometry() {
   return geometry;
 }
 export const ringScale = (ring: RingCheckpoint) =>
-  ring.opening / (1 - ringTubeRadius);
+  ring.opening + ringTubeRadius;
+
+/** Same constant-thickness deformation used by the instanced visual shader. */
+export function ringVertex(x: number, y: number, z: number, scale: number) {
+  const radial = Math.hypot(x, y),
+    radius = scale + radial - 1;
+  return [(x / radial) * radius, (y / radial) * radius, z];
+}
 
 export function createRingsCourse(): RingsCourse {
   // One-based challenge placements: ample green approaches between precision

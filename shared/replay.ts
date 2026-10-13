@@ -6,7 +6,7 @@ export const REPLAY_HZ = 120;
 export const REPLAY_POST_GOAL = 1;
 export const REPLAY_CAPACITY = 6 * REPLAY_HZ + 1;
 export const BALL_STRIDE = 14;
-export const CAR_STRIDE = 52;
+export const CAR_STRIDE = 53;
 // Offsets into each packed car row. No arena meshes or cosmetic assets here.
 export const RC = {
   position: 0,
@@ -35,6 +35,7 @@ export const RC = {
   wheelSpeed: 49,
   contactSpeed: 50,
   airborneTime: 51,
+  teleport: 52,
 } as const;
 export interface ReplayGoal {
   id: string;
@@ -288,6 +289,9 @@ export class ReplaySampler {
         c.frames[rowA + j] + (c.frames[rowB + j] - c.frames[rowA + j]) * alpha;
     const rigid = (offset: number, enabled: number, discrete: number[]) => {
       const teleported =
+        (offset > 0 &&
+          c.frames[rowA + offset + RC.teleport] !==
+            c.frames[rowB + offset + RC.teleport]) ||
         c.frames[rowA + enabled] !== c.frames[rowB + enabled] ||
         Math.hypot(
           ...[0, 1, 2].map(

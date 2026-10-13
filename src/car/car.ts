@@ -1,5 +1,6 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 import { Quaternion, Vector3 } from "three";
+import { RUMBLE_CONFIG } from "../config/rumble";
 import { P, curvature, throttleAcceleration } from "../config/physics";
 import type { PlayerInput } from "../../shared/player";
 import { JumpState } from "./dodge";
@@ -33,6 +34,8 @@ export class Car {
   right = new Vector3();
   up = new Vector3();
   normal = new Vector3(0, 1, 0);
+  teleportSequence = 0;
+  grapplePulling = false;
   grounded = false;
   contacts = 0;
   stableContact = false;
@@ -53,6 +56,9 @@ export class Car {
   private driftSign = 1;
   private recovery = 0;
   private recoverySide = 1;
+  private recoveryHeld = false;
+  private recoveryAxis = new Vector3();
+  private recoveryNormal = new Vector3(0, 1, 0);
   private recoveryCooldown = 0;
   private contactGap = 1;
   contactState: "surface" | "transition" | "air" = "air";
@@ -127,6 +133,15 @@ export class Car {
     this.pose = new Pose(this.body);
     this.reset(0, 25, 0);
   }
+  clearSurfaceHistory() {
+    this.contacts = 0;
+    this.grounded = this.stableContact = this.normalReady = false;
+    this.contactGap = 1;
+    this.contactState = "air";
+    this.supportKind = "air";
+    this.wheelContact.fill(false);
+    this.surfaceTurn.set(0, 0, 0);
+  }
   reset(x: number, z: number, yaw: number, y = 0.36) {
     this.demolitionState = "active";
     this.respawnTimer = 0;
@@ -136,6 +151,7 @@ export class Car {
     this.lateralSlip = this.skidIntensity = 0;
     this.handbrake = 0;
     this.recovery = 0;
+    this.recoveryHeld = false;
     this.recoveryCooldown = 0;
     this.contactGap = 1;
     this.contactState = "air";
@@ -331,7 +347,8 @@ export class Car {
       this.stableContact =
         this.normalReady &&
         this.up.dot(this.normal) > (this.stableContact ? 0.94 : 0.98) &&
-        (this.contacts >= 3 || (this.stableContact && active.length >= 3));
+        (this.contacts >= 3 || (this.stableContact && active.length >= 3)) &&
+        !(this.normal.y < c.overheadPartialNormal && this.contacts < 3);
     } else if (!this.contacts) {
       this.stableContact = false;
       this.normalReady = false;
@@ -340,11 +357,15 @@ export class Car {
     }
     const treadContact = this.contacts > 0 && this.up.dot(this.normal) > 0.55;
     this.grounded = this.contacts >= 2 && treadContact;
-    // Held input may begin recovery on touchdown; the timed state/cooldown prevents retriggering.
-    const recoveryInput = input.jump || Math.abs(input.throttle) > 0.1;
+    // Only a fresh deliberate press can request recovery. Held aerial throttle
+    // never becomes a new press merely because the roof touches a surface.
+    const recoveryInput =
+      input.jump || Math.abs(input.throttle) > c.recoveryInputThreshold;
+    const recoveryEdge = recoveryInput && !this.recoveryHeld;
+    this.recoveryHeld = recoveryInput;
     if (
       !this.grounded &&
-      recoveryInput &&
+      recoveryEdge &&
       this.recoveryCooldown === 0 &&
       this.recovery === 0
     ) {
@@ -362,13 +383,23 @@ export class Car {
         // Player-requested roof recovery needs a full half-turn. Previously
         // the driving alignment controller finished it on partial touchdown;
         // that controller must now wait for real stable support instead.
-        this.recovery = 0.6;
+        this.recovery = c.recoveryDuration;
         this.recoveryCooldown = c.recoveryCooldown;
         this.recoverySide =
           input.roll ||
           input.steer ||
           (this.right.dot(this.tmp.copy(support.normal)) >= 0 ? 1 : -1);
-        this.v.addScaledVector(this.tmp.copy(support.normal), 1.5);
+        this.recoveryNormal.copy(support.normal);
+        this.recoveryAxis
+          .copy(this.forward)
+          .multiplyScalar(Math.sign(this.recoverySide));
+        if (
+          this.recoveryAxis.dot(
+            this.tmp.copy(this.up).cross(this.recoveryNormal),
+          ) < -0.01
+        )
+          this.recoveryAxis.negate();
+        this.v.addScaledVector(this.recoveryNormal, c.recoveryHop);
       }
     }
     this.contactGap = this.contacts ? 0 : this.contactGap + dt;
@@ -386,15 +417,27 @@ export class Car {
     const roofNormal = new Vector3();
     let roofContacts = 0;
     this.chassisContacts = 0;
+    const noseContacts: { point: Vector3; normal: Vector3 }[] = [];
     this.world.contactPairsWith(this.collider, (other) => {
       if (other.parent() !== null) return;
       this.world.contactPair(this.collider, other, (manifold, flipped) => {
         const normal = new Vector3()
           .copy(manifold.normal())
           .multiplyScalar(flipped ? 1 : -1);
+        if (
+          Math.abs(this.forward.dot(normal)) > 0.9 &&
+          Math.abs(this.up.dot(normal)) < 0.45 &&
+          normal.y > 0.65
+        )
+          for (let i = 0; i < manifold.numSolverContacts(); i++)
+            noseContacts.push({
+              point: new Vector3().copy(manifold.solverContactPoint(i)),
+              normal: normal.clone(),
+            });
         for (let i = 0; i < manifold.numContacts(); i++) {
           if (manifold.contactDist(i) > c.contactSkin * 2) continue;
           this.chassisContacts++;
+
           if (normal.dot(this.up) <= -0.5) {
             roofNormal.add(normal);
             roofContacts++;
@@ -433,7 +476,16 @@ export class Car {
     this.boosting = input.boost && this.boost > 0;
     const throttle = this.boosting ? 1 : input.throttle;
     if (treadContact) {
-      const support = this.contacts >= 2 ? 1 : 0.25;
+      const partialSurface =
+        this.contacts < 3 &&
+        (this.normal.y < c.overheadPartialNormal ||
+          (!this.stableContact &&
+            this.up.dot(this.normal) < c.partialSurfaceAlignment &&
+            Math.abs(this.forwardSpeed) < c.wallDriveSpeed));
+      const support =
+        (this.contacts >= 2 ? 1 : 0.25) *
+        (partialSurface && this.normal.y <= 0 ? c.overheadPartialSupport : 1) *
+        (this.grapplePulling ? RUMBLE_CONFIG.grapple.tireLoad : 1);
       this.surfaceForward
         .copy(this.forward)
         .addScaledVector(this.normal, -this.forward.dot(this.normal))
@@ -504,11 +556,15 @@ export class Car {
           support *
           (Math.abs(throttle) > 0.01 ? 1 : wallGrip),
       );
+      const ordinaryLateral = Math.max(
+        -c.lateralMaxAcceleration,
+        Math.min(c.lateralMaxAcceleration, -lateral * c.grip),
+      );
+      const slidingLateral = -lateral * c.grip * lateralFactor;
       this.acceleration.addScaledVector(
         this.surfaceRight,
-        -lateral *
-          c.grip *
-          (1 + (lateralFactor - 1) * this.handbrake) *
+        (ordinaryLateral +
+          (slidingLateral - ordinaryLateral) * this.handbrake) *
           contactScale *
           support *
           wallGrip *
@@ -568,7 +624,8 @@ export class Car {
     // Exclude moving cornering/powerslides, walls, nose contact and airborne cars.
     if (
       edges.length &&
-      Math.abs(input.throttle) > 0.1 &&
+      (Math.abs(input.throttle) > c.edgeInputThreshold ||
+        Math.abs(input.steer) > c.edgeInputThreshold) &&
       this.v.length() < c.edgeRecoverySpeed &&
       !this.recovering &&
       !leavingByJump
@@ -585,8 +642,16 @@ export class Car {
           .addScaledVector(edge.normal, -this.forward.dot(edge.normal))
           .normalize();
         const force = inward
-          .multiplyScalar(Math.abs(input.throttle))
+          .multiplyScalar(
+            Math.abs(input.throttle) + input.steer * c.edgeSteerGrip,
+          )
           .addScaledVector(travel, input.throttle * 0.25)
+          .addScaledVector(
+            this.right
+              .clone()
+              .addScaledVector(edge.normal, -this.right.dot(edge.normal)),
+            input.steer * c.edgeSteerGrip,
+          )
           .clampLength(0, 1)
           .multiplyScalar(
             (b.mass() * P.gravity * c.edgeDriveGrip) / edges.length,
@@ -597,6 +662,46 @@ export class Car {
           true,
         );
         this.edgeDriveForce.add(force);
+      }
+      this.v.add(new Vector3().copy(b.linvel()).sub(beforeV));
+      this.w.add(new Vector3().copy(b.angvel()).sub(beforeW));
+    }
+    // A nose/corner scrape is not tire support. Deliberate input produces a
+    // bounded tangential force at the actual manifold, whose lever arm tips it.
+    // Delicate input retains skillful balancing; no pose target is involved.
+    if (
+      noseContacts.length &&
+      this.contacts < 2 &&
+      !this.recovering &&
+      this.v.length() < c.edgeRecoverySpeed
+    ) {
+      const drive = (value: number) =>
+        Math.sign(value) *
+        Math.max(
+          0,
+          (Math.abs(value) - c.edgeInputThreshold) / (1 - c.edgeInputThreshold),
+        );
+      const amount = drive(input.throttle),
+        steer = drive(input.steer);
+      const beforeV = new Vector3().copy(b.linvel()),
+        beforeW = new Vector3().copy(b.angvel());
+      for (const contact of noseContacts) {
+        const force = this.up
+          .clone()
+          .multiplyScalar(amount)
+          .addScaledVector(this.right, steer)
+          .addScaledVector(
+            contact.normal,
+            -(
+              this.up.dot(contact.normal) * amount +
+              this.right.dot(contact.normal) * steer
+            ),
+          )
+          .clampLength(0, 1)
+          .multiplyScalar(
+            (b.mass() * P.gravity * c.noseInputGrip) / noseContacts.length,
+          );
+        b.applyImpulseAtPoint(force.multiplyScalar(dt), contact.point, true);
       }
       this.v.add(new Vector3().copy(b.linvel()).sub(beforeV));
       this.w.add(new Vector3().copy(b.angvel()).sub(beforeW));
@@ -733,11 +838,32 @@ export class Car {
         this.v.y *= Math.pow(1 - P.jump.verticalDamp120, dt * 120);
     }
     if (this.recovery > 0) {
-      this.angular.addScaledVector(
-        this.forward,
-        50 * Math.sign(this.recoverySide),
+      const angle = Math.acos(
+        Math.max(-1, Math.min(1, this.up.dot(this.recoveryNormal))),
       );
+      const passed =
+        this.recoveryAxis.dot(
+          this.tmp.copy(this.up).cross(this.recoveryNormal),
+        ) < -0.01;
+      const target =
+        angle < c.recoveryStopAngle || passed
+          ? 0
+          : Math.min(
+              c.recoveryMaxSpeed,
+              Math.sqrt(2 * c.recoveryBraking * angle),
+            );
+      const rate = this.w.dot(this.recoveryAxis);
+      const acceleration = Math.max(
+        -c.recoveryAcceleration,
+        Math.min(c.recoveryAcceleration, (target - rate) * c.recoveryResponse),
+      );
+      this.angular.addScaledVector(this.recoveryAxis, acceleration);
       this.recovery = Math.max(0, this.recovery - dt);
+      if (
+        (angle < c.recoveryStopAngle || passed) &&
+        Math.abs(rate) < c.recoveryStopSpeed
+      )
+        this.recovery = 0;
     }
     this.v.addScaledVector(this.acceleration, dt).clampLength(0, c.maxSpeed);
     b.setLinvel(this.v, true);

@@ -38,8 +38,8 @@
   {
     "name": "turning radius at 20 m/s",
     "value": {
-      "radius": 9.655654369652538,
-      "target": 9.668466896090811
+      "radius": 9.576636042724994,
+      "target": 9.59835083449224
     },
     "pass": true
   },
@@ -116,7 +116,7 @@
     "name": "floor to vertical wall driving",
     "value": {
       "maxY": 20.077312469482422,
-      "wallContacts": 174
+      "wallContacts": 172
     },
     "pass": true
   },
@@ -274,12 +274,12 @@
   },
   {
     "name": "goal blast launches cars",
-    "value": 8.942558817673559,
+    "value": 9.141034707764884,
     "pass": true
   },
   {
     "name": "cars move during celebration",
-    "value": 8.517281355357897,
+    "value": 8.69014778819914,
     "pass": true
   },
   {
@@ -308,7 +308,7 @@
   {
     "name": "powerslide preserves lateral slip",
     "value": [
-      0.023611832410097122,
+      0.11310084164142609,
       3.8865931034088135
     ],
     "pass": true
@@ -324,10 +324,10 @@
   {
     "name": "complete 5-minute live simulation",
     "value": {
-      "seconds": 519.0166666666667,
+      "seconds": 349.60833333333335,
       "score": [
         0,
-        14
+        3
       ],
       "phase": "finished",
       "escaped": false
@@ -347,8 +347,8 @@
     "name": "glancing opponent collision",
     "value": {
       "collision": true,
-      "opponentZ": -4.331659317016602,
-      "playerZ": -3.1122238636016846
+      "opponentZ": -4.334468841552734,
+      "playerZ": -3.1538705825805664
     },
     "pass": true
   }

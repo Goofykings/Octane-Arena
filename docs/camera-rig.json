@@ -147,9 +147,9 @@
     "name": "P rapid toggles",
     "fps": 30,
     "aspect": 1.7777777777777777,
-    "peakTurn": 1.446226369275569,
-    "peakExtent": 0.5483753605838688,
-    "minimumBoom": 5.727128425310541,
+    "peakTurn": 3.5999927233084366,
+    "peakExtent": 0.5130615662336675,
+    "minimumBoom": 5.72712842531054,
     "peakFovStep": 0
   },
   {
@@ -300,9 +300,9 @@
     "name": "P rapid toggles",
     "fps": 30,
     "aspect": 1.3333333333333333,
-    "peakTurn": 1.446226369275569,
-    "peakExtent": 0.5483753605838688,
-    "minimumBoom": 5.727128425310541,
+    "peakTurn": 3.5999927233084366,
+    "peakExtent": 0.5130615662336675,
+    "minimumBoom": 5.72712842531054,
     "peakFovStep": 0
   },
   {
@@ -453,9 +453,9 @@
     "name": "P rapid toggles",
     "fps": 30,
     "aspect": 0.5625,
-    "peakTurn": 1.4424297905518193,
-    "peakExtent": 0.5704876088209666,
-    "minimumBoom": 7.33696879583872,
+    "peakTurn": 3.599997186496188,
+    "peakExtent": 0.387226247676373,
+    "minimumBoom": 7.336968795838723,
     "peakFovStep": 0
   },
   {
@@ -606,9 +606,9 @@
     "name": "P rapid toggles",
     "fps": 30,
     "aspect": 2.3333333333333335,
-    "peakTurn": 1.446226369275569,
-    "peakExtent": 0.5483753605838688,
-    "minimumBoom": 5.727128425310541,
+    "peakTurn": 3.5999927233084366,
+    "peakExtent": 0.5130615662336675,
+    "minimumBoom": 5.72712842531054,
     "peakFovStep": 0
   },
   {
@@ -759,9 +759,9 @@
     "name": "P rapid toggles",
     "fps": 60,
     "aspect": 1.7777777777777777,
-    "peakTurn": 1.4442938924621447,
-    "peakExtent": 0.5515252044102309,
-    "minimumBoom": 5.72712842531054,
+    "peakTurn": 3.599998181156436,
+    "peakExtent": 0.5130615662336675,
+    "minimumBoom": 5.727128425310541,
     "peakFovStep": 0
   },
   {
@@ -912,9 +912,9 @@
     "name": "P rapid toggles",
     "fps": 60,
     "aspect": 1.3333333333333333,
-    "peakTurn": 1.4442938924621447,
-    "peakExtent": 0.5515252044102309,
-    "minimumBoom": 5.72712842531054,
+    "peakTurn": 3.599998181156436,
+    "peakExtent": 0.5130615662336675,
+    "minimumBoom": 5.727128425310541,
     "peakFovStep": 0
   },
   {
@@ -1065,10 +1065,10 @@
     "name": "P rapid toggles",
     "fps": 60,
     "aspect": 0.5625,
-    "peakTurn": 1.4401431854547662,
-    "peakExtent": 0.5972802230380264,
-    "minimumBoom": 7.336968795838721,
-    "peakFovStep": 0
+    "peakTurn": 3.59999929675102,
+    "peakExtent": 0.387226247676373,
+    "minimumBoom": 7.336968795838723,
+    "peakFovStep": 1.4210854715202004e-14
   },
   {
     "name": "A normal drive",
@@ -1218,9 +1218,9 @@
     "name": "P rapid toggles",
     "fps": 60,
     "aspect": 2.3333333333333335,
-    "peakTurn": 1.4442938924621447,
-    "peakExtent": 0.5515252044102309,
-    "minimumBoom": 5.72712842531054,
+    "peakTurn": 3.599998181156436,
+    "peakExtent": 0.5130615662336675,
+    "minimumBoom": 5.727128425310541,
     "peakFovStep": 0
   },
   {
@@ -1371,9 +1371,9 @@
     "name": "P rapid toggles",
     "fps": 144,
     "aspect": 1.7777777777777777,
-    "peakTurn": 1.4429727215473878,
-    "peakExtent": 0.5518496606472502,
-    "minimumBoom": 5.72712842531054,
+    "peakTurn": 3.5999996842444286,
+    "peakExtent": 0.5130615662336675,
+    "minimumBoom": 5.727128425310541,
     "peakFovStep": 0
   },
   {
@@ -1524,9 +1524,9 @@
     "name": "P rapid toggles",
     "fps": 144,
     "aspect": 1.3333333333333333,
-    "peakTurn": 1.4429727215473878,
-    "peakExtent": 0.5518496606472502,
-    "minimumBoom": 5.72712842531054,
+    "peakTurn": 3.5999996842444286,
+    "peakExtent": 0.5130615662336675,
+    "minimumBoom": 5.727128425310541,
     "peakFovStep": 0
   },
   {
@@ -1677,9 +1677,9 @@
     "name": "P rapid toggles",
     "fps": 144,
     "aspect": 0.5625,
-    "peakTurn": 1.439022087437547,
-    "peakExtent": 0.5875854753257065,
-    "minimumBoom": 7.336968795838721,
+    "peakTurn": 3.599999877917285,
+    "peakExtent": 0.387226247676373,
+    "minimumBoom": 7.336968795838722,
     "peakFovStep": 0
   },
   {
@@ -1830,9 +1830,9 @@
     "name": "P rapid toggles",
     "fps": 144,
     "aspect": 2.3333333333333335,
-    "peakTurn": 1.4429727215473878,
-    "peakExtent": 0.5518496606472502,
-    "minimumBoom": 5.72712842531054,
+    "peakTurn": 3.5999996842444286,
+    "peakExtent": 0.5130615662336675,
+    "minimumBoom": 5.727128425310541,
     "peakFovStep": 0
   }
 ]

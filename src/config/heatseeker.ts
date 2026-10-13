@@ -7,6 +7,7 @@ export const HEATSEEKER = {
   acceleration: 45, // m/s² speed tracking, without erasing contact impulses.
   maxTurnRate: 2.2, // rad/s.
   homingStrength: 2.8,
+  gravityCompensation: 0.65, // Partial homing lift prevents the dip/rise path; speeds unchanged.
   touchCooldown: 0.15,
   targetDepth: 3,
   kickoffBallSpawn: { right: 10, forward: 18 }, // Relative to the serving formation center.

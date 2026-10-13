@@ -1,6 +1,14 @@
 import { P } from "../config/physics";
 import type { Quality } from "../../shared/settings";
 import { Vector3, type Object3D, type PerspectiveCamera } from "three";
+export const AIR_SPEED_VISUAL = {
+  travelRate: 1.5,
+  mediumWidth: 1.1,
+  width: 1.65,
+  length: 0.11,
+  lengthGain: 0.15,
+  opacity: 0.3,
+};
 export class AirSpeedState {
   intensity = 0;
   update(
@@ -85,7 +93,11 @@ export class AirSpeedEffect {
       velocity &&
       new Vector3(0, 0, -1).applyQuaternion(camera.quaternion).dot(velocity) <
         0;
-    this.time += dt * (0.5 + intensity) * (rearward ? -1 : 1);
+    this.time +=
+      dt *
+      AIR_SPEED_VISUAL.travelRate *
+      (0.5 + intensity) *
+      (rearward ? -1 : 1);
     // Clip to the outermost 16% of the screen, leaving ball/center unobstructed.
     ctx.save();
     ctx.beginPath();
@@ -131,17 +143,23 @@ export class AirSpeedEffect {
         ctx.clip("evenodd");
       }
     }
-    ctx.lineWidth = quality === "medium" ? 0.8 : 1.2;
+    ctx.lineWidth =
+      quality === "medium"
+        ? AIR_SPEED_VISUAL.mediumWidth
+        : AIR_SPEED_VISUAL.width;
     for (let i = 0; i < (quality === "medium" ? 16 : 32); i++) {
       const angle = i * 2.39996323,
         phase = (((this.time + i * 0.618) % 1) + 1) % 1;
       const start = 0.76 + phase * 0.4,
-        end = start + 0.08 + intensity * 0.11;
+        end =
+          start +
+          AIR_SPEED_VISUAL.length +
+          intensity * AIR_SPEED_VISUAL.lengthGain;
       const dx = Math.cos(angle) * w * 0.6,
         dy = Math.sin(angle) * h * 0.6;
       ctx.strokeStyle =
         "rgba(255,255,255," +
-        intensity * 0.25 * Math.sin(phase * Math.PI) +
+        intensity * AIR_SPEED_VISUAL.opacity * Math.sin(phase * Math.PI) +
         ")";
       ctx.beginPath();
       ctx.moveTo(w / 2 + dx * start, h / 2 + dy * start);

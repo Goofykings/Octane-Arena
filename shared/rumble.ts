@@ -7,6 +7,7 @@ export const rumbleItems = [
   "POWER_HITTER",
   "PLUNGER",
   "SPIKES",
+  "SWAPPER",
 ] as const;
 export type RumbleItem = (typeof rumbleItems)[number];
 export const rumbleNames: Record<RumbleItem, string> = {
@@ -15,6 +16,7 @@ export const rumbleNames: Record<RumbleItem, string> = {
   POWER_HITTER: "POWER HITTER",
   PLUNGER: "PLUNGER",
   SPIKES: "SPIKES",
+  SWAPPER: "SWAPPER",
 };
 export interface RumblePlayerState {
   playerId: string;
@@ -22,6 +24,8 @@ export interface RumblePlayerState {
   item: RumbleItem | null;
   cooldown: number;
   remaining: number;
+  team?: 0 | 1;
+  targetPlayerId?: string;
   attachment?: { local: Vec; contact: Vec; rotation: Rotation; age: number };
 }
 export interface RumbleEvent {
@@ -34,9 +38,12 @@ export interface RumbleEvent {
     | "POWERUP_STARTED"
     | "POWERUP_ENDED"
     | "SPIKE_ATTACHED"
-    | "SPIKE_DETACHED";
+    | "SPIKE_DETACHED"
+    | "SWAP";
   item: RumbleItem;
   point: Vec;
+  source?: Vec;
+  targetPlayerId?: string;
 }
 export interface RumbleSnapshot {
   players: RumblePlayerState[];
@@ -60,10 +67,11 @@ export const rumbleSnapshotSchema = z
               Math.max(
                 R.powerHitter.duration,
                 R.spikes.duration,
-                R.grapple.duration,
                 R.plunger.duration,
               ),
             ),
+          team: z.union([z.literal(0), z.literal(1)]).optional(),
+          targetPlayerId: z.string().min(1).max(80).optional(),
           attachment: z
             .object({
               local: vec,
@@ -77,21 +85,33 @@ export const rumbleSnapshotSchema = z
       .max(R.visual.maxPlayers),
     events: z
       .array(
-        z.object({
-          id: z.number().int().nonnegative(),
-          time: finite,
-          playerId: z.string().min(1).max(80),
-          kind: z.enum([
-            "POWERUP_GRANTED",
-            "POWERUP_USED",
-            "POWERUP_STARTED",
-            "POWERUP_ENDED",
-            "SPIKE_ATTACHED",
-            "SPIKE_DETACHED",
-          ]),
-          item: z.enum(rumbleItems),
-          point: vec,
-        }),
+        z
+          .object({
+            id: z.number().int().nonnegative(),
+            time: finite,
+            playerId: z.string().min(1).max(80),
+            kind: z.enum([
+              "POWERUP_GRANTED",
+              "POWERUP_USED",
+              "POWERUP_STARTED",
+              "POWERUP_ENDED",
+              "SPIKE_ATTACHED",
+              "SPIKE_DETACHED",
+              "SWAP",
+            ]),
+            item: z.enum(rumbleItems),
+            point: vec,
+            source: vec.optional(),
+            targetPlayerId: z.string().min(1).max(80).optional(),
+          })
+          .refine(
+            (e) =>
+              e.kind !== "SWAP" ||
+              (e.item === "SWAPPER" &&
+                !!e.source &&
+                !!e.targetPlayerId &&
+                e.targetPlayerId !== e.playerId),
+          ),
       )
       .max(R.history.eventCapacity),
   })

@@ -6,7 +6,8 @@ import type {
 } from "../../shared/match-stats";
 import { CHAT, type ChatMessage } from "../../shared/chat";
 import { displayIdentity } from "../../shared/local-profile";
-import { scoreboardOrder } from "../../shared/match-stats";
+import { scoreboardOrder, matchMvp } from "../../shared/match-stats";
+export const STAT_NOTICE = { enterMs: 200, holdMs: 1000, exitMs: 200 } as const;
 const symbols = {
   SHOT: '<circle cx="12" cy="12" r="7"/><path d="M12 1v6m0 10v6M1 12h6m10 0h6"/>',
   SAVE: '<path d="M12 2 21 6v6c0 5-9 10-9 10S3 17 3 12V6Z"/>',
@@ -21,6 +22,7 @@ export class MatchOverlay {
   typing = false;
   private chatAllowed = false;
   private matchId = "";
+  private resultsId = "";
   private activity = -Infinity;
   private chatSequence = 0;
   private log = document.createElement("div");
@@ -142,6 +144,7 @@ export class MatchOverlay {
     chat: ChatMessage[] = [],
     error = "",
     menu = false,
+    finished = false,
   ) {
     if (id !== this.matchId) this.reset(id, events);
     this.chatAllowed = multiplayer && !!id && !menu;
@@ -174,12 +177,20 @@ export class MatchOverlay {
       this.chatAllowed &&
         (this.typing || performance.now() - this.activity < CHAT.fadeDelayMs),
     );
-    this.board.hidden = !held || !id || menu;
+    const mvp = finished ? matchMvp(players, stats) : undefined;
+    this.board.classList.toggle("results-board", finished);
+    const parent = finished
+      ? document.getElementById("results-board")
+      : document.getElementById("app");
+    if (parent && this.board.parentElement !== parent)
+      parent.append(this.board);
+    this.board.hidden = (!held && !finished) || !id || menu;
     const signature = JSON.stringify([
       players.map((p) => [p.id, p.name, p.team]),
       stats,
       score,
       localId,
+      finished,
     ]);
     if (!this.board.hidden && signature !== this.boardSignature) {
       this.boardSignature = signature;
@@ -230,6 +241,12 @@ export class MatchOverlay {
             const cell = document.createElement("span");
             cell.textContent = String(value);
             if (i === 0) cell.title = String(value);
+            if (i === 0 && p.id === mvp?.id) {
+              const badge = document.createElement("b");
+              badge.className = "mvp-badge";
+              badge.textContent = "MVP";
+              cell.append(" ", badge);
+            }
             row.append(cell);
           });
           section.append(row);
@@ -243,8 +260,17 @@ export class MatchOverlay {
         if (event.playerId === localId && event.type !== "BALL_TOUCH")
           this.queue.push(event);
       }
-    if (this.queue.length > 8) this.queue = this.queue.slice(-8);
-    if (!this.showing && this.queue.length && !menu) this.showAward();
+    // Consume each authoritative ID once and let every queued event finish.
+    // A new award must never cancel or truncate the currently readable one.
+    if (finished && this.resultsId !== id) {
+      this.resultsId = id;
+      this.queue = [];
+      this.animation?.cancel();
+      this.animation = null;
+      this.showing = false;
+      if (mvp) this.showMvp(displayIdentity(mvp));
+    } else if (!finished && !this.showing && this.queue.length && !menu)
+      this.showAward();
   }
   hide() {
     this.chatAllowed = false;
@@ -257,6 +283,7 @@ export class MatchOverlay {
     const event = this.queue.shift()!;
     this.showing = true;
     this.notice.hidden = false;
+    this.notice.classList.remove("mvp-notice");
     this.notice.innerHTML =
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">' +
       symbols[event.type as keyof typeof symbols] +
@@ -267,14 +294,47 @@ export class MatchOverlay {
     points.textContent = "+" + event.scoreAward;
     this.notice.append(text, points);
     this.sound();
+    this.animateNotice();
+  }
+  private showMvp(name: string) {
+    this.notice.replaceChildren();
+    this.notice.hidden = false;
+    this.showing = true;
+    this.notice.classList.add("mvp-notice");
+    const title = document.createElement("strong"),
+      player = document.createElement("span");
+    title.textContent = "MVP";
+    player.textContent = name;
+    this.notice.append(title, player);
+    this.sound();
+    this.animateNotice();
+  }
+  private animateNotice() {
+    const duration =
+      STAT_NOTICE.enterMs + STAT_NOTICE.holdMs + STAT_NOTICE.exitMs;
     const animation = this.notice.animate(
       [
-        { transform: "translate(-50%,-180px)", opacity: 0, offset: 0 },
-        { transform: "translate(-50%,0)", opacity: 1, offset: 0.14 },
-        { transform: "translate(-50%,0)", opacity: 1, offset: 0.84 },
+        {
+          transform: "translate(-50%,-180px)",
+          opacity: 0,
+          offset: 0,
+          easing: "ease-out",
+        },
+        {
+          transform: "translate(-50%,0)",
+          opacity: 1,
+          offset: STAT_NOTICE.enterMs / duration,
+          easing: "linear",
+        },
+        {
+          transform: "translate(-50%,0)",
+          opacity: 1,
+          offset: (STAT_NOTICE.enterMs + STAT_NOTICE.holdMs) / duration,
+          easing: "ease-in",
+        },
         { transform: "translate(-50%,-180px)", opacity: 0, offset: 1 },
       ],
-      { duration: 1300, easing: "ease-in-out" },
+      { duration, easing: "linear" },
     );
     this.animation = animation;
     animation.finished

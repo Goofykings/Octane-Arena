@@ -49,11 +49,11 @@ assert.ok(
     Math.abs(look.pitch) <= MOUSE_LOOK.pitchLimit,
 );
 assert.ok(
-  look.targetYaw < 0 && look.targetPitch < 0,
-  "Right/up mouse movement uses the reversed directions",
+  look.targetYaw > 0 && look.targetPitch < 0,
+  "Gameplay horizontal drag is mirrored; vertical direction is preserved",
 );
 look.move(-10, 0);
-assert.ok(look.targetYaw > -Math.PI + 0.04);
+assert.ok(look.targetYaw < Math.PI - 0.04);
 look.end();
 for (let i = 0; i < 300; i++) look.update(1 / 60, settings);
 assert.equal(look.active, false);
@@ -114,6 +114,54 @@ await RAPIER.init();
 const simulation = new Simulation();
 simulation.world.step();
 const before = simulation.world.takeSnapshot();
+for (const ballMode of [false, true])
+  for (const position of [
+    [0, 0.34, 0],
+    [41, 8, 0],
+    [0, 3, 55],
+  ]) {
+    const car = new Group(),
+      ball = new Group(),
+      base = new GameCamera(new PerspectiveCamera(73, 16 / 9)),
+      rig = new GameCamera(new PerspectiveCamera(73, 16 / 9)),
+      manual = new MouseLook();
+    car.position.fromArray(position);
+    ball.position.set(12, 5, -14);
+    base.ballMode = rig.ballMode = ballMode;
+    rig.mouseLook = manual;
+    for (let i = 0; i < 90; i++) {
+      base.update(car, ball, simulation, 1 / 60, false, i / 60);
+      rig.update(car, ball, simulation, 1 / 60, false, i / 60);
+    }
+    manual.begin();
+    for (let i = 0; i < 10; i++) {
+      manual.update(1 / 60, settings);
+      base.update(car, ball, simulation, 1 / 60, false, 2 + i / 60);
+      rig.update(car, ball, simulation, 1 / 60, false, 2 + i / 60);
+      assert.ok(
+        base.camera.position.distanceTo(rig.camera.position) < 1e-8,
+        "Click-only retains automatic rendered position",
+      );
+      assert.ok(
+        base.camera.quaternion.angleTo(rig.camera.quaternion) < 1e-7,
+        "Click-only retains exact framed orientation",
+      );
+      assert.equal(base.camera.fov, rig.camera.fov);
+    }
+    manual.move(0.1, 0.1);
+    manual.update(1 / 60, settings);
+    base.update(car, ball, simulation, 1 / 60, false, 3);
+    rig.update(car, ball, simulation, 1 / 60, false, 3);
+    assert.ok(
+      base.camera.quaternion.angleTo(rig.camera.quaternion) < 0.003,
+      "Infinitesimal input cannot switch the camera aim",
+    );
+    assert.ok(
+      base.camera.position.distanceTo(rig.camera.position) < 0.02,
+      "Infinitesimal input has no boom teleport",
+    );
+  }
+
 for (const ballMode of [false, true]) {
   const baseCamera = new PerspectiveCamera(73, 16 / 9),
     finalCamera = new PerspectiveCamera(73, 16 / 9);

@@ -39,6 +39,10 @@ export const P = {
     maxContactCorrection: 0.04,
     rayLength: 0.65,
     grip: 24,
+    lateralMaxAcceleration: 34, // Finite ordinary tire force (m/s^2); handbrake curve unchanged.
+    overheadPartialSupport: 0.12,
+    overheadPartialNormal: -0.05, // Ignore near-zero normal noise on vertical walls.
+    partialSurfaceAlignment: 0.95,
     adhesion: 3.25,
     wallDriveSpeed: 4,
     wallIdleGrip: 0.025,
@@ -56,6 +60,18 @@ export const P = {
     contactRelease: 0.025,
     airControlBlend: 0.04,
     recoveryCooldown: 0.8,
+    recoveryInputThreshold: 0.25,
+    recoveryDuration: 1.35,
+    recoveryMaxSpeed: 4.8,
+    recoveryAcceleration: 44,
+    recoveryResponse: 15,
+    recoveryBraking: 16,
+    recoveryStopAngle: 0.1,
+    recoveryStopSpeed: 0.15,
+    recoveryHop: 1.1,
+    edgeInputThreshold: 0.2,
+    edgeSteerGrip: 0.65,
+    noseInputGrip: 0.35,
     edgeRecoverySpeed: 2, // Slow wheel-shoulder contact only; never normal cornering.
     edgeDriveGrip: 0.65, // Maximum driven sidewall friction as a fraction of static load.
   },
@@ -112,6 +128,13 @@ export const P = {
     maxAngular: 6,
   },
   hit: {
+    angularRestitutionGain: 0.5,
+    maxAirRestitution: 0.8,
+    dodgeHitGain: 0.65, // Modest leading-dodge strike scale, with equal car recoil.
+    dodgeHitMaxImpulse: 750,
+    dodgeHitWindow: 0.3,
+    dodgeLeadingDot: 0.5,
+    dodgeMinRotationalClosing: 0.25,
     airRestitution: 0.32, // Pair-specific aerial rebound; arena/floor restitution stays .48.
     minClosing: 1,
     rearmClosing: 0.35,

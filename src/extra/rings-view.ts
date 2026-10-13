@@ -49,6 +49,16 @@ export class RingsLevel {
       }),
       "light",
     );
+    const originalCompile = ringMat.onBeforeCompile;
+    ringMat.onBeforeCompile = (shader, renderer) => {
+      originalCompile.call(ringMat, shader, renderer);
+      shader.vertexShader = shader.vertexShader.replace(
+        "#include <begin_vertex>",
+        "#include <begin_vertex>\nvec3 ringCenter=vec3(normalize(position.xy),0.0);\nfloat ringDiameterScale=length(instanceMatrix[0].xyz);\ntransformed=ringCenter+(transformed-ringCenter)/ringDiameterScale;",
+      );
+    };
+    const ringCache = ringMat.customProgramCacheKey.bind(ringMat);
+    ringMat.customProgramCacheKey = () => ringCache() + ":constant-ring-band";
     this.rings = new T.InstancedMesh(
       ringGeometry(),
       ringMat,

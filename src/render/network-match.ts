@@ -29,6 +29,7 @@ import { RumbleEffects } from "../effects/rumble";
 import type { RumbleItem } from "../../shared/rumble";
 export class NetworkMatchView {
   readonly rumbleEffects: RumbleEffects;
+  readonly matchId: string;
   simulation: Simulation;
   match = new Match();
   group = new T.Scene();
@@ -56,6 +57,7 @@ export class NetworkMatchView {
     localId: string,
     onPowerSound?: (item: RumbleItem) => void,
   ) {
+    this.matchId = initial.matchId;
     const players = [...initial.players].sort((a, b) =>
       a.id === localId ? -1 : b.id === localId ? 1 : 0,
     );
@@ -192,6 +194,7 @@ export class NetworkMatchView {
         a = older.cars.find((c) => c.id === car.id) ?? b,
         model = this.cars[i];
       const blend =
+        a.teleportSequence !== b.teleportSequence ||
         a.enabled !== b.enabled ||
         new T.Vector3().copy(a.position).distanceToSquared(b.position) > 64
           ? 1

@@ -74,6 +74,8 @@ assert.throws(() => party.action(guest.id, "mode", { mode: "2v2" }), /HOST/);
 party.action(host.id, "mode", { mode: "2v2" });
 party.action(host.id, "stage", { stage: "mode" });
 party.action(host.id, "stage", { stage: "teams" });
+const previewArena = state.matchArenaId;
+assert.ok(previewArena);
 party.action(host.id, "team", { team: 0 });
 party.action(guest.id, "team", { team: 0 });
 assert.throws(() => party.action(third.id, "team", { team: 0 }), /FULL/);
@@ -83,6 +85,11 @@ party.action(guest.id, "ready", { ready: true });
 assert.equal(state.members[1].ready, true);
 party.action(host.id, "launch", {});
 assert.equal(state.stage, "match");
+assert.equal(
+  state.matchArenaId,
+  previewArena,
+  "Match uses the arena chosen before team selection",
+);
 assert.equal(state.matchHostId, host.id);
 const arena = state.matchArenaId,
   id = state.matchId;
@@ -91,11 +98,33 @@ assert.ok(peerPartySchema.safeParse(state).success);
 assert.throws(() => party.action(guest.id, "team", { team: 1 }), /PROGRESS/);
 assert.throws(() => party.action(host.id, "return", {}), /PLAYING/);
 party.action(host.id, "rtc-end", { matchId: id, reason: "finished" });
+assert.throws(() => party.action(guest.id, "rematch", {}), /HOST/);
+const teams = state.members.map((m) => [m.id, m.team]);
+party.action(host.id, "rematch", {});
+assert.equal(state.stage, "match");
+assert.notEqual(state.matchId, id);
+assert.notEqual(state.matchArenaId, arena);
+assert.deepEqual(
+  state.members.map((m) => [m.id, m.team]),
+  teams,
+);
+assert.equal(state.matchFinished, false);
+assert.throws(() => party.action(host.id, "rematch", {}), /PLAYING/);
+party.action(host.id, "rtc-end", {
+  matchId: state.matchId,
+  reason: "finished",
+});
+const rematchArena = state.matchArenaId;
 party.action(host.id, "return", {});
 assert.equal(state.stage, "teams");
+
 party.action(host.id, "stage", { stage: "mode" });
 party.action(host.id, "launch", {});
-assert.notEqual(state.matchArenaId, arena);
+assert.notEqual(
+  state.matchArenaId,
+  rematchArena,
+  "Do not repeat the immediately previous arena",
+);
 party.remove(fourth.id);
 assert.equal(state.stage, "teams");
 assert.ok(!state.members.some((m) => m.id === fourth.id));
@@ -111,13 +140,29 @@ assert.ok(
   roster.filter((p) => p.controller !== "bot").every((p) => p.team === 0),
 );
 assert.ok(peerPartySchema.safeParse(state).success);
-const uuidDescriptor=Object.getOwnPropertyDescriptor(crypto,"randomUUID");
-try{
-  Object.defineProperty(crypto,"randomUUID",{value:undefined,configurable:true});
-  party.action(host.id,"rtc-end",{matchId:state.matchId,reason:"finished"});
-  party.action(host.id,"return",{});party.action(host.id,"stage",{stage:"mode"});party.action(host.id,"launch",{});
-  assert.match(state.matchId!,/^[0-9a-f-]{36}$/,"Protocol IDs use the existing cryptographic fallback");
-}finally{if(uuidDescriptor)Object.defineProperty(crypto,"randomUUID",uuidDescriptor);else delete (crypto as any).randomUUID;}
+const uuidDescriptor = Object.getOwnPropertyDescriptor(crypto, "randomUUID");
+try {
+  Object.defineProperty(crypto, "randomUUID", {
+    value: undefined,
+    configurable: true,
+  });
+  party.action(host.id, "rtc-end", {
+    matchId: state.matchId,
+    reason: "finished",
+  });
+  party.action(host.id, "return", {});
+  party.action(host.id, "stage", { stage: "mode" });
+  party.action(host.id, "launch", {});
+  assert.match(
+    state.matchId!,
+    /^[0-9a-f-]{36}$/,
+    "Protocol IDs use the existing cryptographic fallback",
+  );
+} finally {
+  if (uuidDescriptor)
+    Object.defineProperty(crypto, "randomUUID", uuidDescriptor);
+  else delete (crypto as any).randomUUID;
+}
 console.log(
   "PASS random six-symbol codes, strict HELLO identity/presets, four stable-ID members, host authority, team/ready/mode/gamemode capacity, shared random arena, disconnect and 2v2-bot roster",
 );

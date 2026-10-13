@@ -61,7 +61,22 @@ for (const transport of ["server", "webrtc"] as const)
         (await send(1, "", "", "GET")).json().party.gameMode,
         "rumble",
       );
+      const preview = (await send(0, "/stage", { stage: "teams" })).json().party
+        .matchArenaId;
+      assert.ok(preview);
+      assert.equal(
+        partyMatches.matches.size,
+        0,
+        "Continue does not start physics",
+      );
+      await send(0, "/team", { team: 0 });
+      await send(1, "/team", { team: 1 });
       const launch = (await send(0, "/launch")).json().party;
+      assert.equal(
+        launch.matchArenaId,
+        preview,
+        "Server launch retains the preview arena",
+      );
       assert.equal(launch.stage, "match");
       assert.equal(launch.gameMode, "rumble");
       assert.ok(launch.matchArenaId);
@@ -83,11 +98,36 @@ for (const transport of ["server", "webrtc"] as const)
         assert.ok(
           game.snapshot().rumble!.players.every((st) => st.cooldown === 10),
         );
+        assert.equal((await send(1, "/rematch")).statusCode, 403);
+        assert.equal((await send(0, "/rematch")).statusCode, 409);
+        game.match.finish();
+        const replay = (await send(0, "/rematch")).json().party;
+        assert.notEqual(replay.matchId, launch.matchId);
+        assert.equal(replay.gameMode, "rumble");
+        assert.deepEqual(
+          replay.members.map((m: any) => [m.id, m.team]),
+          launch.members.map((m: any) => [m.id, m.team]),
+        );
+        assert.ok(
+          partyMatches.matches
+            .get(launch.code)!
+            .snapshot()
+            .stats!.every((s) => s.score === 0),
+        );
         partyMatches.stop(launch.code);
       } else {
         assert.equal(partyMatches.matches.size, 0);
         await send(0, "/rtc-end", {
           matchId: launch.matchId,
+          reason: "finished",
+        });
+        assert.equal((await send(1, "/rematch")).statusCode, 403);
+        const replay = (await send(0, "/rematch")).json().party;
+        assert.notEqual(replay.matchId, launch.matchId);
+        assert.equal(replay.gameMode, "rumble");
+        assert.notEqual(replay.matchArenaId, launch.matchArenaId);
+        await send(0, "/rtc-end", {
+          matchId: replay.matchId,
           reason: "finished",
         });
         await send(0, "/return");

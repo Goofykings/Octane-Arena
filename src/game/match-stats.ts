@@ -8,7 +8,11 @@ import {
   type PlayerMatchStats,
   type StatKind,
 } from "../../shared/match-stats";
-import { predictGoal, type BallSample } from "./ball-prediction";
+import {
+  predictGoal,
+  type BallSample,
+  type GoalPrediction,
+} from "./ball-prediction";
 import type { Simulation } from "../physics/simulation";
 export interface StatTouch {
   playerId: string;
@@ -16,7 +20,27 @@ export interface StatTouch {
   after: BallSample;
   impulseSpeed?: number;
 }
+export interface ActiveShot {
+  attackingTeam: 0 | 1;
+  creditedPlayerId: string;
+  targetGoal: 0 | 1;
+  startTime: number;
+  lastTouchTime: number;
+  threat: GoalPrediction;
+}
 export class MatchStats {
+  activeShot: ActiveShot | null = null;
+  private lastThreatCheck = -Infinity;
+  private neutralSince: number | null = null;
+  private horizon(sample: BallSample) {
+    return sample.heat?.active
+      ? STAT_TUNING.heatPredictionHorizon
+      : STAT_TUNING.predictionHorizon;
+  }
+  private endShot() {
+    this.activeShot = null;
+    this.neutralSince = null;
+  }
   readonly players = new Map<string, PlayerMatchStats>();
   readonly events: MatchStatEvent[] = [];
   debug = false;
@@ -63,13 +87,7 @@ export class MatchStats {
     const player = this.roster.find((p) => p.id === touch.playerId);
     if (!player) return;
     const before = predictGoal(touch.before, s.world, STAT_TUNING.saveHorizon),
-      after = predictGoal(
-        touch.after,
-        s.world,
-        touch.after.heat?.active
-          ? STAT_TUNING.heatPredictionHorizon
-          : STAT_TUNING.predictionHorizon,
-      );
+      after = predictGoal(touch.after, s.world, this.horizon(touch.after));
     this.award("BALL_TOUCH", player.id, s.clock);
     this.history.push({
       playerId: player.id,
@@ -78,8 +96,36 @@ export class MatchStats {
     });
     if (this.history.length > STAT_TUNING.touchHistory) this.history.shift();
     this.log({ touch: player.id, before, after });
-    if (after && after.team !== player.team)
+    const shotBefore = predictGoal(
+      touch.before,
+      s.world,
+      this.horizon(touch.before),
+    );
+    // Touches in one solver tick share the same pre-step sample. A second
+    // car in that tick must not terminate the shot just created by the first.
+    if (
+      this.activeShot &&
+      (after?.team !== this.activeShot.targetGoal ||
+        (shotBefore?.team !== this.activeShot.targetGoal &&
+          this.activeShot.startTime !== s.clock))
+    )
+      this.endShot();
+    if (after && after.team !== player.team && !this.activeShot) {
+      this.activeShot = {
+        attackingTeam: player.team,
+        creditedPlayerId: player.id,
+        targetGoal: after.team,
+        startTime: s.clock,
+        lastTouchTime: s.clock,
+        threat: after,
+      };
       this.award("SHOT", player.id, s.clock);
+    } else if (this.activeShot && after?.team === this.activeShot.targetGoal) {
+      this.activeShot.lastTouchTime = s.clock;
+      this.activeShot.threat = after;
+    }
+    this.lastThreatCheck = s.clock;
+    this.neutralSince = null;
     const changed =
       (new Vector3()
         .copy(touch.before.velocity)
@@ -103,6 +149,29 @@ export class MatchStats {
     if (this.lastTick === s.clock) return;
     this.lastTick = s.clock;
     for (const touch of s.statTouches) this.touch(touch, s);
+    if (
+      this.activeShot &&
+      s.clock - this.lastThreatCheck >= STAT_TUNING.threatCheckInterval
+    ) {
+      this.lastThreatCheck = s.clock;
+      const sample: BallSample = {
+        position: { ...s.ball.translation() },
+        velocity: { ...s.ball.linvel() },
+        heat: s.heatseeker ? { ...s.heatseeker.state } : null,
+      };
+      const threat = s.ball.isEnabled()
+        ? predictGoal(sample, s.world, this.horizon(sample))
+        : null;
+      if (threat?.team === this.activeShot.targetGoal) {
+        this.activeShot.threat = threat;
+        this.neutralSince = null;
+      } else if (threat) this.endShot();
+      else {
+        this.neutralSince ??= s.clock;
+        if (s.clock - this.neutralSince >= STAT_TUNING.threatNeutralTime - 1e-8)
+          this.endShot();
+      }
+    }
   }
   goal(
     goal: { id: string; scorerId: string; team: number; ownGoal: boolean },
@@ -110,6 +179,7 @@ export class MatchStats {
   ) {
     if (this.goals.has(goal.id)) return;
     this.goals.add(goal.id);
+    this.endShot();
     const scorer = this.roster.find((p) => p.id === goal.scorerId);
     if (!scorer || scorer.team !== goal.team) return;
     this.award("GOAL", scorer.id, time);
@@ -136,6 +206,8 @@ export class MatchStats {
     }
   }
   kickoff() {
+    this.endShot();
+    this.lastThreatCheck = -Infinity;
     this.history = [];
     this.lastTick = -1;
     this.saveTimes.clear();

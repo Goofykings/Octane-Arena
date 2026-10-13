@@ -1,0 +1,353 @@
+{
+  "environment": "Chrome headless, SwiftShader software graphics, 1280x720, low quality; advanced bots. Frame rates are not hardware FPS claims.",
+  "results": [
+    {
+      "mode": "freeplay",
+      "elapsedMs": 5599,
+      "activeCars": 1,
+      "samples": {
+        "render": {
+          "count": 310,
+          "median": 3.299999952316284,
+          "p95": 6,
+          "max": 527.7000000476837
+        },
+        "physicsRoster": {
+          "count": 1,
+          "median": 0.6000000238418579,
+          "p95": 0.6000000238418579,
+          "max": 0.6000000238418579
+        },
+        "map": {
+          "count": 1,
+          "median": 0.10000002384185791,
+          "p95": 0.10000002384185791,
+          "max": 0.10000002384185791
+        },
+        "match": {
+          "count": 1,
+          "median": 0.6000000238418579,
+          "p95": 0.6000000238418579,
+          "max": 0.6000000238418579
+        }
+      },
+      "firstFiveSecondsFrames": {
+        "count": 288,
+        "median": 16.699999999999818,
+        "p95": 16.900000000000546,
+        "max": 150.39999999999964
+      },
+      "newProgramsDuringPlay": 0,
+      "preparation": [
+        {
+          "name": "Physics",
+          "ms": 0.7000000476837158
+        },
+        {
+          "name": "Cars and effects",
+          "ms": 0.20000004768371582
+        },
+        {
+          "name": "Cars and effects",
+          "ms": 5
+        },
+        {
+          "name": "Arena",
+          "ms": 0.10000002384185791
+        },
+        {
+          "name": "Match resources",
+          "ms": 10.900000095367432
+        },
+        {
+          "name": "Bot preparation",
+          "ms": 0.20000004768371582
+        },
+        {
+          "name": "Audio",
+          "ms": 0
+        },
+        {
+          "name": "Materials and shaders",
+          "ms": 290.60000002384186
+        }
+      ]
+    },
+    {
+      "mode": "1v1",
+      "elapsedMs": 8466,
+      "activeCars": 2,
+      "samples": {
+        "render": {
+          "count": 527,
+          "median": 3.600000023841858,
+          "p95": 6.299999952316284,
+          "max": 122.10000002384186
+        },
+        "physicsRoster": {
+          "count": 1,
+          "median": 0.3999999761581421,
+          "p95": 0.3999999761581421,
+          "max": 0.3999999761581421
+        },
+        "map": {
+          "count": 1,
+          "median": 14.800000071525574,
+          "p95": 14.800000071525574,
+          "max": 14.800000071525574
+        },
+        "match": {
+          "count": 1,
+          "median": 0.5999999046325684,
+          "p95": 0.5999999046325684,
+          "max": 0.5999999046325684
+        },
+        "botInputs": {
+          "count": 602,
+          "median": 0,
+          "p95": 1.2999999523162842,
+          "max": 6.800000071525574
+        },
+        "replay": {
+          "count": 602,
+          "median": 0,
+          "p95": 0.10000002384185791,
+          "max": 1.1999999284744263
+        }
+      },
+      "firstFiveSecondsFrames": {
+        "count": 296,
+        "median": 16.699999999999818,
+        "p95": 16.899999999999636,
+        "max": 33.399999999999636
+      },
+      "newProgramsDuringPlay": 0,
+      "preparation": [
+        {
+          "name": "Physics",
+          "ms": 0.3999999761581421
+        },
+        {
+          "name": "Cars and effects",
+          "ms": 0.10000002384185791
+        },
+        {
+          "name": "Cars and effects",
+          "ms": 1.7000000476837158
+        },
+        {
+          "name": "Arena",
+          "ms": 14.899999976158142
+        },
+        {
+          "name": "Match resources",
+          "ms": 4.200000047683716
+        },
+        {
+          "name": "Bot preparation",
+          "ms": 7
+        },
+        {
+          "name": "Audio",
+          "ms": 0.09999990463256836
+        },
+        {
+          "name": "Materials and shaders",
+          "ms": 329.10000002384186
+        }
+      ]
+    },
+    {
+      "mode": "2v2",
+      "elapsedMs": 8755,
+      "activeCars": 4,
+      "samples": {
+        "render": {
+          "count": 535,
+          "median": 3.700000047683716,
+          "p95": 6.699999928474426,
+          "max": 288.39999997615814
+        },
+        "physicsRoster": {
+          "count": 1,
+          "median": 1.899999976158142,
+          "p95": 1.899999976158142,
+          "max": 1.899999976158142
+        },
+        "map": {
+          "count": 1,
+          "median": 21.5,
+          "p95": 21.5,
+          "max": 21.5
+        },
+        "match": {
+          "count": 1,
+          "median": 0.8000000715255737,
+          "p95": 0.8000000715255737,
+          "max": 0.8000000715255737
+        },
+        "botInputs": {
+          "count": 602,
+          "median": 0.09999990463256836,
+          "p95": 1.399999976158142,
+          "max": 6.399999976158142
+        },
+        "replay": {
+          "count": 602,
+          "median": 0,
+          "p95": 0.10000002384185791,
+          "max": 0.5
+        }
+      },
+      "firstFiveSecondsFrames": {
+        "count": 296,
+        "median": 16.699999999999818,
+        "p95": 16.899999999999636,
+        "max": 33.70000000000073
+      },
+      "newProgramsDuringPlay": 0,
+      "preparation": [
+        {
+          "name": "Physics",
+          "ms": 2
+        },
+        {
+          "name": "Cars and effects",
+          "ms": 0.2999999523162842
+        },
+        {
+          "name": "Cars and effects",
+          "ms": 3.100000023841858
+        },
+        {
+          "name": "Cars and effects",
+          "ms": 1.899999976158142
+        },
+        {
+          "name": "Cars and effects",
+          "ms": 3.200000047683716
+        },
+        {
+          "name": "Arena",
+          "ms": 21.600000023841858
+        },
+        {
+          "name": "Match resources",
+          "ms": 5.299999952316284
+        },
+        {
+          "name": "Bot preparation",
+          "ms": 6.699999928474426
+        },
+        {
+          "name": "Audio",
+          "ms": 0
+        },
+        {
+          "name": "Materials and shaders",
+          "ms": 597.3999999761581
+        }
+      ]
+    },
+    {
+      "mode": "3v3",
+      "elapsedMs": 9354,
+      "activeCars": 6,
+      "samples": {
+        "render": {
+          "count": 526,
+          "median": 4.200000047683716,
+          "p95": 7.5,
+          "max": 275.89999997615814
+        },
+        "physicsRoster": {
+          "count": 1,
+          "median": 1.2000000476837158,
+          "p95": 1.2000000476837158,
+          "max": 1.2000000476837158
+        },
+        "map": {
+          "count": 1,
+          "median": 14.199999928474426,
+          "p95": 14.199999928474426,
+          "max": 14.199999928474426
+        },
+        "match": {
+          "count": 1,
+          "median": 0.3999999761581421,
+          "p95": 0.3999999761581421,
+          "max": 0.3999999761581421
+        },
+        "botInputs": {
+          "count": 602,
+          "median": 0.10000002384185791,
+          "p95": 1.2000000476837158,
+          "max": 6.899999976158142
+        },
+        "replay": {
+          "count": 602,
+          "median": 0,
+          "p95": 0.10000002384185791,
+          "max": 1.1999999284744263
+        }
+      },
+      "firstFiveSecondsFrames": {
+        "count": 290,
+        "median": 16.700000000000728,
+        "p95": 16.900000000001455,
+        "max": 50.19999999999982
+      },
+      "newProgramsDuringPlay": 0,
+      "preparation": [
+        {
+          "name": "Physics",
+          "ms": 1.2000000476837158
+        },
+        {
+          "name": "Cars and effects",
+          "ms": 0
+        },
+        {
+          "name": "Cars and effects",
+          "ms": 2.399999976158142
+        },
+        {
+          "name": "Cars and effects",
+          "ms": 1.6999999284744263
+        },
+        {
+          "name": "Cars and effects",
+          "ms": 1.899999976158142
+        },
+        {
+          "name": "Cars and effects",
+          "ms": 1.600000023841858
+        },
+        {
+          "name": "Cars and effects",
+          "ms": 2.899999976158142
+        },
+        {
+          "name": "Arena",
+          "ms": 14.299999952316284
+        },
+        {
+          "name": "Match resources",
+          "ms": 4.600000023841858
+        },
+        {
+          "name": "Bot preparation",
+          "ms": 6
+        },
+        {
+          "name": "Audio",
+          "ms": 0
+        },
+        {
+          "name": "Materials and shaders",
+          "ms": 1153.3999999761581
+        }
+      ]
+    }
+  ]
+}

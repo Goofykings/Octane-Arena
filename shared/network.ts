@@ -14,6 +14,7 @@ export interface CarSnapshot {
   rotation: Rotation;
   velocity: Vec;
   angularVelocity?: Vec;
+  teleportSequence?: number;
   wheelAngle?: number;
   wheelSteer?: number;
   boost: number;

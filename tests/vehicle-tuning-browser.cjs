@@ -1,0 +1,88 @@
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright"),
+  assert = require("node:assert/strict");
+const { staticGame } = require("./static-game.cjs");
+(async () => {
+  const server = await staticGame(8248);
+  let browser;
+  try {
+    browser = await chromium.launch({
+      executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      headless: true,
+      args: ["--enable-unsafe-swiftshader"],
+    });
+    const page = await browser.newPage({
+      viewport: { width: 1280, height: 720 },
+    });
+    page.setDefaultTimeout(45000);
+    const errors = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    await page.addInitScript(() =>
+      localStorage.setItem(
+        "octane-arena-settings",
+        JSON.stringify({ quality: "low" }),
+      ),
+    );
+    await page.goto(server.url);
+    await page.waitForFunction(() => window.__arena);
+    const version = await page.locator("#game-version").innerText();
+    assert.equal(version, "V0.1.9");
+    await page.locator("#game-version").click();
+    assert.equal(await page.locator("#version-updates").isVisible(), true);
+    assert.equal(await page.locator(".updates-version").innerText(), version);
+    const notes = await page.locator("#version-updates ul").innerText();
+    assert.match(notes, /New Car Models/);
+    assert.doesNotMatch(notes, /multiplayer/i);
+    await page.locator(".updates-back").click();
+    assert.equal(await page.locator("#version-updates").isVisible(), false);
+    await page.locator("#play").click();
+    await page.locator("#freeplay-mode").click();
+    await page.locator("#freeplay-launch").click();
+    await page.waitForFunction(
+      () => __arena.match.phase === "playing" && !__arena.matchLoader.active,
+    );
+    await page.keyboard.down("w");
+    await page.evaluate(() => {
+      const c = __arena.simulation.cars[0];
+      c.reset(0, 15, 0, 1);
+      c.body.setRotation({ x: 0, y: 0, z: 1, w: 0 }, true);
+    });
+    await page.waitForTimeout(1700);
+    assert.ok(
+      await page.evaluate(
+        () =>
+          __arena.simulation.cars[0].up.y < -0.95 &&
+          !__arena.simulation.cars[0].recovering,
+      ),
+      "Held keyboard throttle cannot request roof recovery on landing",
+    );
+    await page.keyboard.up("w");
+    await page.waitForTimeout(100);
+    await page.keyboard.down("w");
+    await page.waitForFunction(() => __arena.simulation.cars[0].recovering);
+    await page.waitForFunction(
+      () =>
+        __arena.simulation.cars[0].up.y > 0.99 &&
+        __arena.simulation.cars[0].contacts >= 3,
+    );
+    await page.waitForTimeout(600);
+    assert.ok(
+      await page.evaluate(
+        () =>
+          __arena.simulation.cars[0].up.y > 0.99 &&
+          !__arena.simulation.cars[0].recovering,
+      ),
+      "One held press stays recovered without retriggering",
+    );
+    await page.keyboard.up("w");
+    assert.deepEqual(errors, []);
+    console.log(
+      "PASS production version number/clickable notes, removed Multiplayer text, real Free Play keyboard landing/release/repress and stable upright recovery",
+    );
+  } finally {
+    await browser?.close();
+    await server.close();
+  }
+})().catch((e) => {
+  console.error(e);
+  process.exitCode = 1;
+});

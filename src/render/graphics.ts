@@ -95,6 +95,24 @@ export class Graphics {
       1 / (innerHeight * ratio),
     );
   }
+  async prepare(scene: T.Scene, camera: T.Camera) {
+    // Compile all material variants; upload pooled effect geometry before GO.
+    // Keep light visibility unchanged, since it defines the lighting shader.
+    const changed: T.Object3D[] = [];
+    scene.traverse((o) => {
+      if (!o.visible && !(o instanceof T.Light)) {
+        changed.push(o);
+        o.visible = true;
+      }
+    });
+    try {
+      scene.updateMatrixWorld(true);
+      await this.renderer.compileAsync(scene, camera);
+      this.render(scene, camera);
+    } finally {
+      for (const o of changed) o.visible = false;
+    }
+  }
   render(scene: T.Scene, camera: T.Camera) {
     updateCameraVisualOcclusion(scene, camera);
     if (this.effectsUnavailable && this.polish.enabled) this.configurePolish();

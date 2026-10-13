@@ -25,7 +25,7 @@ export class CameraDrag {
         )
       )
         return;
-      this.stop();
+      if (this.pointer !== null) this.stop();
       this.mode = mode;
       look.setBehavior(mode === "home" || mode === "garage" ? "orbit" : "look");
       this.pointer = e.pointerId;

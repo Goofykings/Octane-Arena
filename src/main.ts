@@ -1,3 +1,4 @@
+import { MatchLoading, type PreparationJob } from "./ui/match-loading";
 import { MenuNavigation } from "./input/menu-navigation";
 import { AirSpeedEffect } from "./effects/air-speed";
 import { PartyClient } from "./game/party";
@@ -358,6 +359,7 @@ async function boot() {
   const loop = new FixedLoop();
   let extraSession: ExtraSession | null = null;
   let localMatchId = "";
+  let dismissedResultsMatch = "";
   let extraPanel: ExtraModePanel | null = null;
   const stopExtra = () => {
     replayPanel.hide();
@@ -368,87 +370,182 @@ async function boot() {
     cameraControl.reset();
     input.clear();
   };
-  const start = (
+  const matchLoader = new MatchLoading(ui.root);
+  let partyArenaReady = "";
+  const start = async (
     mode: "bot" | "freeplay" = match.mode === "freeplay" ? "freeplay" : "bot",
   ) => {
+    if (matchLoader.active) return false;
     replayView.stop();
+    input.clear();
+    stopExtra();
+    ui.modes(false);
     const local = {
       ...simulation.players[0],
       id: accounts.profile.value.localPlayerId,
       name: accounts.displayName,
     };
     const roster = botRoster(mode === "bot" ? botSetup.size : "1v1", local);
-    simulation.configurePlayers(roster);
-    while (cars.length < roster.length) {
-      const i = cars.length,
-        model = carModel(0xfa9c3e, "vector"),
-        root = new T.Group();
-      root.add(model);
-      root.visible = false;
-      visuals.push(model);
-      cars.push(root);
-      scene.add(root);
-      flipTrails.push(new FlipTrails(scene));
-      jumpBursts.push(new JumpBurst(scene));
-      skidMarks.push(new SkidMarks(scene));
-      demoFlashes.push(new DemolitionFlash(scene));
-      vehicleEffects.push(new VehicleEffects(root, scene, 0xffb654));
-    }
-    for (let i = 1; i < roster.length; i++) {
-      const body = i % 2 ? "vector" : "ion",
-        color = roster[i].team === 0 ? 0x5ccce5 : 0xfa9c3e;
-      cars[i].remove(visuals[i]);
-      disposeModel(visuals[i]);
-      visuals[i] = carModel(color, body);
-      cars[i].add(visuals[i]);
-      simulation.cars[i].setBody(body);
-      vehicleEffects[i].setColor(color);
-    }
-    for (let i = roster.length; i < cars.length; i++) cars[i].visible = false;
-    botTeam = new BotTeam(botSetup.difficulty);
-    stopExtra();
-    ui.modes(false);
     const selectedArena =
       mode === "freeplay"
         ? freeplayArena
         : chooseMatchArena(previousMatchArena);
-    if (mode !== "freeplay") previousMatchArena = selectedArena;
-    arena.setMap(selectedArena);
-    document.querySelector(".arena-caption")!.textContent =
-      arenaThemes[selectedArena].name.toUpperCase();
-    resetEffects();
-    audio.unlock();
-    input.clear();
-    updatePreset();
-    replayView = new ReplayScenePlayback(
-      camera,
-      cars.slice(0, roster.length),
-      visuals.slice(0, roster.length),
-      ball,
-      simulation.cars,
+    let preparedPhase: typeof match.phase = "countdown";
+    const jobs: PreparationJob[] = [
       {
-        vehicles: vehicleEffects.slice(0, roster.length),
-        ball: ballTrails,
-        flips: flipTrails.slice(0, roster.length),
-        jumps: jumpBursts.slice(0, roster.length),
-        skids: skidMarks.slice(0, roster.length),
-        demos: demoFlashes.slice(0, roster.length),
-        explosion,
-        rumble: rumbleEffects,
+        name: "Physics",
+        run: () => {
+          simulation.configurePlayers(roster);
+        },
       },
+    ];
+    for (let i = 0; i < roster.length; i++)
+      jobs.push({
+        name: "Cars and effects",
+        run: () => {
+          const body = i % 2 ? "vector" : "ion",
+            color = roster[i].team === 0 ? 0x5ccce5 : 0xfa9c3e;
+          if (i >= cars.length) {
+            const model = carModel(color, body),
+              root = new T.Group();
+            root.add(model);
+            root.visible = false;
+            model.userData.matchKey = body + ":" + color;
+            visuals.push(model);
+            cars.push(root);
+            scene.add(root);
+            flipTrails.push(new FlipTrails(scene));
+            jumpBursts.push(new JumpBurst(scene));
+            skidMarks.push(new SkidMarks(scene));
+            demoFlashes.push(new DemolitionFlash(scene));
+            vehicleEffects.push(new VehicleEffects(root, scene, color));
+          }
+          if (i > 0) {
+            const key = body + ":" + color;
+            if (visuals[i].userData.matchKey !== key) {
+              cars[i].remove(visuals[i]);
+              disposeModel(visuals[i]);
+              visuals[i] = carModel(color, body);
+              visuals[i].userData.matchKey = key;
+              cars[i].add(visuals[i]);
+            }
+            if (simulation.cars[i].bodyId !== body)
+              simulation.cars[i].setBody(body);
+            vehicleEffects[i].setColor(color);
+          }
+        },
+      });
+    jobs.push({
+      name: "Arena",
+      run: () => {
+        if (mode !== "freeplay") previousMatchArena = selectedArena;
+        arena.setMap(selectedArena);
+        document.querySelector(".arena-caption")!.textContent =
+          arenaThemes[selectedArena].name.toUpperCase();
+      },
+    });
+    jobs.push({
+      name: "Match resources",
+      run: () => {
+        for (let i = roster.length; i < cars.length; i++)
+          cars[i].visible = false;
+        resetEffects();
+        updatePreset();
+        match.gameMode = mode === "bot" ? botSetup.gameMode : "soccar";
+        match.start(simulation, mode);
+        preparedPhase = match.phase;
+        match.phase = "home";
+        simulation.rumble?.setPhase(false, true);
+        arena.setNeutral(match.rules.training);
+        goalPlanes.setNeutral(match.rules.training);
+        pads.reset();
+        simulation.cars.forEach((c, i) => {
+          cars[i].position.copy(c.body.translation());
+          cars[i].quaternion.copy(c.body.rotation());
+          cars[i].visible = c.body.isEnabled();
+        });
+        ball.position.copy(simulation.ball.translation());
+        ball.visible = true;
+        replayView = new ReplayScenePlayback(
+          camera,
+          cars.slice(0, roster.length),
+          visuals.slice(0, roster.length),
+          ball,
+          simulation.cars,
+          {
+            vehicles: vehicleEffects.slice(0, roster.length),
+            ball: ballTrails,
+            flips: flipTrails.slice(0, roster.length),
+            jumps: jumpBursts.slice(0, roster.length),
+            skids: skidMarks.slice(0, roster.length),
+            demos: demoFlashes.slice(0, roster.length),
+            explosion,
+            rumble: rumbleEffects,
+          },
+        );
+        match.recorder.prepare(simulation);
+        localMatchId = newLocalPlayerId();
+        if (match.stats) {
+          matchOverlay.update(
+            localMatchId,
+            simulation.players,
+            match.stats.snapshot(),
+            [],
+            match.score,
+            simulation.cars[0].id,
+            true,
+            false,
+          );
+          matchOverlay.board.hidden = true;
+        }
+        simulation.cars[0].displayName = accounts.displayName;
+      },
+    });
+    jobs.push({
+      name: "Bot preparation",
+      run: () => {
+        botTeam = new BotTeam(botSetup.difficulty);
+        if (mode === "bot") botTeam.prepare(simulation, pads);
+      },
+    });
+    jobs.push({
+      name: "Audio",
+      run: () => {
+        audio.unlock();
+      },
+    });
+    jobs.push({
+      name: "Materials and shaders",
+      run: () => {
+        camera.clearViewOffset();
+        cameraControl.settings = settings.value.camera;
+        cameraControl.reset();
+        cameraControl.update(
+          cars[0],
+          ball,
+          simulation,
+          1 / 60,
+          false,
+          performance.now() / 1000,
+        );
+        return graphics.prepare(scene, camera);
+      },
+    });
+    return matchLoader.run(
+      jobs,
+      () => {
+        match.phase = preparedPhase;
+        simulation.rumble?.setPhase(match.phase === "playing", true);
+        loop.accumulator = 0;
+        previous = performance.now();
+        input.clear();
+        audio.tone(420, 0.12, 0.08, "sine");
+      },
+      home,
     );
-    match.gameMode = mode === "bot" ? botSetup.gameMode : "soccar";
-    match.start(simulation, mode);
-    localMatchId = newLocalPlayerId();
-    simulation.cars[0].displayName = accounts.displayName;
-    arena.setNeutral(match.rules.training);
-    goalPlanes.setNeutral(match.rules.training);
-    pads.reset();
-    loop.accumulator = 0;
-    cameraControl.reset();
-    audio.tone(420, 0.12, 0.08, "sine");
   };
   const home = () => {
+    matchLoader.cancel();
     replayView.stop();
     replayPanel.hide();
     stopExtra();
@@ -582,9 +679,36 @@ async function boot() {
     input.clear();
   });
   ui.on("modes-back", () => ui.modes(false));
-  ui.on("again", () => start());
+  ui.on("again", async () => {
+    if (party.state?.stage === "match") {
+      if (party.state.hostId !== party.playerId) return;
+      // One authority action replaces the match ID without an intermediate menu.
+      await party.action("rematch");
+    } else await start();
+  });
   ui.on("resume", () => match.pause());
-  ui.on("home", home);
+  ui.on("home", async () => {
+    if (party.state?.stage === "match") {
+      if (party.state.hostId === party.playerId) {
+        if (!(await party.action("return"))) return;
+        await party.action("stage", { stage: "home" });
+      } else {
+        // A guest may browse home while keeping the party/data connection alive.
+        dismissedResultsMatch = party.state.matchId ?? "";
+        networkView?.dispose();
+        networkView = null;
+        networkActive = false;
+      }
+    }
+    matchOverlay.hide();
+    home();
+  });
+  ui.on("results-leave", async () => {
+    network.clearInput();
+    await party.action("leave");
+    matchOverlay.hide();
+    home();
+  });
   leaveDialog.querySelector<HTMLButtonElement>("#leave-confirm-yes")!.onclick =
     home;
   ui.on("pause-home", () => {
@@ -642,6 +766,7 @@ async function boot() {
   const mouseLook = new MouseLook();
   cameraControl.mouseLook = preview.mouseLook = mouseLook;
   const cameraDrag = new CameraDrag(ui.root, mouseLook, () => {
+    if (matchLoader.active) return null;
     if (
       document.hidden ||
       input.typing ||
@@ -739,6 +864,43 @@ async function boot() {
   function frame(now: number) {
     const dt = Math.min((now - previous) / 1000, 0.1);
     previous = now;
+    if (matchLoader.active) {
+      input.gameplayEnabled = false;
+      input.clear();
+      requestAnimationFrame(frame);
+      return;
+    }
+    const previewArena =
+      party.state?.stage === "teams" ? party.state.matchArenaId : undefined;
+    if (
+      previewArena &&
+      (partyArenaReady !== previewArena || arena.mapId !== previewArena) &&
+      match.phase === "home" &&
+      !extraSession
+    ) {
+      partyPanel.flow.setArenaReady("");
+      void matchLoader.run(
+        [
+          { name: "Party arena", run: () => arena.setMap(previewArena) },
+          {
+            name: "Materials and shaders",
+            run: () => graphics.prepare(scene, camera),
+          },
+        ],
+        () => {
+          partyArenaReady = previewArena;
+          partyPanel.flow.setArenaReady(previewArena);
+          input.clear();
+          previous = performance.now();
+        },
+        () => {
+          party.message = "ARENA PREPARATION FAILED";
+          home();
+        },
+      );
+      requestAnimationFrame(frame);
+      return;
+    }
     const wasCapturing = input.capturing || input.controller.binding;
     const menuActive =
       !!document.querySelector("dialog[open]") ||
@@ -795,7 +957,10 @@ async function boot() {
     const reverseHeld = input.isHeld("reverseCam");
     cameraControl.reverseHeld =
       reverseHeld && match.active && !match.replayActive;
-    if (party.state?.stage === "match") {
+    if (
+      party.state?.stage === "match" &&
+      party.state.matchId !== dismissedResultsMatch
+    ) {
       if (!networkActive) {
         home();
         input.clear();
@@ -811,18 +976,91 @@ async function boot() {
       }
       if (input.takeAction("pause") && !document.querySelector("dialog[open]"))
         networkPaused = !networkPaused;
-      if (network.latest && !networkView) {
-        arena.setMap(network.latest.arenaId);
-        document.querySelector(".arena-caption")!.textContent =
-          arenaThemes[network.latest.arenaId].name.toUpperCase();
-        networkView = new NetworkMatchView(
-          scene,
-          camera,
-          network.latest,
-          party.playerId,
-          rumbleSound,
+      if (networkView && networkView.matchId !== party.state.matchId) {
+        networkView.dispose();
+        networkView = null;
+        matchOverlay.hide();
+        replayPanel.hide();
+        document.getElementById("result")!.hidden = true;
+      }
+      if (
+        network.latest &&
+        network.latest.matchId === party.state.matchId &&
+        !networkView
+      ) {
+        const initial = network.latest,
+          matchId = initial.matchId;
+        void matchLoader.run(
+          [
+            {
+              name: "Network arena",
+              run: () => {
+                arena.setMap(initial.arenaId);
+                document.querySelector(".arena-caption")!.textContent =
+                  arenaThemes[initial.arenaId].name.toUpperCase();
+              },
+            },
+            {
+              name: "Player resources",
+              run: () => {
+                networkView = new NetworkMatchView(
+                  scene,
+                  camera,
+                  initial,
+                  party.playerId,
+                  rumbleSound,
+                );
+                networkView.camera.mouseLook = mouseLook;
+                cars.forEach((c) => (c.visible = false));
+                ball.visible = false;
+                homeLobby.update([], camera, 0, now / 1000, false);
+                networkView.update(
+                  network,
+                  0,
+                  now / 1000,
+                  settings.value.camera,
+                  settings.value.quality,
+                );
+                matchOverlay.update(
+                  initial.matchId,
+                  initial.players,
+                  initial.stats ?? [],
+                  [],
+                  initial.score,
+                  party.playerId,
+                  true,
+                  false,
+                );
+                matchOverlay.board.hidden = true;
+              },
+            },
+            {
+              name: "Materials and shaders",
+              run: () => graphics.prepare(scene, camera),
+            },
+          ],
+          () => {
+            if (
+              network.latest?.matchId === matchId &&
+              party.state?.stage === "match"
+            )
+              network.prepared();
+            else {
+              networkView?.dispose();
+              networkView = null;
+            }
+            input.clear();
+            previous = performance.now();
+          },
+          () => {
+            networkView?.dispose();
+            networkView = null;
+            network.close();
+            home();
+          },
         );
-        networkView.camera.mouseLook = mouseLook;
+        requestAnimationFrame(frame);
+        return;
       }
       if (
         input.takeAction("camera") &&
@@ -930,7 +1168,7 @@ async function boot() {
           networkView?.replayView.director.debug,
         );
       else replayPanel.hide();
-      document.getElementById("result")!.hidden = true;
+      document.getElementById("result")!.hidden = netMatch.phase !== "finished";
       document.getElementById("pause")!.hidden = true;
       networkStatus.hidden = !network.status;
       networkStatus.textContent = network.status;
@@ -948,9 +1186,21 @@ async function boot() {
           network.chatLog,
           network.chatError,
           networkPaused && !finished,
+          finished,
         );
       else matchOverlay.hide();
-      networkMenu.hidden = !networkPaused && !finished;
+      networkMenu.hidden = !networkPaused || finished;
+      document.getElementById("again")!.hidden =
+        party.state.hostId !== party.playerId;
+      document.getElementById("result")!.dataset.navDefault =
+        party.state.hostId === party.playerId ? "#again" : "#home";
+      (document.getElementById("again") as HTMLButtonElement).disabled =
+        !party.state.matchFinished || party.busy;
+      document.getElementById("results-leave")!.hidden = false;
+      document.getElementById("results-error")!.textContent =
+        /FAILED|STILL PLAYING|COULD NOT|ONLY THE/.test(party.message)
+          ? party.message
+          : "";
       document.getElementById("network-menu-title")!.textContent = finished
         ? netMatch.message
         : "MATCH MENU";
@@ -1018,6 +1268,10 @@ async function boot() {
           keyName(input.bindings.usePowerup) +
             " / " +
             controllerName(settings.value.controller.bindings.usePowerup),
+          (id) =>
+            networkView?.cars[
+              networkView.simulation.cars.findIndex((c) => c.id === id)
+            ],
         );
       graphics.render(scene, camera);
       requestAnimationFrame(frame);
@@ -1318,7 +1572,14 @@ async function boot() {
         [],
         "",
         match.phase === "paused",
+        match.phase === "finished",
       );
+    if (!networkActive) {
+      document.getElementById("again")!.hidden = false;
+      document.getElementById("result")!.dataset.navDefault = "#again";
+      (document.getElementById("again") as HTMLButtonElement).disabled = false;
+      document.getElementById("results-leave")!.hidden = !party.state;
+    }
     if (
       !document.hidden &&
       (match.phase === "playing" || match.phase === "goal")
@@ -1444,6 +1705,7 @@ async function boot() {
       keyName(input.bindings.usePowerup) +
         " / " +
         controllerName(settings.value.controller.bindings.usePowerup),
+      (id) => cars[simulation.cars.findIndex((c) => c.id === id)],
     );
     const touched = simulation.cars.find(
       (c) => c.id === simulation.lastTouchId,
@@ -1515,7 +1777,9 @@ async function boot() {
     );
     const lobbyVisible = match.phase === "home" && ui.screen === "home";
     const partySetup =
-      match.phase === "home" && !!party.state && party.state.stage !== "home";
+      match.phase === "home" &&
+      !!party.state &&
+      ["mode", "teams"].includes(party.state.stage);
     partyPanel.flow.updateVisibility(match.phase === "home");
     partyPanel.host.hidden = !lobbyVisible;
     homeLobby.update(
@@ -1540,6 +1804,8 @@ async function boot() {
       simulation,
     );
     if (partySetup) {
+      if (party.state?.stage === "teams" && party.state.matchArenaId)
+        arena.setMap(party.state.matchArenaId);
       camera.clearViewOffset();
       camera.position.lerp(new T.Vector3(38, 27, 42), 1 - Math.exp(-dt * 5));
       camera.up.set(0, 1, 0);
@@ -1613,6 +1879,7 @@ async function boot() {
       __arena: {
         simulation,
         match,
+        matchLoader,
         input,
         settings,
         garage,

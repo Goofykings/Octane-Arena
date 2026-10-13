@@ -61,5 +61,6 @@ export interface PartyActions {
   disconnect: Record<string, never>;
   launch: Record<string, never>;
   return: Record<string, never>;
+  rematch: Record<string, never>;
   "rtc-end": { matchId: string; reason: "finished" | "disconnect" };
 }

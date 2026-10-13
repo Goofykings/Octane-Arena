@@ -13,6 +13,8 @@ export const STAT_TUNING = {
   predictionStep: 1 / 60,
   saveHorizon: 2.5,
   materialVelocityChange: 0.75,
+  threatCheckInterval: 0.1,
+  threatNeutralTime: 0.2,
   eventHistory: 24,
   touchHistory: 128,
 } as const;
@@ -81,3 +83,28 @@ export const statEventSchema = z.object({
   scoreAward: z.number().int().nonnegative(),
   timestamp: z.number().finite(),
 });
+
+/** Deterministic MVP across both teams. Stable roster order is final tiebreak. */
+export function matchMvp<T extends { id: string }>(
+  players: readonly T[],
+  stats: readonly PlayerMatchStats[],
+): T | undefined {
+  const byId = new Map(stats.map((s) => [s.playerId, s]));
+  return players
+    .map((player, index) => ({ player, index }))
+    .sort((a, b) => {
+      for (const key of [
+        "score",
+        "goals",
+        "assists",
+        "saves",
+        "shots",
+      ] as const) {
+        const delta =
+          (byId.get(b.player.id)?.[key] ?? 0) -
+          (byId.get(a.player.id)?.[key] ?? 0);
+        if (delta) return delta;
+      }
+      return a.index - b.index;
+    })[0]?.player;
+}

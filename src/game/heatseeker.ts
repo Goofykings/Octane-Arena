@@ -117,6 +117,7 @@ export class Heatseeker {
       .multiplyScalar(nextSpeed)
       .sub(velocity)
       .multiplyScalar(P.ball.mass);
+    delta.y += P.gravity * H.gravityCompensation * dt * P.ball.mass;
     ball.applyImpulse(delta, true);
   }
 }

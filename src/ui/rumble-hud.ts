@@ -11,6 +11,7 @@ const paths: Record<RumbleItem, string> = {
   POWER_HITTER: "m13 2-8 12h7l-1 8 8-13h-7z",
   PLUNGER: "M12 3v11M5 20l2-6h10l2 6z",
   SPIKES: "m3 18 4-11 5 11 5-11 4 11M3 21h18",
+  SWAPPER: "M3 7h17l-4-4m4 4-4 4M21 17H4l4-4m-4 4 4 4",
 };
 export const rumbleIcon = (item: RumbleItem) =>
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="' +
@@ -45,6 +46,7 @@ export class RumbleHud {
     dt: number,
     show: boolean,
     shortcut: string,
+    getPose?: (id: string) => T.Object3D | undefined,
   ) {
     const st = state?.players.find((p) => p.playerId === id);
     this.root.hidden = !show || !st;
@@ -65,8 +67,10 @@ export class RumbleHud {
     this.root.querySelector(".rumble-time")!.textContent =
       st.phase === "ready"
         ? "READY"
-        : (st.phase === "active" ? st.remaining : st.cooldown).toFixed(1) +
-          " s";
+        : st.phase === "active" && st.item === "GRAPPLING_HOOK"
+          ? "ACTIVE"
+          : (st.phase === "active" ? st.remaining : st.cooldown).toFixed(1) +
+            " s";
     this.root.querySelector(".rumble-key")!.textContent =
       st.phase === "ready" ? shortcut : "";
     const total =
@@ -76,11 +80,13 @@ export class RumbleHud {
           ? R.powerHitter.duration
           : st.item === "PLUNGER"
             ? R.plunger.duration
-            : R.grapple.duration;
+            : 1;
     (this.root.querySelector(".rumble-meter") as HTMLElement).style.transform =
       "scaleX(" +
       (st.phase === "active"
-        ? st.remaining / total
+        ? st.item === "GRAPPLING_HOOK"
+          ? 1
+          : st.remaining / total
         : st.phase === "ready"
           ? 1
           : 1 - st.cooldown / R.cooldown) +
@@ -93,16 +99,27 @@ export class RumbleHud {
           : st.item === "PLUNGER"
             ? R.plunger.range
             : 0;
+    const target =
+      st.item === "SWAPPER"
+        ? st.targetPlayerId
+          ? getPose?.(st.targetPlayerId)
+          : undefined
+        : ball;
     const locked =
       st.phase === "ready" &&
-      range > 0 &&
-      !!car &&
-      this.point.copy(ball.position).distanceTo(car.position) <= range;
+      !!target &&
+      target.visible &&
+      (st.item === "SWAPPER" ||
+        (range > 0 &&
+          !!car &&
+          this.point.copy(target.position).distanceTo(car.position) <= range));
     this.opacity +=
       ((locked ? 1 : 0) - this.opacity) *
       (1 - Math.exp(-dt * R.visual.targetFade));
-    if (this.opacity < 0.01 || !ball.visible) return;
-    this.point.copy(ball.position).project(camera);
+    if (this.opacity < 0.01 || !target?.visible) return;
+    this.target.dataset.player =
+      st.item === "SWAPPER" ? (st.targetPlayerId ?? "") : "ball";
+    this.point.copy(target.position).project(camera);
     if (
       this.point.z < -1 ||
       this.point.z > 1 ||

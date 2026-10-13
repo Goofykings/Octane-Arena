@@ -16,6 +16,8 @@ export class CarBallContact {
   impulse = new Vector3();
   roofImpulse = new Vector3();
   closing = 0;
+  rotationalClosing = 0;
+  dodgeImpulse = new Vector3();
   aerial = false;
   lastImpulse = new Vector3();
   impactAge = Infinity;
@@ -56,6 +58,8 @@ export class CarBallContact {
     this.roofImpulse.set(0, 0, 0);
     this.kind = "NONE";
     this.closing = 0;
+    this.rotationalClosing = 0;
+    this.dodgeImpulse.set(0, 0, 0);
     this.impactAge += P.dt;
   }
   resolve(car: Car, ball: RAPIER.RigidBody, point: Vector3, normal: Vector3) {
@@ -79,6 +83,10 @@ export class CarBallContact {
       .clone()
       .cross(beforePoint.clone().sub(this.ballPosition))
       .add(this.ballVelocity);
+    this.rotationalClosing = Math.max(
+      0,
+      this.pointVelocity.clone().sub(this.linear).dot(normal),
+    );
     this.relative.copy(this.pointVelocity).sub(ballPointVelocity);
     this.closing = Math.max(0, this.relative.dot(normal));
     this.aerial = !car.grounded && car.supportKind === "air";
@@ -133,10 +141,15 @@ export class CarBallContact {
       const postClosing = contactVelocity(car.body, armCar)
         .sub(contactVelocity(ball, armBall))
         .dot(normal);
-      const target = P.hit.airRestitution * this.closing;
+      const restitution = Math.min(
+        P.hit.maxAirRestitution,
+        P.hit.airRestitution +
+          P.hit.angularRestitutionGain *
+            Math.min(1, this.rotationalClosing / Math.max(this.closing, 0.001)),
+      );
+      const target = restitution * this.closing;
       const bound =
-        ((1 + P.hit.airRestitution) * this.closing) /
-        Math.max(inverseMass, 1e-8);
+        ((1 + restitution) * this.closing) / Math.max(inverseMass, 1e-8);
       const correction = Math.max(
         -bound,
         Math.min(bound, (postClosing + target) / Math.max(inverseMass, 1e-8)),
@@ -144,6 +157,35 @@ export class CarBallContact {
       this.impulse.copy(normal).multiplyScalar(correction);
       ball.applyImpulseAtPoint(this.impulse, point, true);
       car.body.applyImpulseAtPoint(this.impulse.clone().negate(), point, true);
+      const leading = car.jump.direction
+        .clone()
+        .applyQuaternion(this.rotation)
+        .normalize();
+      // Airborne dodges previously lost the existing driving hit curve entirely.
+      // Restore a bounded, kinematics-scaled leading strike with coupled recoil,
+      // only while rotational motion is actually closing into the ball.
+      if (
+        car.jump.flipLeft > 0 &&
+        !car.jump.stall &&
+        car.jump.flipAge <= P.hit.dodgeHitWindow &&
+        leading.dot(normal) > P.hit.dodgeLeadingDot &&
+        this.local.dot(car.jump.direction) > 0 &&
+        localNormal.y < 0.7 &&
+        this.rotationalClosing > P.hit.dodgeMinRotationalClosing
+      ) {
+        const magnitude = Math.min(
+          P.hit.dodgeHitMaxImpulse,
+          this.closing * P.hit.dodgeHitGain * ball.mass(),
+        );
+        this.dodgeImpulse.copy(normal).multiplyScalar(magnitude);
+        ball.applyImpulseAtPoint(this.dodgeImpulse, point, true);
+        car.body.applyImpulseAtPoint(
+          this.dodgeImpulse.clone().negate(),
+          point,
+          true,
+        );
+        this.impulse.add(this.dodgeImpulse);
+      }
       this.lastImpulse.copy(this.impulse);
       this.impactAge = 0;
       this.impactCount++;

@@ -1,3 +1,4 @@
+import { arenaThemes } from "../render/arena-themes";
 import { soccerModes } from "../../shared/soccer";
 import { displayIdentity } from "../../shared/local-profile";
 import type { PartyClient } from "../game/party";
@@ -7,6 +8,11 @@ export class PartyFlow {
   dialog = document.createElement("dialog");
   private visible = false;
   private localSetup = false;
+  private arenaReady = "";
+  setArenaReady(id: string) {
+    this.arenaReady = id;
+    this.syncVisibility();
+  }
   openSetup() {
     this.localSetup = true;
     this.visible = true;
@@ -15,12 +21,12 @@ export class PartyFlow {
   constructor(private party: PartyClient) {
     this.dialog.id = "party-flow";
     this.dialog.setAttribute("aria-label", "Party game setup");
-    this.dialog.innerHTML = `<section id="party-mode-screen"><header><h2>MATCH SETUP</h2><span class="party-flow-host"></span></header><div class="match-setup-grid"><section class="setup-gamemode"><h3>GAMEMODE</h3><div id="gamemode-cycle" class="setup-selector" data-selector="gamemode" tabindex="0" role="group" aria-label="Gamemode" data-nav-cycle data-nav-prev='[data-direction="-1"]' data-nav-next='[data-direction="1"]'><button data-cycle="gamemode" data-direction="-1" aria-label="Previous gamemode">&lsaquo;</button><div class="setup-selection"><strong id="setup-gamemode" aria-live="polite"></strong></div><button data-cycle="gamemode" data-direction="1" aria-label="Next gamemode">&rsaquo;</button></div></section><section class="setup-players"><h3>PLAYERS</h3><div id="party-size-cycle" class="setup-selector" data-selector="mode" tabindex="0" role="group" aria-label="Player format" data-nav-cycle data-nav-prev='[data-direction="-1"]' data-nav-next='[data-direction="1"]'><button data-cycle="mode" data-direction="-1" aria-label="Previous player format">&lsaquo;</button><div class="setup-selection"><strong id="setup-players" aria-live="polite"></strong></div><button data-cycle="mode" data-direction="1" aria-label="Next player format">&rsaquo;</button></div><button id="party-setup-launch" class="party-button">START MATCH</button></section></div><footer><button class="back-button" data-nav-back data-stage="home">BACK</button><button id="party-continue" class="party-button" data-stage="teams">CHOOSE SIDES</button></footer></section><section id="party-team-screen" hidden><header><div><span class="arena-caption">LUMEN DISTRICT</span><h2>CHOOSE YOUR SIDE</h2></div><span id="party-match-mode"></span></header><div class="party-team-board">${[0, 1].map((t) => `<section class="party-team-column" data-team="${t}"><header><h3>${t === 0 ? "BLUE" : "ORANGE"}</h3><span class="team-count"></span></header><div class="team-rows"></div><button class="party-button party-team-join" data-team="${t}">JOIN ${t === 0 ? "BLUE" : "ORANGE"}</button></section>`).join("")}</div><div id="party-unassigned"></div><footer><button class="back-button" data-stage="mode">CHANGE MODE</button><button id="party-team-leave" class="back-button">LEAVE PARTY</button><span class="party-network-note">NETWORK MATCHES COMING NEXT</span></footer></section><p id="party-flow-message" role="status" aria-live="polite"></p>`;
+    this.dialog.innerHTML = `<section id="party-mode-screen"><header><h2>MATCH SETUP</h2><span class="party-flow-host"></span></header><div class="match-setup-grid"><section class="setup-gamemode"><h3>GAMEMODE</h3><div id="gamemode-cycle" class="setup-selector" data-selector="gamemode" tabindex="0" role="group" aria-label="Gamemode" data-nav-cycle data-nav-prev='[data-direction="-1"]' data-nav-next='[data-direction="1"]'><button data-cycle="gamemode" data-direction="-1" aria-label="Previous gamemode">&lsaquo;</button><div class="setup-selection"><strong id="setup-gamemode" aria-live="polite"></strong></div><button data-cycle="gamemode" data-direction="1" aria-label="Next gamemode">&rsaquo;</button></div></section><section class="setup-players"><h3>PLAYERS</h3><div id="party-size-cycle" class="setup-selector" data-selector="mode" tabindex="0" role="group" aria-label="Player format" data-nav-cycle data-nav-prev='[data-direction="-1"]' data-nav-next='[data-direction="1"]'><button data-cycle="mode" data-direction="-1" aria-label="Previous player format">&lsaquo;</button><div class="setup-selection"><strong id="setup-players" aria-live="polite"></strong></div><button data-cycle="mode" data-direction="1" aria-label="Next player format">&rsaquo;</button></div></section></div><footer><button class="back-button" data-nav-back data-stage="home">BACK</button><button id="party-continue" class="party-button" data-stage="teams">CONTINUE</button></footer></section><section id="party-team-screen" hidden><header><div><span class="arena-caption">LUMEN DISTRICT</span><h2>CHOOSE YOUR SIDE</h2></div><span id="party-match-mode"></span></header><div class="party-team-board">${[0, 1].map((t) => `<section class="party-team-column" data-team="${t}"><header><h3>${t === 0 ? "BLUE" : "ORANGE"}</h3><span class="team-count"></span></header><div class="team-rows"></div><button class="party-button party-team-join" data-team="${t}">JOIN ${t === 0 ? "BLUE" : "ORANGE"}</button></section>`).join("")}</div><div id="party-unassigned"></div><footer><button class="back-button" data-stage="mode">CHANGE MODE</button><button id="party-team-leave" class="back-button">LEAVE PARTY</button><span class="party-network-note">NETWORK MATCHES COMING NEXT</span></footer></section><p id="party-flow-message" role="status" aria-live="polite"></p>`;
     document.getElementById("app")!.append(this.dialog);
     const launch = document.createElement("button");
     launch.id = "party-launch";
     launch.className = "party-button";
-    launch.textContent = "KICK OFF";
+    launch.textContent = "START MATCH";
     launch.onclick = () => void party.action("launch");
     this.dialog.querySelector("#party-team-screen footer")!.append(launch);
     this.dialog.querySelector(".party-network-note")!.remove();
@@ -30,9 +36,7 @@ export class PartyFlow {
     leaveMode.textContent = "LEAVE PARTY";
     leaveMode.onclick = () => void party.action("leave");
     this.dialog.querySelector("#party-mode-screen footer")!.append(leaveMode);
-    this.dialog.querySelector<HTMLButtonElement>(
-      "#party-setup-launch",
-    )!.onclick = () => void party.action("launch");
+    this.dialog.dataset.navDefault = "#party-continue";
     this.dialog
       .querySelectorAll<HTMLButtonElement>("[data-cycle]")
       .forEach((b) => {
@@ -99,7 +103,9 @@ export class PartyFlow {
       this.visible &&
       !!this.party.state &&
       (this.party.state.stage !== "home" || this.localSetup) &&
-      this.party.state.stage !== "match";
+      this.party.state.stage !== "match" &&
+      (this.party.state.stage !== "teams" ||
+        this.arenaReady === this.party.state.matchArenaId);
     if (open && !this.dialog.open) this.dialog.showModal();
     if (!open && this.dialog.open) this.dialog.close();
     document.body.classList.toggle("party-flow-open", open);
@@ -131,6 +137,13 @@ export class PartyFlow {
       "#party-mode-leave",
     )!.disabled = p.busy;
     this.dialog.dataset.stage = s.stage;
+    this.dialog.dataset.navDefault =
+      s.stage === "teams"
+        ? ".party-team-join:not(:disabled)"
+        : "#party-continue";
+    this.dialog.querySelector(".arena-caption")!.textContent = s.matchArenaId
+      ? arenaThemes[s.matchArenaId].name.toUpperCase()
+      : "ARENA";
     this.dialog.querySelector<HTMLElement>("#party-mode-screen")!.hidden =
       s.stage !== "mode" && !(s.stage === "home" && this.localSetup);
     this.dialog.querySelector<HTMLElement>("#party-team-screen")!.hidden =
@@ -138,7 +151,7 @@ export class PartyFlow {
     this.dialog.querySelector<HTMLElement>(".party-flow-host")!.textContent =
       host ? "" : "HOST IS CHOOSING";
     this.dialog
-      .querySelectorAll<HTMLButtonElement>("[data-cycle],#party-setup-launch")
+      .querySelectorAll<HTMLButtonElement>("[data-cycle]")
       .forEach((b) => (b.disabled = !host || p.busy));
     this.dialog
       .querySelectorAll<HTMLElement>("[data-nav-cycle]")
@@ -228,6 +241,8 @@ export class PartyFlow {
             ? "TEAM FULL"
             : `JOIN ${team === 0 ? "BLUE" : "ORANGE"}`;
     }
+    if (s.stage === "teams" && !launch.disabled && host)
+      this.dialog.dataset.navDefault = "#party-launch";
     const waiting = s.members.filter((m) => m.team === null);
     this.dialog.querySelector<HTMLElement>("#party-unassigned")!.textContent =
       waiting.length

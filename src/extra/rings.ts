@@ -7,6 +7,7 @@ import {
   createRingsCourse,
   ringGeometry,
   ringScale,
+  ringVertex,
   type RingsCourse,
   type CoursePlatform,
 } from "./course";
@@ -45,8 +46,11 @@ export class RingsPhysics {
     this.ringColliders = course.rings.map((ring) => {
       const vertices = new Float32Array(original.length);
       const scale = ringScale(ring);
-      for (let i = 0; i < original.length; i++)
-        vertices[i] = original[i] * scale;
+      for (let i = 0; i < original.length; i += 3)
+        vertices.set(
+          ringVertex(original[i], original[i + 1], original[i + 2], scale),
+          i,
+        );
       return this.world.createCollider(
         RAPIER.ColliderDesc.trimesh(
           vertices,

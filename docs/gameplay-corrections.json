@@ -210,12 +210,12 @@
     "name": "goal -1 upper -1 curved mouth remains driveable",
     "pass": true,
     "data": {
-      "supported": 31,
-      "maxAngular": 3.6641263109066564,
+      "supported": 30,
+      "maxAngular": 2.6486108991862967,
       "final": {
-        "x": -8.026366233825684,
-        "y": 4.103920936584473,
-        "z": -46.608184814453125
+        "x": -8.040366172790527,
+        "y": 4.049716472625732,
+        "z": -46.64727783203125
       }
     }
   },
@@ -223,12 +223,12 @@
     "name": "goal -1 upper 1 curved mouth remains driveable",
     "pass": true,
     "data": {
-      "supported": 31,
-      "maxAngular": 3.665982505776496,
+      "supported": 30,
+      "maxAngular": 2.6496053859108026,
       "final": {
-        "x": 8.026373863220215,
-        "y": 4.103939056396484,
-        "z": -46.608184814453125
+        "x": 8.040366172790527,
+        "y": 4.049672603607178,
+        "z": -46.64727783203125
       }
     }
   },
@@ -236,12 +236,12 @@
     "name": "goal 1 upper -1 curved mouth remains driveable",
     "pass": true,
     "data": {
-      "supported": 31,
-      "maxAngular": 3.664127493724725,
+      "supported": 30,
+      "maxAngular": 2.6486151470420185,
       "final": {
-        "x": -8.026366233825684,
-        "y": 4.103920936584473,
-        "z": 46.608184814453125
+        "x": -8.040366172790527,
+        "y": 4.049716472625732,
+        "z": 46.64727783203125
       }
     }
   },
@@ -249,12 +249,12 @@
     "name": "goal 1 upper 1 curved mouth remains driveable",
     "pass": true,
     "data": {
-      "supported": 31,
-      "maxAngular": 3.66598684728441,
+      "supported": 30,
+      "maxAngular": 2.6496083359548233,
       "final": {
-        "x": 8.026373863220215,
-        "y": 4.103939056396484,
-        "z": 46.608184814453125
+        "x": 8.040366172790527,
+        "y": 4.049672603607178,
+        "z": 46.64727783203125
       }
     }
   }

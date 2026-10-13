@@ -4,6 +4,7 @@ import type { Simulation } from "../physics/simulation";
 import type { PlayerInput } from "../../shared/player";
 import type { Car } from "../car/car";
 import { P } from "../config/physics";
+import { insideArena } from "../arena/physics";
 import { RUMBLE_CONFIG as R } from "../config/rumble";
 import {
   rumbleItems,
@@ -52,6 +53,7 @@ export class Rumble {
         item: null,
         cooldown: R.cooldown,
         remaining: 0,
+        team: car.team as 0 | 1,
       });
     this.state.players.length = 0;
     for (const st of this.players.values()) this.state.players.push(st);
@@ -68,6 +70,7 @@ export class Rumble {
       kind,
       item,
       point: { ...this.sim.ball.translation() },
+      source: { ...car.body.translation() },
     });
     if (this.events.length > R.history.eventCapacity) this.events.shift();
   }
@@ -92,9 +95,116 @@ export class Rumble {
     st.cooldown = 0;
     return true;
   }
+  /** Authority-only nearest enemy selection. Hysteresis does not extend range. */
+  target(id: string): Car | undefined {
+    const car = this.sim.cars.find((c) => c.id === id),
+      st = this.players.get(id);
+    if (!car || !st) return;
+    let best: Car | undefined, old: Car | undefined;
+    let nearest = Infinity,
+      previous = Infinity;
+    for (const candidate of this.sim.cars) {
+      if (
+        candidate.id === id ||
+        candidate.team === car.team ||
+        !candidate.body.isEnabled() ||
+        candidate.demolitionState !== "active" ||
+        this.suspended.has(candidate.id)
+      )
+        continue;
+      const distance = this.direction
+        .copy(candidate.body.translation())
+        .distanceTo(car.body.translation());
+      if (distance > R.swapper.maxTargetRange) continue;
+      if (distance < nearest) {
+        nearest = distance;
+        best = candidate;
+      }
+      if (candidate.id === st.targetPlayerId) {
+        old = candidate;
+        previous = distance;
+      }
+    }
+    if (old && previous <= nearest + R.swapper.retargetHysteresis) best = old;
+    st.targetPlayerId = best?.id;
+    return best;
+  }
+  /** Probe the receiving car's actual convex shape, including its own rotation.
+   * Bounded position-only corrections; unsafe placements reject before either car moves. */
+  private placement(car: Car, destination: RAPIER.Vector) {
+    const p = new Vector3().copy(destination),
+      q = car.body.rotation();
+    // Goal interiors are not valid swap destinations.
+    if (Math.abs(p.z) > P.arena.halfLength - R.swapper.placementMargin)
+      return null;
+    const local = new Vector3().copy(car.collider.translationWrtParent()!);
+    const offset = local.applyQuaternion(new Quaternion().copy(q));
+    const staticColliders: RAPIER.Collider[] = [];
+    this.sim.world.forEachCollider((c) => {
+      if (!c.parent() || c.parent()!.isFixed()) staticColliders.push(c);
+    });
+    for (let pass = 0; pass < R.swapper.placementPasses; pass++) {
+      let clear = true;
+      for (const c of staticColliders) {
+        const hit = c.contactShape(
+          car.collider.shape,
+          p.clone().add(offset),
+          q,
+          R.swapper.placementMargin,
+        );
+        if (hit && hit.distance < R.swapper.placementMargin) {
+          clear = false;
+          p.addScaledVector(
+            this.direction.copy(hit.normal1),
+            R.swapper.placementMargin - hit.distance,
+          );
+        }
+      }
+      if (p.distanceTo(destination) > R.swapper.maxCorrection) return null;
+      if (clear)
+        return !this.sim.arenaCollider || insideArena(this.sim.arenaCollider, p)
+          ? p
+          : null;
+    }
+    return null;
+  }
+  private swap(car: Car) {
+    const other = this.target(car.id);
+    if (!other) return false;
+    const source = { ...car.body.translation() },
+      destination = { ...other.body.translation() };
+    const a = this.placement(car, destination),
+      b = this.placement(other, source);
+    if (!a || !b) return false;
+    if (this.carrier === car.id || this.carrier === other.id)
+      this.end(this.carrier!);
+    // Only position changes. Rapier retains each body's own quaternion and velocities.
+    car.body.setTranslation(a, true);
+    other.body.setTranslation(b, true);
+    car.teleportSequence++;
+    other.teleportSequence++;
+    car.clearSurfaceHistory();
+    other.clearSurfaceHistory();
+    car.pose.snap();
+    other.pose.snap();
+    this.events.push({
+      id: ++this.sequence,
+      time: this.sim.clock,
+      playerId: car.id,
+      targetPlayerId: other.id,
+      kind: "SWAP",
+      item: "SWAPPER",
+      source,
+      point: destination,
+    });
+    if (this.events.length > R.history.eventCapacity) this.events.shift();
+    this.end(car.id);
+    return true;
+  }
   inRange(id: string, item: RumbleItem) {
     const car = this.sim.cars.find((c) => c.id === id);
     if (!car?.body.isEnabled() || !this.sim.ball.isEnabled()) return false;
+    if (item === "SWAPPER") return !!this.target(id);
     const range =
       item === "HAYMAKER"
         ? R.haymaker.range
@@ -123,6 +233,7 @@ export class Rumble {
     )
       return false;
     const item = st.item;
+    if (item === "SWAPPER") return this.swap(car);
     this.emit(car, "POWERUP_USED", item);
     if (item === "HAYMAKER") {
       this.direction
@@ -145,7 +256,7 @@ export class Rumble {
     st.phase = "active";
     st.remaining =
       item === "GRAPPLING_HOOK"
-        ? R.grapple.duration
+        ? 0 // Indefinite: only actual collision or lifecycle cancellation ends grapple.
         : item === "PLUNGER"
           ? R.plunger.duration
           : item === "SPIKES"
@@ -167,6 +278,7 @@ export class Rumble {
     st.cooldown = R.cooldown;
     st.remaining = 0;
     delete st.attachment;
+    delete st.targetPlayerId;
   }
   suspend(id: string, value = true) {
     if (value) {
@@ -193,6 +305,14 @@ export class Rumble {
     const useful =
       this.direction.dot(goal) > R.bot.alignment * distance * goal.length();
     if (
+      (st.item === "SWAPPER" &&
+        !!this.target(car.id) &&
+        this.direction
+          .copy(car.body.translation())
+          .distanceTo(this.sim.ball.translation()) >
+          this.arm
+            .copy(this.target(car.id)!.body.translation())
+            .distanceTo(this.sim.ball.translation())) ||
       (st.item === "HAYMAKER" && useful) ||
       (st.item === "GRAPPLING_HOOK" &&
         distance > R.bot.minGrappleDistance &&
@@ -226,11 +346,12 @@ export class Rumble {
           this.emit(car, "POWERUP_GRANTED", st.item!);
         }
       }
+      if (st.item === "SWAPPER") this.target(car.id);
       if (edge) this.use(car.id);
       if (this.sim.players[i].controller === "bot") this.botUse(car, st);
       if (st.phase !== "active") continue;
       st.remaining = Math.max(0, st.remaining - P.dt);
-      if (st.remaining <= R.numerical.epsilon) {
+      if (st.item !== "GRAPPLING_HOOK" && st.remaining <= R.numerical.epsilon) {
         this.end(car.id);
         continue;
       }
@@ -242,15 +363,34 @@ export class Rumble {
       if (distance < R.numerical.epsilon) continue;
       this.direction.divideScalar(distance);
       if (st.item === "GRAPPLING_HOOK") {
-        const along = this.direction.dot(car.body.linvel());
-        const dv = Math.min(
-          R.grapple.acceleration * P.dt,
-          Math.max(0, R.grapple.maxPullSpeed - along),
+        const cfg = R.grapple;
+        // Velocity target follows a short moving-ball lead, damping radial AND
+        // lateral relative motion. Bounded impulses, never velocity assignment.
+        this.direction
+          .copy(this.sim.ball.translation())
+          .addScaledVector(this.arm.copy(this.sim.ball.linvel()), cfg.leadTime)
+          .sub(car.body.translation());
+        const gap = Math.max(0, distance - P.ball.radius - cfg.chassisReach);
+        const speed = Math.min(
+          cfg.maxApproachSpeed,
+          Math.min(
+            cfg.targetApproachSpeed,
+            cfg.contactApproachSpeed + gap * cfg.pullGain,
+          ),
         );
-        car.body.applyImpulse(
-          this.impulse.copy(this.direction).multiplyScalar(P.car.mass * dv),
-          true,
-        );
+        this.direction.normalize();
+        this.impulse
+          .copy(this.direction)
+          .multiplyScalar(speed)
+          .add(this.sim.ball.linvel())
+          .sub(car.body.linvel())
+          .multiplyScalar(cfg.velocityDamping);
+        if (car.grounded)
+          this.impulse.y += cfg.groundUpBias * Math.min(1, gap / P.ball.radius);
+        this.impulse
+          .clampLength(0, cfg.maxAcceleration)
+          .multiplyScalar(car.body.mass() * P.dt);
+        car.body.applyImpulse(this.impulse, true);
       }
       if (st.item === "PLUNGER") {
         this.direction.negate();
@@ -262,7 +402,7 @@ export class Rumble {
           0,
           Math.min(
             R.plunger.maxForce,
-            distance * R.plunger.springStrength - approach * R.plunger.damping,
+            distance * R.plunger.pullStrength - approach * R.plunger.damping,
           ),
         );
         this.ballImpulse(

@@ -82,6 +82,8 @@ export class NetworkMatch {
       if (p.controller === "bot") this.bots.set(p.id, new Opponent());
     this.match.gameMode = gameMode;
     this.match.start(this.simulation, "network");
+    this.botTeam.prepare(this.simulation, this.pads);
+    this.match.recorder.prepare(this.simulation);
   }
   accept(
     id: string,
@@ -205,6 +207,7 @@ export class NetworkMatch {
         rotation: { ...c.body.rotation() },
         velocity: { ...c.body.linvel() },
         angularVelocity: { ...c.body.angvel() },
+        teleportSequence: c.teleportSequence,
         wheelAngle: m.recorder.wheels(i).angle,
         wheelSteer: m.recorder.wheels(i).steer,
         boost: c.boost,

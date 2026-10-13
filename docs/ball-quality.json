@@ -97,7 +97,7 @@
     "id": "ion",
     "name": "diagonal",
     "maxSpeed": 11.942132960369834,
-    "maxAngular": 7.000000263108255,
+    "maxAngular": 7.000000292486673,
     "extra": 0,
     "angularContact": 0
   },
@@ -132,8 +132,8 @@
     "kind": "legacy flick",
     "id": "vector",
     "name": "diagonal",
-    "maxSpeed": 11.929924145970329,
-    "maxAngular": 7.00000025108421,
+    "maxSpeed": 11.952450339639793,
+    "maxAngular": 7.00000032058282,
     "extra": 0,
     "angularContact": 0
   },
@@ -141,73 +141,73 @@
     "kind": "flick",
     "id": "ion",
     "name": "front",
-    "maxSpeed": 11.836280004180628,
-    "maxAngular": 7.00000000000002,
-    "extra": 2.0872952690898856,
+    "maxSpeed": 12.679212104688869,
+    "maxAngular": 7.000000000000044,
+    "extra": 2.78621826159865,
     "angularContact": 4.253345205720887
   },
   {
     "kind": "flick",
     "id": "ion",
     "name": "back",
-    "maxSpeed": 8.783103992388122,
-    "maxAngular": 7.0000000000000195,
-    "extra": 2.544636083667651,
+    "maxSpeed": 9.034128573634982,
+    "maxAngular": 7.000000000000039,
+    "extra": 2.249245914432244,
     "angularContact": 3.7163791937541606
   },
   {
     "kind": "flick",
     "id": "ion",
     "name": "side",
-    "maxSpeed": 9.849085994785739,
-    "maxAngular": 7.000000208120464,
-    "extra": 2.150683902522381,
+    "maxSpeed": 10.369316087580215,
+    "maxAngular": 7.000000231248163,
+    "extra": 2.5467216037209264,
     "angularContact": 3.469365049364712
   },
   {
     "kind": "flick",
     "id": "ion",
     "name": "diagonal",
-    "maxSpeed": 12.23211715140854,
-    "maxAngular": 7.000000305693199,
-    "extra": 2.526217620579374,
-    "angularContact": 5.073543739309944
+    "maxSpeed": 12.215680067298441,
+    "maxAngular": 7.000000307639584,
+    "extra": 2.610324436268784,
+    "angularContact": 3.6305863920956334
   },
   {
     "kind": "flick",
     "id": "vector",
     "name": "front",
-    "maxSpeed": 12.0166755964377,
-    "maxAngular": 7.00000000000001,
-    "extra": 2.1747930860131826,
+    "maxSpeed": 12.904106368384399,
+    "maxAngular": 7.000000000000015,
+    "extra": 2.7317237704469144,
     "angularContact": 4.838795178485539
   },
   {
     "kind": "flick",
     "id": "vector",
     "name": "back",
-    "maxSpeed": 8.766876437189,
-    "maxAngular": 7,
-    "extra": 2.586120441159095,
+    "maxSpeed": 8.927393669718262,
+    "maxAngular": 7.000000000000001,
+    "extra": 2.2690897811548094,
     "angularContact": 4.3578416693508935
   },
   {
     "kind": "flick",
     "id": "vector",
     "name": "side",
-    "maxSpeed": 9.792558175598703,
-    "maxAngular": 7.000000237543468,
-    "extra": 2.134613628481013,
+    "maxSpeed": 10.3078426703266,
+    "maxAngular": 7.000000236981508,
+    "extra": 2.5622043804548253,
     "angularContact": 3.739764839908043
   },
   {
     "kind": "flick",
     "id": "vector",
     "name": "diagonal",
-    "maxSpeed": 12.221616810872298,
-    "maxAngular": 7.0000002110552515,
-    "extra": 2.5357607441401298,
-    "angularContact": 5.349408657585588
+    "maxSpeed": 12.211398287163016,
+    "maxAngular": 7.000000269970604,
+    "extra": 2.6095464919636124,
+    "angularContact": 3.9661965720802494
   },
   {
     "kind": "moving dribble",
@@ -244,9 +244,9 @@
     "id": "ion",
     "action": "powerslide",
     "local": [
-      -0.10414097324853928,
-      1.1744049401184842,
-      0.4284867976859811
+      -0.10403780270373866,
+      1.1744069206996013,
+      0.42844771969217826
     ]
   },
   {
@@ -284,9 +284,9 @@
     "id": "vector",
     "action": "powerslide",
     "local": [
-      -0.11522284162698497,
-      1.3339176725014448,
-      0.4171285040978025
+      -0.11521172598660953,
+      1.333917727458277,
+      0.41712515355386676
     ]
   },
   {

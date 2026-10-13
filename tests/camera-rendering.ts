@@ -14,7 +14,17 @@ import {
     return {
       width: 0,
       height: 0,
-      getContext: () => ({ fillRect() {}, fillStyle: "" }),
+      getContext: () => ({
+        fillRect() {},
+        fillStyle: "",
+        scale() {},
+        beginPath() {},
+        moveTo() {},
+        lineTo() {},
+        stroke() {},
+        strokeStyle: "",
+        lineWidth: 1,
+      }),
     };
   },
 };

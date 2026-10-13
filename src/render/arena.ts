@@ -1,4 +1,5 @@
 import * as T from "three";
+import { addArenaHex, addTeamCircles } from "./arena-markings";
 import { arenaShell, goalShell } from "../arena/geometry";
 import { goalFrame } from "../arena/posts";
 import { goalRoofHeight } from "../arena/goal";
@@ -109,6 +110,7 @@ export function drawArena(scene: T.Scene, initial: ArenaId = "city") {
   wall.userData.cameraCollision = "ARENA_BOUNDARY";
   (wall.material as T.Material[]).forEach((mat) => polishMaterial(mat, "wall"));
   group.add(wall);
+  addArenaHex(group, shell);
   // Ramp contour bands use the same generated positions as collision geometry.
   const bandPositions: number[] = [];
   const profileLength = shell.profileLength;
@@ -163,7 +165,7 @@ export function drawArena(scene: T.Scene, initial: ArenaId = "city") {
     }
     line(ps);
   };
-  circle(9, 0, 0);
+  addTeamCircles(group);
   circle(0.3, 0, 0);
   // Restrained inset lane accents leave the central boost routes unobstructed.
   for (const side of [-1, 1]) {

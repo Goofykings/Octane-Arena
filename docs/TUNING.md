@@ -31,9 +31,9 @@ review measured results when deliberately changing their targets.
 | Boost strength/use | `car.boostGround`, `boostAir`, `boostUse` | Acceleration on surfaces/in air and boost consumed per second. |
 | Rigid contact | `car.contactReach`, `rayLength`, `contactSkin`, `maxContactCorrection` | Detection reach, collision clearance and bounded correction. There are no suspension springs. |
 | Wall driving | `car.adhesion`, `wallDriveSpeed`, `wallIdleGrip`, `ceilingAdhesionEnd`, `align`, `alignDamping` | Stable wheel support only; moving-wall grip and progressively reduced overhead adhesion. |
-| Recovery | `car.edgeRecoverySpeed`, `edgeDriveGrip`, `recoveryCooldown` | Speed limit and load-limited tire-shoulder grip for driven edge recovery; existing roof-flip cooldown. |
+| Recovery | `car.recoveryMaxSpeed` = 4.8, `recoveryAcceleration` = 44, `recoveryBraking` = 16; `edgeDriveGrip`, `noseInputGrip` | Roof assist requires a fresh press after touchdown, slows near upright and cannot repeat while held. Edge/nose forces act at real contact points. |
 | Ball feel | `ball.mass`, `restitution`, `drag`, `maxSpeed` | Impact response, bounciness, slowing and ball speed cap. |
-| Ball hits | `hit.frontGain`, `sideGain`, `roofGain`, `maxExtra` | Extra gameplay impulse applied to ball hits. |
+| Ball hits | `hit.dodgeHitGain` = 0.65, `dodgeHitMaxImpulse` = 750, `dodgeHitWindow` = 0.3; `angularRestitutionGain` | Leading airborne dodge impulses scale with actual contact closing speed, require rotational approach, and include equal car recoil. Normal drive hits stay unchanged. |
 | Gravity | `gravity` = 6.5 | Affects ball, jumps, aerials and wall forces together. |
 | Supersonic | `supersonic.start`, `maintain`, `grace` | Entry speed, maintenance speed and hysteresis duration. |
 | Demolitions | `demolition.respawn`, `boost`, `minClosing`, `frontDot` | Respawn delay/boost and collision eligibility. |
@@ -54,3 +54,7 @@ The 7 rad/s flip cap is intentional custom tuning requested after the original
 5.5 rad/s reference calibration; older calibration reports describe that earlier setting.
 
 Rumble power ranges, impulses, timers, bot use and effects live in **src/config/rumble.ts**. See [RUMBLE.md](RUMBLE.md) for units, current estimates, authority and tests.
+
+Normal lateral tire acceleration is capped by `car.lateralMaxAcceleration` (34 m/s^2). The slope remains `car.grip` (24/s), keeping strong low-slip grip. Fully engaged powerslide keeps its previous friction curve; released tires return progressively to finite ordinary grip.
+
+Partial overhead contact uses `car.overheadPartialNormal` (-0.05) and `overheadPartialSupport` (0.12). The tolerance avoids misclassifying vertical walls from float noise. Inferred nearby ray hits cannot promote two-wheel overhead contact to stable support. Wheel/chassis normal constraints remain unilateral, with no suspension or automatic side/nose alignment.

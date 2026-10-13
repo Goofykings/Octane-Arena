@@ -19,7 +19,8 @@ export class GoalExplosion {
         side: T.DoubleSide,
       }),
     );
-    this.group.add(this.flash, this.light);
+    this.group.add(this.flash);
+    scene.add(this.light);
     polishMaterial(this.flash.material, "burst");
     for (let i = 0; i < 3; i++) {
       const ring = new T.Mesh(
@@ -42,6 +43,7 @@ export class GoalExplosion {
   trigger(position: { x: number; y: number; z: number }, color: number) {
     this.age = 0;
     this.group.position.copy(position);
+    this.light.position.copy(position);
     this.group.visible = true;
     this.flash.material.color.setHex(color);
     this.light.color.setHex(color);
@@ -50,11 +52,15 @@ export class GoalExplosion {
   reset() {
     this.age = 10;
     this.group.visible = false;
+    this.light.intensity = 0;
   }
   update(dt: number) {
     this.age += dt;
     this.group.visible = this.age < 2.8;
-    if (!this.group.visible) return;
+    if (!this.group.visible) {
+      this.light.intensity = 0;
+      return;
+    }
     const t = this.age;
     this.flash.scale.setScalar(0.4 + t * 12);
     this.flash.material.opacity = Math.max(0, 0.65 - t * 0.65);

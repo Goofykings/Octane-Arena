@@ -1,7 +1,7 @@
 import { Vector3 } from "three";
 import type { Simulation } from "../physics/simulation";
 import {
-  predictBallTrajectory,
+  predictGoal,
   type TrajectoryPoint,
   type GoalPrediction,
 } from "../game/ball-prediction";
@@ -35,14 +35,39 @@ export class BotPerception {
   updates = 0;
   private next = -Infinity;
   private previous = -Infinity;
-  constructor(readonly difficulty: BotDifficulty) {}
+  readonly pool: TrajectoryPoint[];
+  private lastPoint: TrajectoryPoint = {
+    time: 0,
+    position: new Vector3(),
+    velocity: new Vector3(),
+  };
+  constructor(readonly difficulty: BotDifficulty) {
+    this.pool = Array.from(
+      { length: Math.ceil((BOT_TUNING[difficulty].horizon * 60) / 6) + 2 },
+      () => ({ time: 0, position: new Vector3(), velocity: new Vector3() }),
+    );
+  }
+  prepare(s: Simulation) {
+    this.next = -Infinity;
+    return this.update(s);
+  }
   update(s: Simulation) {
     if (s.clock < this.previous) this.next = -Infinity;
     this.previous = s.clock;
     if (s.clock < this.next) return false;
     this.next = s.clock + 1 / BOT_TUNING[this.difficulty].hz;
     this.updates++;
-    const result = predictBallTrajectory(
+    this.samples.length = 0;
+    let index = 0,
+      lastStored = -1;
+    const store = (time: number, position: Vector3, velocity: Vector3) => {
+      const point = this.pool[this.samples.length];
+      point.time = time;
+      point.position.copy(position);
+      point.velocity.copy(velocity);
+      this.samples.push(point);
+    };
+    this.goal = predictGoal(
       {
         position: s.ball.translation(),
         velocity: s.ball.linvel(),
@@ -50,11 +75,23 @@ export class BotPerception {
       },
       s.world,
       BOT_TUNING[this.difficulty].horizon,
+      (time, position, velocity) => {
+        if (index % 6 === 0) {
+          store(time, position, velocity);
+          lastStored = index;
+        }
+        this.lastPoint.time = time;
+        this.lastPoint.position.copy(position);
+        this.lastPoint.velocity.copy(velocity);
+        index++;
+      },
     );
-    this.samples = result.samples.filter(
-      (p, i) => i === 0 || i % 6 === 0 || i === result.samples.length - 1,
-    );
-    this.goal = result.goal;
+    if (index && lastStored !== index - 1)
+      store(
+        this.lastPoint.time,
+        this.lastPoint.position,
+        this.lastPoint.velocity,
+      );
     return true;
   }
 }

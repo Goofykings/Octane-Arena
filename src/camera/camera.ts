@@ -16,6 +16,11 @@ const damp = (rate: number, dt: number) => 1 - Math.exp(-rate * dt);
 const delta = (a: number, b: number) =>
   Math.atan2(Math.sin(b - a), Math.cos(b - a));
 const worldUp = new T.Vector3(0, 1, 0);
+export const CAMERA_TRANSITION = {
+  response: 6,
+  angularRate: 3,
+  radialRate: 6,
+} as const;
 /** Camera queries work in both closed arenas and open extra-mode worlds. */
 export interface CameraWorld extends CameraCollisionSpace {
   ball?: { isEnabled(): boolean };
@@ -55,6 +60,15 @@ export class GameCamera {
     singularity: false,
     safe: true,
   };
+  transitioning = false;
+  private lastTracking = true;
+  private solved = new T.PerspectiveCamera();
+  private transitionOffset = new T.Vector3();
+  private transitionTarget = new T.Vector3();
+  private transitionRotation = new T.Quaternion();
+  private transitionEuler = new T.Euler(0, 0, 0, "YXZ");
+  private transitionTargetEuler = new T.Euler(0, 0, 0, "YXZ");
+  private transitionFov = 110;
   private ready = false;
   private heading = 0;
   private orbit = 0;
@@ -102,6 +116,7 @@ export class GameCamera {
   reset() {
     this.restoreNormal();
     this.ready = false;
+    this.transitioning = false;
     this.zoom = 0;
     this.clearance.reset();
   }
@@ -211,6 +226,110 @@ export class GameCamera {
     this.targetPitch = pitch;
   }
 
+  private commit(c: T.PerspectiveCamera) {
+    this.camera.position.copy(c.position);
+    this.camera.rotation.order = c.rotation.order;
+    this.camera.quaternion.copy(c.quaternion);
+    this.camera.up.copy(c.up);
+    this.camera.fov = c.fov;
+    this.camera.updateProjectionMatrix();
+    this.camera.updateMatrixWorld(true);
+  }
+  private transitionView(
+    c: T.PerspectiveCamera,
+    simulation: CameraWorld,
+    dt: number,
+  ) {
+    let alpha = damp(
+      Math.max(0, this.settings.transition) * CAMERA_TRANSITION.response,
+      dt,
+    );
+    this.transitionTarget.copy(c.position).sub(this.pivot);
+    const targetFov = c.fov;
+    this.desiredRotation.copy(c.quaternion);
+    const radius = this.transitionOffset.length(),
+      targetRadius = this.transitionTarget.length();
+    const startYaw = Math.atan2(
+      this.transitionOffset.x,
+      this.transitionOffset.z,
+    );
+    const endYaw = Math.atan2(this.transitionTarget.x, this.transitionTarget.z);
+    this.transitionEuler.setFromQuaternion(this.transitionRotation, "YXZ");
+    this.transitionTargetEuler.setFromQuaternion(c.quaternion, "YXZ");
+    const startAim = delta(startYaw, this.transitionEuler.y),
+      endAim = delta(endYaw, this.transitionTargetEuler.y);
+    const yawStep = this.continuousAngle(startYaw, endYaw);
+    const viewTravel = Math.hypot(
+      yawStep + delta(startAim, endAim),
+      this.transitionTargetEuler.x - this.transitionEuler.x,
+    );
+    // Rate limits are part of this one solver and scale with the user's speed.
+    alpha = Math.min(
+      alpha,
+      (this.settings.transition * CAMERA_TRANSITION.angularRate * dt) /
+        Math.max(viewTravel, 1e-6),
+      (this.settings.transition * CAMERA_TRANSITION.radialRate * dt) /
+        Math.max(Math.abs(targetRadius - radius), 1e-6),
+    );
+    const yaw = startYaw + yawStep * alpha;
+    const pitch = T.MathUtils.lerp(
+      Math.asin(
+        T.MathUtils.clamp(
+          this.transitionOffset.y / Math.max(radius, 1e-6),
+          -1,
+          1,
+        ),
+      ),
+      Math.asin(
+        T.MathUtils.clamp(
+          this.transitionTarget.y / Math.max(targetRadius, 1e-6),
+          -1,
+          1,
+        ),
+      ),
+      alpha,
+    );
+    const length = T.MathUtils.lerp(radius, targetRadius, alpha);
+    this.transitionOffset.set(
+      Math.sin(yaw) * Math.cos(pitch) * length,
+      Math.sin(pitch) * length,
+      Math.cos(yaw) * Math.cos(pitch) * length,
+    );
+    c.position.copy(this.pivot).add(this.transitionOffset);
+    this.transitionEuler.set(
+      T.MathUtils.lerp(
+        this.transitionEuler.x,
+        this.transitionTargetEuler.x,
+        alpha,
+      ),
+      yaw + startAim + delta(startAim, endAim) * alpha,
+      0,
+      "YXZ",
+    );
+    c.quaternion.setFromEuler(this.transitionEuler);
+    this.transitionFov = T.MathUtils.lerp(this.transitionFov, targetFov, alpha);
+    c.fov = this.transitionFov;
+    // Hard blockers are resolved once after the transition; the arena shell
+    // remains visual-only as in the working wall-camera policy.
+    this.offset.copy(c.position).sub(this.pivot);
+    this.clearance.resolve(
+      simulation.world,
+      this.pivot,
+      this.offset,
+      c.position,
+      dt,
+      false,
+      true,
+    );
+    this.transitionOffset.copy(c.position).sub(this.pivot);
+    this.transitionRotation.copy(c.quaternion);
+    if (
+      this.transitionOffset.distanceTo(this.transitionTarget) < 0.002 &&
+      c.quaternion.angleTo(this.desiredRotation) < 0.002 &&
+      Math.abs(c.fov - targetFov) < 0.05
+    )
+      this.transitioning = false;
+  }
   update(
     car: T.Object3D,
     ball: T.Object3D | null,
@@ -220,9 +339,16 @@ export class GameCamera {
     time: number,
     goalFocus?: { x: number; y: number; z: number } | null,
   ) {
-    const c = this.camera,
+    const c = this.solved,
       p = this.settings;
     this.restoreNormal();
+    c.position.copy(this.camera.position);
+    c.quaternion.copy(this.camera.quaternion);
+    c.up.copy(this.camera.up);
+    c.fov = this.camera.fov;
+    c.aspect = this.camera.aspect;
+    c.near = this.camera.near;
+    c.far = this.camera.far;
     dt = T.MathUtils.clamp(dt, 0, 0.1);
     if (home) {
       delete c.userData.cameraView;
@@ -232,6 +358,7 @@ export class GameCamera {
       c.fov = p.fov;
       c.updateProjectionMatrix();
       this.reset();
+      this.commit(c);
       return;
     }
     const first = !this.ready;
@@ -294,13 +421,23 @@ export class GameCamera {
     this.carSubject.copy(car.position);
     const tracking =
       this.ballMode && (!!simulation.ball?.isEnabled() || !!goalFocus);
-    this.modeBlend = first
-      ? Number(tracking)
-      : T.MathUtils.lerp(
-          this.modeBlend,
-          Number(tracking),
-          damp(p.transition * 5, dt),
-        );
+    if (this.ready && tracking !== this.lastTracking) {
+      // The visible pose, including manual orbit, is the only valid start.
+      this.transitioning = true;
+      this.transitionOffset.copy(this.camera.position).sub(this.pivot);
+      this.transitionRotation.copy(this.camera.quaternion);
+      this.transitionFov = this.camera.fov;
+    }
+    this.lastTracking = tracking;
+    const switching = this.transitioning;
+    this.modeBlend =
+      first || switching
+        ? Number(tracking)
+        : T.MathUtils.lerp(
+            this.modeBlend,
+            Number(tracking),
+            damp(p.transition * 5, dt),
+          );
     this.forward.copy(this.subject).sub(this.pivot).setY(0);
     const bearingWeight = T.MathUtils.smoothstep(this.forward.length(), 1.2, 3);
     if (first)
@@ -316,11 +453,13 @@ export class GameCamera {
       ) *
         bearingWeight *
         this.modeBlend;
-    this.orbit += T.MathUtils.clamp(
-      targetTurn * damp(p.transition * 10, dt),
-      -p.swivel * dt,
-      p.swivel * dt,
-    );
+    if (switching) this.orbit += targetTurn;
+    else
+      this.orbit += T.MathUtils.clamp(
+        targetTurn * damp(p.transition * 10, dt),
+        -p.swivel * dt,
+        p.swivel * dt,
+      );
     this.forward.set(-Math.sin(this.orbit), 0, -Math.cos(this.orbit));
 
     // Solve desired framing on the ideal boom. Extra distance is driven by
@@ -416,9 +555,10 @@ export class GameCamera {
         requiredZoom + (need - p.fov - 10) * 0.12,
       );
     }
-    this.zoom = first
-      ? requiredZoom
-      : T.MathUtils.lerp(this.zoom, requiredZoom, damp(5, dt));
+    this.zoom =
+      first || switching
+        ? requiredZoom
+        : T.MathUtils.lerp(this.zoom, requiredZoom, damp(5, dt));
     this.offset
       .copy(this.forward)
       .multiplyScalar(-(baseDistance + this.zoom * this.modeBlend))
@@ -429,7 +569,7 @@ export class GameCamera {
       this.smoothedOffset,
     );
     this.desiredPosition.copy(this.pivot).add(this.offset);
-    if (first) this.smoothedOffset.copy(this.offset);
+    if (first || switching) this.smoothedOffset.copy(this.offset);
     else {
       // Spherical boom damping cannot cut through the car during a mode change.
       const length = this.smoothedOffset.length(),
@@ -498,13 +638,15 @@ export class GameCamera {
     const rate = 10 + p.stiffness * 14;
     const previousYaw = this.yaw,
       previousPitch = this.pitch;
-    this.yaw = first
-      ? this.targetYaw
-      : this.yaw + delta(this.yaw, this.targetYaw) * damp(rate, dt);
+    this.yaw =
+      first || switching
+        ? this.targetYaw
+        : this.yaw + delta(this.yaw, this.targetYaw) * damp(rate, dt);
     this.targetPitch += this.modeBlend * T.MathUtils.degToRad(p.angle) * 0.15;
-    this.pitch = first
-      ? this.targetPitch
-      : T.MathUtils.lerp(this.pitch, this.targetPitch, damp(rate, dt));
+    this.pitch =
+      first || switching
+        ? this.targetPitch
+        : T.MathUtils.lerp(this.pitch, this.targetPitch, damp(rate, dt));
     c.rotation.set(this.pitch, this.yaw, 0, "YXZ");
     // Feedback is measured from the ACTUAL smoothed, collision-corrected pose.
     // Fast expansion keeps a safety reserve; return to user FOV is damped.
@@ -576,7 +718,7 @@ export class GameCamera {
         );
       }
     }
-    if (!first) {
+    if (!first && !switching) {
       const yawStep = delta(previousYaw, this.yaw),
         pitchStep = this.pitch - previousPitch;
       const fraction = Math.min(
@@ -603,13 +745,14 @@ export class GameCamera {
       this.modeBlend,
     );
     const targetFov = Math.min(MAX_FRAMING_FOV, framingFov);
-    c.fov = first
-      ? targetFov
-      : T.MathUtils.lerp(
-          c.fov,
-          targetFov,
-          damp(targetFov > c.fov ? 35 : 5, dt),
-        );
+    c.fov =
+      first || switching
+        ? targetFov
+        : T.MathUtils.lerp(
+            c.fov,
+            targetFov,
+            damp(targetFov > c.fov ? 35 : 5, dt),
+          );
     // The safety bound is already inside the screen; spending that reserve
     // avoids a frame of clipping while a fast-moving subject is being tracked.
     if (tracking) {
@@ -643,12 +786,14 @@ export class GameCamera {
       this.framing.feasible && c.fov >= this.framing.requiredFov - 0.001;
     this.ready = true;
     this.mouseOrbit.apply(c, this.pivot, this.mouseLook, dt, simulation);
+    if (switching) this.transitionView(c, simulation, dt);
+    this.commit(c);
     if (this.reverseHeld) this.reverseView(car, simulation);
     this.viewFrame.car.copy(this.pivot);
     this.viewFrame.ball.copy(this.subject);
     this.viewFrame.ballEnabled = !!simulation.ball?.isEnabled();
-    this.viewFrame.position.copy(c.position);
-    this.viewFrame.rotation.copy(c.quaternion);
-    c.userData.cameraView = this.viewFrame;
+    this.viewFrame.position.copy(this.camera.position);
+    this.viewFrame.rotation.copy(this.camera.quaternion);
+    this.camera.userData.cameraView = this.viewFrame;
   }
 }

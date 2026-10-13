@@ -55,7 +55,8 @@ export class VehicleEffects {
     }
     this.glow = new T.PointLight(color, 0, 4, 2);
     this.glow.position.set(0, 0, 1);
-    this.flames.add(this.glow);
+    // A stable scene light budget avoids recompiling every lit material when boost toggles.
+    scene.add(this.glow);
     model.add(this.flames);
     for (let wheel = 0; wheel < 2; wheel++) {
       const positions = new Float32Array(48 * 6 * 3),
@@ -72,6 +73,7 @@ export class VehicleEffects {
           blending: T.AdditiveBlending,
         }),
       );
+      mesh.name = "supersonic-tire-trail";
       mesh.frustumCulled = false;
       scene.add(mesh);
       this.trails.push({ points: [], positions, mesh });
@@ -86,6 +88,7 @@ export class VehicleEffects {
       t.mesh.visible = false;
     }
     this.flames.visible = false;
+    this.glow.intensity = 0;
   }
   setColor(color: number) {
     this.glow.color.setHex(color);
@@ -95,14 +98,27 @@ export class VehicleEffects {
         child.material.color.setHex(color);
     });
   }
+  private placeGlow() {
+    this.glow.position.set(0, 0, this.flames.position.z + this.flames.scale.z);
+    this.model.localToWorld(this.glow.position);
+  }
   previewBoost(time: number, enabled: boolean) {
     this.flames.visible = enabled;
     this.flames.scale.z =
       1 + 0.17 * Math.sin(time * 67) + 0.1 * Math.sin(time * 113);
     this.flames.position.z = 0.65 * (1 - this.flames.scale.z);
+    this.placeGlow();
     this.glow.intensity = enabled ? 2.4 : 0;
   }
   dispose() {
+    this.glow.removeFromParent();
+    this.flames.removeFromParent();
+    this.flames.traverse((o) => {
+      if (o instanceof T.Mesh) {
+        o.geometry.dispose();
+        o.material.dispose();
+      }
+    });
     this.flipReset.dispose();
     for (const t of this.trails) {
       t.mesh.removeFromParent();
@@ -118,7 +134,8 @@ export class VehicleEffects {
     this.flames.scale.z =
       1 + 0.17 * Math.sin(time * 67) + 0.1 * Math.sin(time * 113);
     this.flames.position.z = 0.65 * (1 - this.flames.scale.z);
-    this.glow.intensity = car.boosting ? 2.4 : 0;
+    this.placeGlow();
+    this.glow.intensity = active && car.boosting ? 2.4 : 0;
     const sonic = active && car.wheelContact.some(Boolean) && car.supersonic;
     if (!car.wheelContact.some(Boolean)) {
       this.fade = 0;

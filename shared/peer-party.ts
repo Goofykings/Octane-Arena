@@ -88,7 +88,7 @@ export function createPeerParty(code: string, host: PartyMember): PartyState {
 export function endPeerMatch(s: PartyState) {
   s.stage = "teams";
   delete s.matchId;
-  delete s.matchArenaId;
+  s.matchArenaId = chooseMatchArena(s.matchArenaId);
   delete s.matchHostId;
   delete s.matchFinished;
   s.members.forEach((m) => (m.ready = false));
@@ -140,6 +140,7 @@ export class PeerPartyAuthority {
         "launch",
         "kick",
         "return",
+        "rematch",
         "rtc-end",
       ].includes(action)
     )
@@ -149,6 +150,16 @@ export class PeerPartyAuthority {
       if (data.reason === "finished") s.matchFinished = true;
       else if (data.reason === "disconnect") endPeerMatch(s);
       else throw Error("INVALID MATCH RESULT");
+      return;
+    }
+    if (action === "rematch") {
+      if (!s.matchFinished) throw Error("MATCH IS STILL PLAYING");
+      s.matchId = newPacketId();
+      s.matchHostId = s.hostId;
+      s.matchArenaId = chooseMatchArena(this.previousArena);
+      this.previousArena = s.matchArenaId;
+      s.matchFinished = false;
+      s.members.forEach((m) => (m.ready = false));
       return;
     }
     if (action === "return") {
@@ -211,6 +222,7 @@ export class PeerPartyAuthority {
           if (s.stage !== "mode") throw Error("CHOOSE A MODE FIRST");
           if (s.mode !== "2v2" && s.members.length > 2)
             throw Error("CHOOSE 2V2 FOR FOUR PLAYERS");
+          s.matchArenaId = chooseMatchArena(this.previousArena);
           s.members.forEach((m) => {
             m.team = null;
             m.ready = false;
@@ -251,7 +263,7 @@ export class PeerPartyAuthority {
           throw Error("FILL BOTH TEAMS BEFORE STARTING");
         s.matchId = newPacketId();
         s.matchHostId = s.hostId;
-        s.matchArenaId = chooseMatchArena(this.previousArena);
+        s.matchArenaId = s.matchArenaId ?? chooseMatchArena(this.previousArena);
         this.previousArena = s.matchArenaId;
         s.matchFinished = false;
         s.stage = "match";

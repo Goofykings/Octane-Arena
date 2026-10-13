@@ -37,6 +37,20 @@ export class ReplayRecorder {
     this.wheelStates.fill(0);
     this.padCooldowns.fill(0);
   }
+  prepare(s: Simulation) {
+    if (
+      !this.buffer ||
+      this.buffer.carIds.length !== s.cars.length ||
+      this.buffer.carIds.some((id, i) => id !== s.cars[i].id)
+    ) {
+      this.buffer = new ReplayBuffer(
+        s.cars.map((c) => c.id),
+        20,
+      );
+      this.wheelStates = new Float64Array(s.cars.length * 6);
+      this.reset();
+    }
+  }
   capture(s: Simulation, reset: number, pads?: Pads) {
     if (
       !this.buffer ||
@@ -83,6 +97,7 @@ export class ReplayRecorder {
       this.resetSequences[i] = c.flipResetSequence;
       const offset = base + BALL_STRIDE + i * CAR_STRIDE;
       rigid(offset, c.body);
+      data[offset + RC.teleport] = c.teleportSequence;
       data[offset + RC.boost] = c.boost;
       data[offset + RC.boosting] = Number(c.boosting);
       data[offset + RC.grounded] = Number(c.grounded);
