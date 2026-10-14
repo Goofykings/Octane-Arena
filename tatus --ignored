@@ -1,0 +1,47 @@
+[1mdiff --git a/.env.example b/.env.example[m
+[1mindex 8a9c066..fc685b0 100644[m
+[1m--- a/.env.example[m
+[1m+++ b/.env.example[m
+[36m@@ -1,4 +1,7 @@[m
+[31m-# PeerJS multiplayer uses secure cloud defaults; VITE_API_URL is not required.[m
+[31m-# This setting applies only to retained optional/legacy API tooling.[m
+[31m-# Do not put passwords, private keys or TURN secrets in frontend environment files.[m
+[32m+[m[32m# Public backend base URL, without /api/party. Leave empty for local development[m
+[32m+[m[32m# (defaults to http://127.0.0.1:8787) or combined LAN hosting (same page host).[m
+[32m+[m[32m# GitHub Pages: set repository Actions variable VITE_API_URL to your HTTPS backend.[m
+[32m+[m[32m# Example: VITE_API_URL=https://api.example.com[m
+[32m+[m[32m# Alternatively set apiUrl in public/config.json. Vite build setting takes priority.[m
+[32m+[m[32m# No passwords, database credentials or private secrets belong in this file.[m
+ VITE_API_URL=[m
+[1mdiff --git a/README.md b/README.md[m
+[1mindex f8c0d73..24d26a6 100644[m
+[1m--- a/README.md[m
+[1m+++ b/README.md[m
+[36m@@ -21,13 +21,14 @@[m [ma keyboard or standard gamepad is required. Click PLAY to unlock browser audio.[m
+ Local games pause on focus loss. Network matches continue; unfocused clients send[m
+ neutral controls. Touch driving is not implemented.[m
+ [m
+[31m-Multiplayer uses **PeerJS Cloud signaling and browser-hosted WebRTC**. Both[m
+[31m-players open the normal GitHub Pages site; the host selects **CREATE PARTY** and[m
+[31m-a friend selects **JOIN PARTY** using its six-character code. No API address,[m
+[31m-local/LAN server or Node hosting is required to play. The host selects the[m
+[31m-existing match setup and starts 1v1, 2v2 or two humans versus two bots. See the[m
+[31m-[PeerJS guide and two-device procedure](docs/PEERJS-MULTIPLAYER.md).[m
+[31m-`npm run lan` remains an optional way to serve built files, not a PeerJS requirement.[m
+[32m+[m[32mFor same-Wi-Fi network matches, install the backend dependencies once with[m
+[32m+[m[32m`npm --prefix server install`, then run **`npm run lan`**. Open[m
+[32m+[m[32m`http://localhost:8090` on this computer; other computers open the LAN address[m
+[32m+[m[32mprinted in the terminal and join using the party code. The host chooses[m
+[32m+[m[32m**START GAME → mode → CONTINUE**. Everyone chooses a side, then the host selects[m
+[32m+[m[32m**KICK OFF**. Supports 1v1, 2v2 and two humans versus two bots. See the[m
+[32m+[m[32m[network match guide](docs/NETWORK-MATCHES.md) and the historical[m
+[32m+[m[32m[Phase 1 checklist](docs/LAN-PHASE1.md).[m
+ [m
+ The home screen has Play, Garage and Settings on the left, plus a compact clickable Guest/account[m
+ profile. Garage includes two original starter bodies (Ion and Vector), curated[m
+[36m@@ -44,7 +45,7 @@[m [mtabs. Keyboard bindings, camera tuning, quality, audio and presets save locally.[m
+ Quick chat is only a saved future preference. Click any slider value to type a[m
+ number; Enter or blur applies it, Escape cancels, and values clamp to the range.[m
+ [m
+[31m-Customize Account edits your browser-local name. Click its profile picture to choose an icon and icon color; these choices save immediately. Player tags have been removed. Profile identity, completed-match stats and play time are stored in `octane-arena-profile`; garage and settings keep their existing local saves. There is no online login or cloud sync. Clearing site data can erase your profile. Parties use PeerJS Cloud; the optional server is not needed for them.[m
+[32m+[m[32mCustomize Account edits your browser-local name. Click its profile picture to choose an icon and icon color; these choices save immediately. Player tags have been removed. Profile identity, completed-match stats and play time are stored in `octane-arena-profile`; garage and settings keep their existing local saves. There is no online login or cloud sync. Clearing site data can erase your profile. LAN parties still use the optional server descri
