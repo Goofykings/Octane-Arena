@@ -175,7 +175,7 @@ export class CarBallContact {
       ) {
         const magnitude = Math.min(
           P.hit.dodgeHitMaxImpulse,
-          this.closing * P.hit.dodgeHitGain * ball.mass(),
+          this.closing * P.hit.dodgeHitGain * P.ball.mass,
         );
         this.dodgeImpulse.copy(normal).multiplyScalar(magnitude);
         ball.applyImpulseAtPoint(this.dodgeImpulse, point, true);
@@ -224,6 +224,8 @@ export class CarBallContact {
           -direction.dot(forward) * (1 - P.hit.forwardScale),
         )
         .normalize();
+      // Keep the calibrated strike impulse at baseline mass: actual inertia
+      // then makes a heavy ball resist acceleration and a light ball launch easier.
       this.impulse
         .copy(direction)
         .multiplyScalar(speed * gain * approach * onset * P.ball.mass);
@@ -243,7 +245,8 @@ export class CarBallContact {
         P.hit.roofTilt,
       );
       tilt.applyQuaternion(car.body.rotation());
-      const support = P.gravity * Math.max(0, up.y) * P.ball.mass * P.dt;
+      const support =
+        car.physics.gravity * Math.max(0, up.y) * ball.mass() * P.dt;
       this.roofImpulse.copy(tilt).multiplyScalar(support);
       // Tangential support shaping produces real rolling torque; no upward
       // spring or pose lock, and no extra impact impulse during a resting dribble.
@@ -261,7 +264,7 @@ export class CarBallContact {
       if (
         p &&
         new Vector3().copy(p.point).distanceTo(ball.translation()) >
-          P.ball.radius + 0.04
+          car!.physics.ball.radius + 0.04
       )
         this.resetAwarded = false;
     } else if (!car) this.resetAwarded = false;

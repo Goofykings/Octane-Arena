@@ -68,7 +68,10 @@ party.join(guest);
 party.join(third);
 party.join(fourth);
 assert.equal(state.members.length, 4);
-assert.throws(() => party.join(member()), /FULL/);
+const capacityParty = new PeerPartyAuthority(structuredClone(state));
+while (capacityParty.state.members.length < capacityParty.state.maxPlayers)
+  capacityParty.join(member());
+assert.throws(() => capacityParty.join(member()), /FULL/);
 assert.throws(() => party.join(guest), /PROFILE/);
 assert.throws(() => party.action(guest.id, "mode", { mode: "2v2" }), /HOST/);
 party.action(host.id, "mode", { mode: "2v2" });

@@ -97,6 +97,8 @@ export function controllerDefaults(): ControllerSettings {
     reverseCam: { type: "button", button: PAD.reverseCam },
     scoreboard: { type: "button", button: PAD.scoreboard },
     pause: { type: "button", button: PAD.pause },
+    spectatePrevious: { type: "button", button: PAD.left },
+    spectateNext: { type: "button", button: PAD.right },
     cameraLeft: axis(2, -1),
     cameraRight: axis(2, 1),
     cameraUp: axis(3, -1),

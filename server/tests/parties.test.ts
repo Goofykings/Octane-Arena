@@ -98,9 +98,10 @@ test("authoritative party capacity, ownership, appearance, kick, leave and stabl
     );
     assert.equal(
       (await send(0, "/stage", { stage: "teams" })).statusCode,
-      409,
-      "four players cannot fit 1v1",
+      200,
+      "extra members can spectate 1v1",
     );
+    await send(0, "/stage", { stage: "mode" });
     await send(0, "/mode", { mode: "2v2" });
     const lobby = (await send(0, "/stage", { stage: "teams" })).json().party;
     assert.equal(lobby.stage, "teams");
@@ -115,9 +116,10 @@ test("authoritative party capacity, ownership, appearance, kick, leave and stabl
     );
     assert.equal(
       (await send(0, "/stage", { stage: "teams" })).statusCode,
-      409,
-      "bot mode has only two human slots",
+      200,
+      "bot mode permits extra spectators",
     );
+    await send(0, "/stage", { stage: "mode" });
     await send(0, "/mode", { mode: "1v1" });
     await send(0, "/stage", { stage: "home" });
     const extra = await send(0, "/session", {
@@ -144,10 +146,8 @@ test("authoritative party capacity, ownership, appearance, kick, leave and stabl
       extra.json().playerId,
       "tab token takes precedence over shared cookies",
     );
-    assert.equal(
-      (await send(4, "/join", { code })).json().error.message,
-      "PARTY FULL",
-    );
+    assert.equal((await send(4, "/join", { code })).statusCode, 200);
+    await send(4, "/leave");
     assert.equal(
       (await send(1, "/kick", { playerId: clients[2].id })).statusCode,
       403,
@@ -189,7 +189,8 @@ test("authoritative party capacity, ownership, appearance, kick, leave and stabl
     await send(2, "/stage", { stage: "teams" });
     assert.equal((await send(2, "/team", { team: 0 })).statusCode, 200);
     assert.equal((await send(3, "/team", { team: 0 })).statusCode, 200);
-    assert.equal((await send(4, "/join", { code })).statusCode, 409);
+    assert.equal((await send(4, "/join", { code })).statusCode, 200);
+    await send(4, "/leave");
     await send(2, "/stage", { stage: "mode" });
     await send(2, "/mode", { mode: "1v1" });
     await send(2, "/stage", { stage: "teams" });

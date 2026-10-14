@@ -140,7 +140,7 @@ test("Pages origin: CORS, cookie-free sessions, SSE snapshots, capacity, host tr
       403,
     );
     const clients = [];
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 9; i++) {
       const r = await send("", "/session", {
         preset: starter(),
         newSession: true,
@@ -153,7 +153,7 @@ test("Pages origin: CORS, cookie-free sessions, SSE snapshots, capacity, host tr
     const created = (await send(host.sessionToken, "/create")).json().party;
     assert.match(created.code, /^[A-HJKMNP-Z2-9]{6}$/);
     assert.equal(created.hostId, host.playerId);
-    assert.equal(created.maxPlayers, 4);
+    assert.equal(created.maxPlayers, 8);
     const response = await fetch(base + "/api/party/events", {
       headers: { origin, "x-arena-party": host.sessionToken },
       signal: controller.signal,
@@ -209,12 +209,19 @@ test("Pages origin: CORS, cookie-free sessions, SSE snapshots, capacity, host tr
     );
     for (let i = 2; i < 4; i++)
       await send(clients[i].sessionToken, "/join", { code: created.code });
+    for (let i = 4; i < 8; i++)
+      assert.equal(
+        (await send(clients[i].sessionToken, "/join", { code: created.code }))
+          .statusCode,
+        200,
+      );
     assert.equal(
       (
-        await send(clients[4].sessionToken, "/join", { code: created.code })
+        await send(clients[8].sessionToken, "/join", { code: created.code })
       ).json().error.message,
       "PARTY FULL",
     );
+    for (let i = 4; i < 8; i++) await send(clients[i].sessionToken, "/leave");
     assert.equal(
       (await send(guest.sessionToken, "/heartbeat")).statusCode,
       204,

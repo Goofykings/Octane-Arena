@@ -47,34 +47,21 @@ export class ReplayDirectorCamera {
     this.scorer.copy(scorer);
     this.goal.copy(goal.focus);
     if (!this.initialized) this.side = ball.x >= 0 ? -1 : 1;
-    const goalDistance = ball.distanceTo(this.goal);
     const scorerDistance = ball.distanceTo(scorer);
-    const scorerWeight = MathUtils.lerp(
-      0.3,
-      0.08,
-      MathUtils.clamp(scorerDistance / 35, 0, 1),
-    );
-    const goalWeight = MathUtils.lerp(
-      0.26,
-      0.05,
-      MathUtils.clamp(goalDistance / 55, 0, 1),
-    );
-    this.blendedTarget
-      .copy(ball)
-      .multiplyScalar(1 - scorerWeight - goalWeight)
-      .addScaledVector(scorer, scorerWeight)
-      .addScaledVector(this.goal, goalWeight);
-    const points = [this.ball, this.scorer, this.goal];
-    // Move the composition toward the action's bounds when subjects spread.
-    const center = new Vector3();
-    for (const p of points) center.add(p);
-    center.multiplyScalar(1 / points.length);
-    this.blendedTarget.lerp(
-      center,
-      MathUtils.clamp(scorerDistance / 45, 0.1, 0.65),
-    );
+    // Only the final-touch pair influences framing. Distant defenders and the
+    // goal must never widen the broadcast shot.
+    const touchWindow =
+      goal.touchTime !== null && Math.abs(time - goal.touchTime) < 1.35;
+    const scorerWeight = touchWindow
+      ? 0.3 * (1 - MathUtils.smoothstep(scorerDistance, 9, 20))
+      : 0.04;
+    this.blendedTarget.copy(ball).lerp(scorer, scorerWeight);
+    const points =
+      touchWindow && scorerDistance < 16
+        ? [this.ball, this.scorer]
+        : [this.ball];
     if (!this.initialized) this.target.copy(this.blendedTarget);
-    else this.target.lerp(this.blendedTarget, 1 - Math.exp(-dt * 9));
+    else this.target.lerp(this.blendedTarget, 1 - Math.exp(-dt * 14));
     const goalSign = Math.sign(goal.focus.z) || -1;
     // Ball travel adds a modest lead, without letting bounces reverse the shot.
     const lead = this.velocity
@@ -87,7 +74,7 @@ export class ReplayDirectorCamera {
       0.58,
       -goalSign * 0.65,
     ).normalize();
-    let distance = 13,
+    let distance = 9,
       fov = 60;
     this.probe.aspect = this.camera.aspect;
     this.probe.up.set(0, 1, 0);
@@ -108,7 +95,7 @@ export class ReplayDirectorCamera {
       );
       this.desiredPosition.y = MathUtils.clamp(
         this.desiredPosition.y,
-        5,
+        3,
         P.arena.height - 1.5,
       );
       this.probe.position.copy(this.desiredPosition);
@@ -140,8 +127,11 @@ export class ReplayDirectorCamera {
       this.camera.fov = fov;
       this.initialized = true;
     } else {
-      this.camera.position.lerp(this.desiredPosition, 1 - Math.exp(-dt * 5));
-      this.camera.quaternion.slerp(this.desiredRotation, 1 - Math.exp(-dt * 8));
+      this.camera.position.lerp(this.desiredPosition, 1 - Math.exp(-dt * 9));
+      this.camera.quaternion.slerp(
+        this.desiredRotation,
+        1 - Math.exp(-dt * 12),
+      );
       this.camera.fov += (fov - this.camera.fov) * (1 - Math.exp(-dt * 3));
     }
     this.camera.updateProjectionMatrix();

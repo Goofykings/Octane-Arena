@@ -1761,3 +1761,77 @@ output {
 
 #party-continue {min-width:180px;}
 #party-launch:not(:disabled) {background:linear-gradient(135deg,#9ceafa,#49bfd6);color:#071828;box-shadow:0 0 20px #7adbea33;}
+
+#party-spectate { display:block; margin: 12px auto 0; min-width:180px; }
+#spectator-controls { position:fixed; bottom:4vh; left:50%; transform:translateX(-50%); z-index:12; display:flex; align-items:center; gap:12px; padding:8px 16px; background:#101923ba; border-radius:8px; font-size:clamp(12px,1.3vw,18px); }
+#spectator-controls[hidden] { display:none; }
+#spectator-controls button { background:transparent; border:0; color:white; font-size:26px; padding:2px 10px; }
+#spectator-controls small { font-size:10px; opacity:.65; }
+#spectator-controls input { width:55px; background:#101923; color:white; border:1px solid #657386; border-radius:4px; }
+
+.spectator-hidden { display:none !important; }
+
+#spectator-controls { max-width:92vw; flex-wrap:wrap; justify-content:center; }
+#spectator-controls small { flex-basis:100%; text-align:center; }
+
+#replay-nametags { position:absolute; inset:0; pointer-events:none; z-index:var(--layer-name); }
+
+/* Scoped setup editors use the existing selector and button styling. */
+.mutators-panel { width:min(1000px,94vw); max-height:94dvh; padding:clamp(14px,2vw,28px); color:var(--text,#e9faff); background:#10202ff5; border:1px solid #7592aa60; border-radius:12px; }
+.mutators-panel::backdrop,.preset-dialog::backdrop {background:#06121aad;}
+.mutators-panel header,.mutators-panel footer,.preset-dialog footer {display:flex; align-items:center; justify-content:space-between; gap:12px;}
+.mutators-panel h2,.preset-dialog h2 {margin:0 0 12px;}
+.mutators-authority {font-size:12px;opacity:.7;}
+.mutators-rows {display:grid;grid-template-rows:repeat(5,minmax(0,1fr));grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);column-gap:clamp(14px,3vw,32px);overflow:visible;padding:2px;}
+.mutator-row {display:grid;grid-template-columns:minmax(0,1fr) minmax(150px,1.4fr);gap:8px;align-items:center;min-width:0;min-height:0;border-bottom:1px solid #ffffff16;padding:6px 0;}
+.mutator-row label {font-size:clamp(11px,1.1vw,14px);line-height:1.15;}
+.mutator-row .setup-selector {width:100%;min-width:0;min-height:34px;padding:0;display:flex;align-items:center;justify-content:space-between;border-bottom-width:2px;}
+.mutator-row .setup-selector strong {font-size:clamp(11px,1.1vw,14px);line-height:1.1;text-align:center;}
+.mutator-row .setup-selector button {width:28px;height:32px;font-size:26px;line-height:1;padding:0;flex-shrink:0;}
+.mutators-error,.preset-error {color:#ffa693;font-size:12px;min-height:14px;}
+#bot-mutators {margin-top:12px;}
+#bot-setup #bot-mutators,#bot-setup #bot-launch {min-width:200px;width:min(420px,80vw);}
+.preset-list {max-height:26vh;overflow-y:auto;margin:10px 0;}
+.preset-row {display:flex;align-items:center;gap:6px;margin:4px 0;}
+.preset-row button {border:1px solid #7391a53d;background:#10202dbf;color:#e6f9ff;border-radius:4px;}
+.preset-equip {flex:1;min-width:0;text-align:left;overflow-wrap:anywhere;padding:8px 10px;font-size:14px;}
+.preset-equip[aria-pressed=true] {border-color:#68d4e5;background:#194452c7;}
+.preset-icon {width:32px;height:32px;display:grid;place-items:center;padding:5px;flex-shrink:0;}
+.preset-icon svg {width:18px;height:18px;}
+.preset-icon:disabled {opacity:.25;}
+.preset-dialog {width:min(440px,92vw);color:#e9faff;background:#10202ff5;border:1px solid #7592aa60;border-radius:10px;padding:24px;}
+.preset-dialog input {width:100%;padding:12px;border:1px solid #7998ac;border-radius:4px;color:#e9faff;background:#07121d;font:inherit;}
+.preset-to-delete {overflow-wrap:anywhere;}
+@media(max-width:700px){.mutator-row {grid-template-columns:minmax(0,1fr);gap:2px;align-content:center;} .mutators-panel .mutator-row .setup-selector {min-height:30px;} .mutator-row .setup-selector button {width:22px;height:28px;font-size:24px;}}
+
+.mutators-panel {height:min(480px,94dvh);overflow:visible;}
+.mutators-panel[open] {display:flex;flex-direction:column;}
+.mutators-rows {flex:1;min-height:0;}
+.mutators-panel header,.mutators-panel footer {flex-shrink:0;}
+.preset-dialog {height:auto;}
+#bot-setup #bot-mutators {display:block;margin:0 auto 12px;}
+
+.mutators-panel h2 {font-size:clamp(24px,2.6vw,32px);}
+.mutators-panel .mutators-error {margin:8px 0;line-height:1.15;}
+.mutators-panel footer button {font-size:clamp(11px,1.1vw,14px);padding:8px 14px;}
+@media(max-height:450px){.mutators-panel {padding:12px 16px;} .mutators-panel h2 {font-size:22px;margin-bottom:6px;} .mutators-panel .mutators-error {margin:4px 0;} .mutator-row {padding:2px 0;} .mutators-panel footer button {padding:6px 12px;}}
+
+/* Home feedback remains a small control; the form uses the existing menu styling. */
+#feedback-open {position:fixed;top:clamp(14px,2vh,24px);right:clamp(14px,2vw,32px);z-index:var(--layer-menu);padding:8px 14px;font-size:clamp(12px,1.2vw,15px);letter-spacing:.05em;background:#142c3dcc;border:1px solid #7bb4c570;clip-path:polygon(0 0,calc(100% - 7px) 0,100% 7px,100% 100%,0 100%);}
+#feedback {width:min(560px,92vw);height:fit-content;min-height:0;max-height:90dvh;padding:clamp(18px,3vw,28px);border-radius:10px;overflow-y:auto;}
+#feedback form {display:grid;gap:10px;}
+#feedback header {display:flex;align-items:center;justify-content:space-between;gap:12px;}
+#feedback h2 {font-size:clamp(24px,2.6vw,32px);margin:0;}
+#feedback .feedback-intro {font-size:15px;line-height:1.35;margin:0 0 6px;color:#c4d7e3;}
+#feedback label {font-size:13px;letter-spacing:.07em;}
+#feedback-type-selector {display:flex;justify-content:space-between;min-height:36px;align-items:center;border-bottom-width:2px;}
+#feedback-type-selector button {width:38px;height:36px;font-size:26px;padding:0;}
+#feedback-type {font-size:15px;}
+#feedback-description {width:100%;min-height:110px;max-height:28vh;resize:vertical;padding:10px;color:#eefbff;background:#081725;border:1px solid #62899d;border-radius:4px;font:inherit;font-size:15px;line-height:1.35;}
+#feedback .feedback-details {display:flex;justify-content:space-between;gap:12px;font-size:11px;color:#adc3d0;}
+#feedback-status {min-height:20px;margin:0;font-size:14px;line-height:1.3;}
+#feedback-status[data-state=error] {color:#ffa998;}
+#feedback-status[data-state=success] {color:#9fe3bd;}
+#feedback footer {display:flex;justify-content:flex-end;}
+#feedback-submit {min-width:130px;}
+#feedback :disabled {opacity:.55;}

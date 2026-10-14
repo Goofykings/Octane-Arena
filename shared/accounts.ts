@@ -102,6 +102,8 @@ export const preferencesSchema = z
                 "cameraUp",
                 "cameraDown",
                 "usePowerup",
+                "spectatePrevious",
+                "spectateNext",
               ].includes(k)
                 ? binding.default(fallback)
                 : binding,
@@ -118,10 +120,15 @@ export const preferencesSchema = z
             Object.fromEntries(
               controllerActions.map((k) => [
                 k,
-                k === "usePowerup"
+                ["usePowerup", "spectatePrevious", "spectateNext"].includes(k)
                   ? z
                       .custom(validControllerBinding)
-                      .default(() => controllerDefaults().bindings.usePowerup)
+                      .default(
+                        () =>
+                          controllerDefaults().bindings[
+                            k as import("./controls").Action
+                          ],
+                      )
                   : z.custom(validControllerBinding),
               ]),
             ),

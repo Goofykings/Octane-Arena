@@ -2,12 +2,16 @@ import { Vector3, Quaternion } from "three";
 import type RAPIER from "@dimforge/rapier3d-compat";
 import type { HeatseekerState } from "../../shared/soccer";
 import { HEATSEEKER as H } from "../config/heatseeker";
+import type { MatchPhysics } from "../config/mutators";
 import { P } from "../config/physics";
-export function heatseekerServeSpawn(team: 0 | 1) {
+export function heatseekerServeSpawn(
+  team: 0 | 1,
+  radius: number = P.ball.radius,
+) {
   const side = team === 0 ? 1 : -1;
   return {
     x: side * H.kickoffBallSpawn.right,
-    y: P.ball.radius + 0.02,
+    y: radius + 0.02,
     z: side * (H.kickoffCarDistance - H.kickoffBallSpawn.forward),
   };
 }
@@ -30,7 +34,10 @@ export function isBackboard(
 export class Heatseeker {
   state: HeatseekerState;
   private touches = new Map<string, number>();
-  constructor(team: 0 | 1 = 0) {
+  constructor(
+    team: 0 | 1 = 0,
+    private physics: MatchPhysics = P,
+  ) {
     this.state = this.neutral(team);
   }
   private neutral(team: 0 | 1): HeatseekerState {
@@ -40,7 +47,10 @@ export class Heatseeker {
       targetTeam: null,
       lastTouchPlayerId: null,
       tier: 0,
-      speed: H.initialSpeed,
+      speed: Math.min(
+        (H.initialSpeed * this.physics.ball.maxSpeed) / P.ball.maxSpeed,
+        this.physics.ball.maxSpeed,
+      ),
       kickoffTeam: team,
       backboardSequence: 0,
     };
@@ -52,8 +62,12 @@ export class Heatseeker {
   private speedUp() {
     this.state.tier++;
     this.state.speed = Math.min(
-      H.maxSpeed,
-      H.initialSpeed + (this.state.tier - 1) * H.speedIncrement,
+      Math.min(
+        H.maxSpeed * (this.physics.ball.maxSpeed / P.ball.maxSpeed),
+        this.physics.ball.maxSpeed,
+      ),
+      (H.initialSpeed + (this.state.tier - 1) * H.speedIncrement) *
+        (this.physics.ball.maxSpeed / P.ball.maxSpeed),
     );
   }
   touch(id: string, team: 0 | 1, time: number) {
@@ -116,8 +130,12 @@ export class Heatseeker {
     const delta = direction
       .multiplyScalar(nextSpeed)
       .sub(velocity)
-      .multiplyScalar(P.ball.mass);
-    delta.y += P.gravity * H.gravityCompensation * dt * P.ball.mass;
+      .multiplyScalar(this.physics.ball.mass);
+    delta.y +=
+      this.physics.gravity *
+      H.gravityCompensation *
+      dt *
+      this.physics.ball.mass;
     ball.applyImpulse(delta, true);
   }
 }

@@ -1,6 +1,12 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 import { Vector3 } from "three";
 import { P } from "../config/physics";
+import {
+  DEFAULT_MUTATORS,
+  matchMutators,
+  type MatchMutators,
+} from "../../shared/mutators";
+import { resolveMutators, type MatchPhysics } from "../config/mutators";
 import { Car } from "../car/car";
 import { createArena, insideArena } from "../arena/physics";
 import { Pose } from "./pose";
@@ -36,6 +42,25 @@ export interface Hit {
 }
 import { Rumble } from "../game/rumble";
 export class Simulation {
+  mutators: MatchMutators = DEFAULT_MUTATORS;
+  physics: MatchPhysics = P;
+  configureMutators(config: MatchMutators = DEFAULT_MUTATORS) {
+    this.mutators = matchMutators(config);
+    this.physics = resolveMutators(this.mutators);
+    this.world.gravity = { x: 0, y: -this.physics.gravity, z: 0 };
+    this.cars.forEach((c) => {
+      c.physics = this.physics;
+      c.mutators = this.mutators;
+      c.jump.configureAirJumps(this.mutators.airJumps);
+      c.applyBoostRule();
+    });
+    this.ballCollider.setRadius(this.physics.ball.radius);
+    this.ballCollider.setMass(this.physics.ball.mass);
+    this.ballCollider.setRestitution(this.physics.ball.restitution);
+    this.ball.recomputeMassPropertiesFromColliders();
+    this.ballGround.reset();
+    this.ballContacts.forEach((c) => c.reset());
+  }
   readonly statTouches: StatTouch[] = [];
   private statContacts = new Set<string>();
   private ballSample(): BallSample {
@@ -43,6 +68,7 @@ export class Simulation {
       position: { ...this.ball.translation() },
       velocity: { ...this.ball.linvel() },
       heat: this.heatseeker ? { ...this.heatseeker.state } : null,
+      physics: this.physics,
     };
   }
   gameMode: SoccerMode = "soccar";
@@ -54,7 +80,8 @@ export class Simulation {
     this.rumble?.dispose();
     this.gameMode = mode;
     this.rumble = mode === "rumble" ? new Rumble(this) : null;
-    this.heatseeker = mode === "heatseeker" ? new Heatseeker() : null;
+    this.heatseeker =
+      mode === "heatseeker" ? new Heatseeker(0, this.physics) : null;
     this.heatContacts.clear();
     this.backboardContact = null;
   }
@@ -118,14 +145,14 @@ export class Simulation {
     );
     this.ball = this.world.createRigidBody(
       RAPIER.RigidBodyDesc.dynamic()
-        .setTranslation(0, P.ball.radius + 0.02, 0)
+        .setTranslation(0, this.physics.ball.radius + 0.02, 0)
         .setCcdEnabled(true)
         .setLinearDamping(P.ball.drag)
         .setAngularDamping(P.ball.angularDrag),
     );
     this.ballCollider = this.world.createCollider(
-      RAPIER.ColliderDesc.ball(P.ball.radius)
-        .setMass(P.ball.mass)
+      RAPIER.ColliderDesc.ball(this.physics.ball.radius)
+        .setMass(this.physics.ball.mass)
         .setFriction(P.ball.friction)
         .setRestitution(P.ball.restitution)
         .setRestitutionCombineRule(RAPIER.CoefficientCombineRule.Max)
@@ -172,10 +199,14 @@ export class Simulation {
         spawn?.yaw ?? (c.team === 0 ? 0 : Math.PI),
       );
     }
-    this.ball.setTranslation({ x: 0, y: P.ball.radius + 0.02, z: 0 }, true);
+    this.ball.setTranslation(
+      { x: 0, y: this.physics.ball.radius + 0.02, z: 0 },
+      true,
+    );
     this.ball.setLinvel({ x: 0, y: 0, z: 0 }, true);
     this.ball.setAngvel({ x: 0, y: 0, z: 0 }, true);
     this.ballPose.snap();
+    this.cars.forEach((c) => c.applyBoostRule());
     this.hits = [];
     this.ballContacts.forEach((contact) => contact.reset());
     this.heatContacts.clear();
@@ -192,7 +223,11 @@ export class Simulation {
           c.team === 0 ? 0 : Math.PI,
         );
       });
-      this.ball.setTranslation(heatseekerServeSpawn(receiver), true);
+      this.cars.forEach((c) => c.applyBoostRule());
+      this.ball.setTranslation(
+        heatseekerServeSpawn(receiver, this.physics.ball.radius),
+        true,
+      );
       this.ballPose.snap();
     }
   }
@@ -227,6 +262,7 @@ export class Simulation {
     this.velocities = this.cars.map(() => new Vector3());
     this.relative = this.cars.map(() => new Vector3());
     this.ballContacts = this.cars.map(() => new CarBallContact());
+    this.configureMutators(this.mutators);
     this.reset();
   }
   /** Physical blast; the match keeps steering, aerial control and boost live. */
@@ -400,7 +436,7 @@ export class Simulation {
                 after: this.ballSample(),
                 impulseSpeed:
                   Math.max(0, normalImpulse + response.impulse.dot(normal)) /
-                  P.ball.mass,
+                  this.physics.ball.mass,
               });
             }
             if (response.impulse.lengthSq() > 0)
@@ -443,10 +479,10 @@ export class Simulation {
       if (v.length() > speed) body.setLinvel(v.clampLength(0, speed), true);
       if (w.length() > angular) body.setAngvel(w.clampLength(0, angular), true);
     };
-    cap(this.ball, P.ball.maxSpeed, P.ball.maxAngular);
+    cap(this.ball, this.physics.ball.maxSpeed, P.ball.maxAngular);
     this.cars.forEach((c) => {
       c.constrainSurface(true);
-      cap(c.body, P.car.maxSpeed, c.angularLimit);
+      cap(c.body, this.physics.car.maxSpeed, c.angularLimit);
       if (
         this.arenaCollider &&
         c.body.isEnabled() &&
@@ -470,7 +506,10 @@ export class Simulation {
       !insideArena(this.arenaCollider, this.ball.translation())
     ) {
       this.rumble?.recoverBall();
-      this.ball.setTranslation({ x: 0, y: P.ball.radius + 0.1, z: 0 }, true);
+      this.ball.setTranslation(
+        { x: 0, y: this.physics.ball.radius + 0.1, z: 0 },
+        true,
+      );
       this.ball.setLinvel({ x: 0, y: 0, z: 0 }, true);
       this.ball.setAngvel({ x: 0, y: 0, z: 0 }, true);
       this.lastTouchId = null;

@@ -96,6 +96,10 @@ export class UI {
     this.root.dataset.screen = "extra-game";
   }
   update(m: Match, boost: number, ballCamera: boolean, sonic: boolean) {
+    document.querySelector(".boost-hud")!.classList.remove("spectator-hidden");
+    document
+      .querySelector(".camera-status")!
+      .classList.remove("spectator-hidden");
     const set = (id: string, text: string) => {
       const e = document.getElementById(id)!;
       if (e.textContent !== text) {
@@ -142,9 +146,11 @@ export class UI {
       "clock",
       m.mode === "freeplay"
         ? "FREE PLAY"
-        : m.overtime
-          ? "OT"
-          : `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`,
+        : !m.timed
+          ? "UNLIMITED"
+          : m.overtime
+            ? "OT"
+            : `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`,
     );
     set("boost", String(Math.ceil(boost)));
     document.getElementById("boost-fill")!.style.strokeDasharray =

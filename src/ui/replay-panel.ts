@@ -84,6 +84,11 @@ export class ReplayPanel {
       }
       this.root.querySelector<HTMLButtonElement>(
         "#replay-skip-button",
+      )!.textContent = state?.eligible.includes(localId)
+        ? "PRESS SPACE TO SKIP"
+        : "WAITING FOR PLAYERS";
+      this.root.querySelector<HTMLButtonElement>(
+        "#replay-skip-button",
       )!.disabled =
         !state?.eligible.includes(localId) || state.votes.includes(localId);
     }

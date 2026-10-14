@@ -98,7 +98,9 @@ export class NetworkMatches {
         if (game.tick - (this.broadcastTick.get(code) ?? -4) >= 4) {
           this.broadcastTick.set(code, game.tick);
           const message = JSON.stringify(game.snapshot());
-          for (const p of game.players) {
+          for (const p of game.sessionMembers.filter((m) =>
+            game.sessionActive(m.id),
+          )) {
             const connection = this.sockets.get(p.id);
             const clip = game.match.replay?.clip;
             if (
@@ -169,7 +171,8 @@ export class NetworkMatches {
             .get(player.id)
             ?.socket.close(1000, "Replaced connection");
           this.sockets.set(player.id, { socket, seen: now });
-          for (const game of this.matches.values()) game.connected(player.id);
+          for (const [code, game] of this.matches)
+            if (player.code === code) game.connected(player.id);
           socket.send(
             JSON.stringify({ type: "connected" } satisfies ServerMessage),
           );
@@ -204,7 +207,9 @@ export class NetworkMatches {
             if (game && game.id === message.matchId) {
               const result = game.acceptChat(player.id, message.text, now);
               if (result.message)
-                for (const member of game.players) {
+                for (const member of game.sessionMembers.filter((m) =>
+                  game.sessionActive(m.id),
+                )) {
                   const target = this.sockets.get(member.id)?.socket;
                   if (target?.readyState === WebSocket.OPEN)
                     target.send(
@@ -261,6 +266,8 @@ export class NetworkMatches {
       arenaId,
       undefined,
       party.gameMode ?? "soccar",
+      structuredClone(party.members),
+      party.mutators,
     );
     party.matchArenaId = arenaId;
     this.previousArena = arenaId;

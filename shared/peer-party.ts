@@ -1,9 +1,19 @@
+import {
+  mutatorsSchema,
+  DEFAULT_MUTATORS,
+  matchMutators,
+  type MatchMutators,
+} from "./mutators";
 import { newLocalPlayerId as newPacketId } from "./local-profile";
 import { z } from "zod";
 import { localIdentitySchema } from "./local-profile";
 import { presetSchema } from "./accounts";
 import {
   teamCapacity,
+  isTeam,
+  canStartParty,
+  assignPartyTeams,
+  partyMaxPlayers,
   partyModes,
   type PartyState,
   type PartyMember,
@@ -39,16 +49,17 @@ export const memberSchema = localIdentitySchema.extend({
   id: z.string().uuid(),
   title: z.string().max(40),
   preset: presetSchema,
-  team: z.union([z.literal(0), z.literal(1), z.null()]),
+  team: z.union([z.literal(0), z.literal(1), z.literal("spectator"), z.null()]),
   ready: z.boolean(),
 });
 export const peerPartySchema = z
   .object({
     code: z.string().refine(validPeerCode),
     hostId: z.string().uuid(),
-    maxPlayers: z.literal(4),
-    members: z.array(memberSchema).min(1).max(4),
-    mode: z.enum(["1v1", "2v2", "2v2bots"]),
+    maxPlayers: z.literal(partyMaxPlayers),
+    members: z.array(memberSchema).min(1).max(partyMaxPlayers),
+    mode: z.enum(["1v1", "2v2", "3v3", "1v2", "1v3", "2v2bots"]),
+    mutators: mutatorsSchema.default(() => DEFAULT_MUTATORS),
     gameMode: z.enum(["soccar", "heatseeker", "rumble"]),
     stage: z.enum(["home", "mode", "teams", "match"]),
     transport: z.literal("webrtc"),
@@ -73,13 +84,18 @@ export function peerMember(hello: z.infer<typeof helloSchema>): PartyMember {
     ready: false,
   };
 }
-export function createPeerParty(code: string, host: PartyMember): PartyState {
+export function createPeerParty(
+  code: string,
+  host: PartyMember,
+  mutators: MatchMutators = DEFAULT_MUTATORS,
+): PartyState {
   return {
     code,
     hostId: host.id,
-    maxPlayers: 4,
+    maxPlayers: partyMaxPlayers,
     members: [{ ...host, team: 0 }],
     mode: "1v1",
+    mutators: matchMutators(mutators),
     gameMode: "soccar",
     stage: "home",
     transport: "webrtc",
@@ -102,9 +118,7 @@ export class PeerPartyAuthority {
     if (s.stage === "match") throw Error("MATCH IN PROGRESS");
     if (s.members.some((m) => m.id === member.id))
       throw Error("PROFILE ALREADY IN PARTY — USE A SEPARATE PROFILE");
-    if (s.members.length >= 4) throw Error("PARTY FULL");
-    if (s.stage === "teams" && s.mode !== "2v2" && s.members.length >= 2)
-      throw Error("THIS MODE HAS TWO PLAYER SLOTS");
+    if (s.members.length >= partyMaxPlayers) throw Error("PARTY FULL");
     member.team =
       s.stage === "teams"
         ? null
@@ -117,8 +131,9 @@ export class PeerPartyAuthority {
   }
   remove(id: string) {
     const s = this.state;
+    const active = s.members.find((m) => m.id === id);
     s.members = s.members.filter((m) => m.id !== id);
-    if (s.stage === "match") endPeerMatch(s);
+    if (s.stage === "match" && active && isTeam(active.team)) endPeerMatch(s);
   }
   appearance(id: string, hello: z.infer<typeof helloSchema>) {
     const m = this.state.members.find((m) => m.id === id);
@@ -136,6 +151,7 @@ export class PeerPartyAuthority {
       [
         "mode",
         "gamemode",
+        "mutators",
         "stage",
         "launch",
         "kick",
@@ -175,9 +191,10 @@ export class PeerPartyAuthority {
     switch (action) {
       case "team": {
         const t = data.team;
-        if (t !== null && t !== 0 && t !== 1) throw Error("INVALID TEAM");
+        if (t !== null && t !== 0 && t !== 1 && t !== "spectator")
+          throw Error("INVALID TEAM");
         if (
-          t !== null &&
+          isTeam(t) &&
           s.members.filter((p) => p.id !== id && p.team === t).length >=
             teamCapacity(s.mode, t)
         )
@@ -201,12 +218,17 @@ export class PeerPartyAuthority {
           s.members.forEach((m) => {
             m.ready = false;
             if (
-              m.team !== null &&
+              isTeam(m.team) &&
               ++counts[m.team] > teamCapacity(s.mode, m.team)
             )
               m.team = null;
           });
         }
+        break;
+      case "mutators":
+        if (s.stage === "teams") throw Error("RETURN TO MATCH SETUP FIRST");
+        s.mutators = matchMutators(data.mutators);
+        s.members.forEach((m) => (m.ready = false));
         break;
       case "gamemode":
         if (!["soccar", "heatseeker", "rumble"].includes(data.gameMode))
@@ -220,8 +242,6 @@ export class PeerPartyAuthority {
           throw Error("INVALID LOBBY STAGE");
         if (data.stage === "teams") {
           if (s.stage !== "mode") throw Error("CHOOSE A MODE FIRST");
-          if (s.mode !== "2v2" && s.members.length > 2)
-            throw Error("CHOOSE 2V2 FOR FOUR PLAYERS");
           s.matchArenaId = chooseMatchArena(this.previousArena);
           s.members.forEach((m) => {
             m.team = null;
@@ -232,35 +252,13 @@ export class PeerPartyAuthority {
         break;
       case "launch": {
         if (s.stage === "mode") {
-          if (
-            s.members.length !==
-            teamCapacity(s.mode, 0) + teamCapacity(s.mode, 1)
-          )
-            throw Error("THIS FORMAT NEEDS MORE PLAYERS");
-          const counts = [0, 0];
-          for (const m of s.members) {
-            if (
-              m.team !== null &&
-              counts[m.team] < teamCapacity(s.mode, m.team)
-            )
-              counts[m.team]++;
-            else m.team = null;
-          }
-          for (const m of s.members)
-            if (m.team === null) {
-              m.team = counts[0] < teamCapacity(s.mode, 0) ? 0 : 1;
-              counts[m.team]++;
-            }
+          assignPartyTeams(s);
         } else if (s.stage !== "teams") throw Error("OPEN MATCH SETUP FIRST");
-        if (
-          s.members.some((m) => m.team === null) ||
-          ([0, 1] as const).some(
-            (t) =>
-              s.members.filter((m) => m.team === t).length !==
-              teamCapacity(s.mode, t),
-          )
-        )
-          throw Error("FILL BOTH TEAMS BEFORE STARTING");
+        if (!canStartParty(s))
+          throw Error("CHOOSE AT LEAST ONE PLAYER PER TEAM");
+        s.members.forEach((m) => {
+          if (m.team === null) m.team = "spectator";
+        });
         s.matchId = newPacketId();
         s.matchHostId = s.hostId;
         s.matchArenaId = s.matchArenaId ?? chooseMatchArena(this.previousArena);

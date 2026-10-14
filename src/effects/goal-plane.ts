@@ -72,28 +72,36 @@ export class GoalPlanes {
   }
   setNeutral(neutral: boolean) {
     this.neutral = neutral;
-    this.planes.forEach((plane, i) => plane.material.color.setHex(
-      neutral ? 0xa8a8a8 : i === 0 ? 0xffb654 : 0x69e9ff,
-    ));
-    this.rings.forEach((ring) => (ring.material as T.MeshBasicMaterial).color.setHex(
-      neutral ? 0xbcbcbc : 0xeaffff,
-    ));
+    this.planes.forEach((plane, i) =>
+      plane.material.color.setHex(
+        neutral ? 0xa8a8a8 : i === 0 ? 0xffb654 : 0x69e9ff,
+      ),
+    );
+    this.rings.forEach((ring) =>
+      (ring.material as T.MeshBasicMaterial).color.setHex(
+        neutral ? 0xbcbcbc : 0xeaffff,
+      ),
+    );
   }
   update(ball: T.Object3D) {
     this.uniforms.goalActive.value = 0;
     [-1, 1].forEach((sign, i) => {
-      const intersection = goalIntersection(ball.position, sign),
+      const intersection = goalIntersection(
+          ball.position,
+          sign,
+          P.ball.radius * ball.scale.x,
+        ),
         ring = this.rings[i];
       ring.visible = ball.visible && intersection !== null;
       if (!intersection) return;
       this.uniforms.goalActive.value = ball.visible ? 1 : 0;
       this.uniforms.goalZ.value = intersection.z;
       this.uniforms.goalColor.value.setRGB(
-        ...((this.neutral ? [1.2, 1.2, 1.2] : sign < 0 ? [2.2, 0.25, 0.025] : [0.025, 1.2, 2.2]) as [
-          number,
-          number,
-          number,
-        ]),
+        ...((this.neutral
+          ? [1.2, 1.2, 1.2]
+          : sign < 0
+            ? [2.2, 0.25, 0.025]
+            : [0.025, 1.2, 2.2]) as [number, number, number]),
       );
       ring.position.set(ball.position.x, ball.position.y, intersection.z);
       ring.scale.setScalar(intersection.radius + 0.008);

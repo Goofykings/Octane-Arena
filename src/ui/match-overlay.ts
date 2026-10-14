@@ -145,6 +145,7 @@ export class MatchOverlay {
     error = "",
     menu = false,
     finished = false,
+    sessionMembers: import("../../shared/network").MatchParticipant[] = players,
   ) {
     if (id !== this.matchId) this.reset(id, events);
     this.chatAllowed = multiplayer && !!id && !menu;
@@ -155,7 +156,7 @@ export class MatchOverlay {
       this.chatSequence = chat.at(-1)!.id;
       this.log.replaceChildren();
       for (const message of chat) {
-        const player = players.find((p) => p.id === message.playerId);
+        const player = sessionMembers.find((p) => p.id === message.playerId);
         if (!player) continue;
         const line = document.createElement("div"),
           name = document.createElement("b"),

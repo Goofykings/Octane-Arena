@@ -34,7 +34,8 @@ export class Pads {
       p.cooldown = Math.max(0, p.cooldown - P.dt);
       if (p.cooldown) continue;
       for (const c of cars) {
-        if (!c.body.isEnabled()) continue;
+        if (!c.body.isEnabled() || c.mutators.boostAmount === "NO BOOST")
+          continue;
         const t = c.body.translation();
         if (
           c.boost < 100 &&

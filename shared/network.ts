@@ -7,6 +7,14 @@ import type { PlayerMatchStats, MatchStatEvent } from "./match-stats";
 import type { ChatMessage } from "./chat";
 export type Vec = { x: number; y: number; z: number };
 export type Rotation = Vec & { w: number };
+export interface MatchParticipant {
+  id: string;
+  name: string;
+  team: import("./party").PartyTeam;
+  localPlayerId?: string;
+  avatarId?: string;
+  avatarColor?: string;
+}
 export type NetPlayer = PlayerEntity & { preset: Preset };
 export interface CarSnapshot {
   id: string;
@@ -38,6 +46,7 @@ export interface MatchSnapshot {
   matchId: string;
   arenaId: ArenaId;
   gameMode?: SoccerMode;
+  mutators?: import("./mutators").MatchMutators;
   heatseeker?: HeatseekerState | null;
   rumble?: RumbleSnapshot | null;
   stats?: PlayerMatchStats[];
@@ -48,6 +57,7 @@ export interface MatchSnapshot {
   reset: number;
   kickoffFormationId: string | null;
   players: NetPlayer[];
+  sessionMembers?: MatchParticipant[];
   cars: CarSnapshot[];
   ball: {
     position: Vec;

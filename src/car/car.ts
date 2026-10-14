@@ -3,6 +3,12 @@ import { Quaternion, Vector3 } from "three";
 import { RUMBLE_CONFIG } from "../config/rumble";
 import { P, curvature, throttleAcceleration } from "../config/physics";
 import type { PlayerInput } from "../../shared/player";
+import type { MatchPhysics } from "../config/mutators";
+import {
+  DEFAULT_MUTATORS,
+  MUTATOR_TUNING as M,
+  type MatchMutators,
+} from "../../shared/mutators";
 import { JumpState } from "./dodge";
 import { Pose } from "../physics/pose";
 import { chassisShape, chassisPoints } from "./chassis";
@@ -14,6 +20,15 @@ import {
   wheelSupportPoint,
 } from "./wheels";
 export class Car {
+  physics: MatchPhysics = P;
+  mutators: MatchMutators = DEFAULT_MUTATORS;
+  applyBoostRule(dt = 0) {
+    const mode = this.mutators.boostAmount;
+    if (mode === "NO BOOST") this.boost = 0;
+    else if (mode === "UNLIMITED") this.boost = 100;
+    else if (mode === "RECHARGE SLOW" || mode === "RECHARGE FAST")
+      this.boost = Math.min(100, this.boost + M.recharge[mode] * dt);
+  }
   id = "";
   team = 0;
   displayName = "Guest";
@@ -71,7 +86,7 @@ export class Car {
       ? P.jump.flipMaxAngular
       : this.contacts >= 1 && this.surfaceTurn.length() > 0.5
         ? 14
-        : P.car.maxAngular;
+        : this.physics.car.maxAngular;
   }
   private surfaceForward = new Vector3();
   private surfaceRight = new Vector3();
@@ -112,7 +127,7 @@ export class Car {
   private normalReady = false;
   private surfaceTurn = new Vector3();
   constructor(public world: RAPIER.World) {
-    const c = P.car;
+    const c = this.physics.car;
     this.body = world.createRigidBody(
       RAPIER.RigidBodyDesc.dynamic().setCanSleep(false).setCcdEnabled(true),
     );
@@ -125,8 +140,8 @@ export class Car {
           { x: 25, y: 35, z: 20 },
           { x: 0, y: 0, z: 0, w: 1 },
         )
-        .setFriction(P.car.chassisFriction)
-        .setContactSkin(P.car.contactSkin)
+        .setFriction(this.physics.car.chassisFriction)
+        .setContactSkin(this.physics.car.contactSkin)
         .setRestitution(0.05),
       this.body,
     );
@@ -209,7 +224,7 @@ export class Car {
     this.impactTime = Math.max(0, this.impactTime - P.dt);
     this.recoveryCooldown = Math.max(0, this.recoveryCooldown - P.dt);
     const dt = P.dt,
-      c = P.car,
+      c = this.physics.car,
       b = this.body;
     this.q.copy(b.rotation());
     this.v.copy(b.linvel());
@@ -473,6 +488,7 @@ export class Car {
         : leavingByJump
           ? 1
           : Math.min(1, this.aerialControl + dt / c.airControlBlend);
+    this.applyBoostRule(dt);
     this.boosting = input.boost && this.boost > 0;
     const throttle = this.boosting ? 1 : input.throttle;
     if (treadContact) {
@@ -507,7 +523,7 @@ export class Car {
           (c.wallIdleGrip + (1 - c.wallIdleGrip) * drive * drive);
       this.acceleration.addScaledVector(
         this.normal,
-        -(c.adhesion + P.gravity * (1 - floor) * drive) *
+        -(c.adhesion + this.physics.gravity * (1 - floor) * drive) *
           overhead *
           support *
           Number(this.stableContact),
@@ -515,7 +531,7 @@ export class Car {
       this.adhesionAcceleration
         .copy(this.normal)
         .multiplyScalar(
-          -(c.adhesion + P.gravity * (1 - floor) * drive) *
+          -(c.adhesion + this.physics.gravity * (1 - floor) * drive) *
             overhead *
             support *
             Number(this.stableContact),
@@ -654,7 +670,7 @@ export class Car {
           )
           .clampLength(0, 1)
           .multiplyScalar(
-            (b.mass() * P.gravity * c.edgeDriveGrip) / edges.length,
+            (b.mass() * this.physics.gravity * c.edgeDriveGrip) / edges.length,
           );
         b.applyImpulseAtPoint(
           force.clone().multiplyScalar(dt),
@@ -699,7 +715,8 @@ export class Car {
           )
           .clampLength(0, 1)
           .multiplyScalar(
-            (b.mass() * P.gravity * c.noseInputGrip) / noseContacts.length,
+            (b.mass() * this.physics.gravity * c.noseInputGrip) /
+              noseContacts.length,
           );
         b.applyImpulseAtPoint(force.multiplyScalar(dt), contact.point, true);
       }
@@ -711,7 +728,8 @@ export class Car {
         this.forward,
         this.grounded ? c.boostGround : c.boostAir,
       );
-      this.boost = Math.max(0, this.boost - c.boostUse * dt);
+      if (this.mutators.boostAmount !== "UNLIMITED")
+        this.boost = Math.max(0, this.boost - c.boostUse * dt);
     }
     this.flipResetAge += dt;
     const action = this.jump.step(
@@ -727,7 +745,7 @@ export class Car {
       this.normalJumpNormal.copy(this.up);
       this.normalJumpOrigin
         .copy(b.translation())
-        .addScaledVector(this.up, -P.car.contactHeight)
+        .addScaledVector(this.up, -this.physics.car.contactHeight)
         .addScaledVector(this.normal, 0.06);
     }
     if (action === "first" || action === "double") {
@@ -944,7 +962,8 @@ export class Car {
       const plane = center
         .clone()
         .add(new Vector3(0, 0.4 - hit.timeOfImpact, 0));
-      const gap = point.clone().sub(plane).dot(normal) - P.car.contactSkin;
+      const gap =
+        point.clone().sub(plane).dot(normal) - this.physics.car.contactSkin;
       if (gap <= 0.05) edges.push({ point, normal, gap });
     }
     return edges;
@@ -998,15 +1017,17 @@ export class Car {
             .multiplyScalar(flipped ? 1 : -1);
           if (normal.dot(up) > -0.5) return;
           for (let i = 0; i < manifold.numContacts(); i++)
-            if (manifold.contactDist(i) <= P.car.contactSkin * 2)
+            if (manifold.contactDist(i) <= this.physics.car.contactSkin * 2)
               roofContact = true;
         });
       });
       this.collider.setFriction(
         roofContact
-          ? P.car.roofFriction +
-              (P.car.roofSteeringFriction - P.car.roofFriction) * this.roofSteer
-          : P.car.chassisFriction,
+          ? this.physics.car.roofFriction +
+              (this.physics.car.roofSteeringFriction -
+                this.physics.car.roofFriction) *
+                this.roofSteer
+          : this.physics.car.chassisFriction,
       );
     }
     if (!afterStep) {
@@ -1026,12 +1047,12 @@ export class Car {
           point = offset.clone().add(position);
         const rotationVelocity = new Vector3().crossVectors(angular, offset);
         const travel = velocity.clone().add(rotationVelocity);
-        travel.y -= P.gravity * P.dt;
+        travel.y -= this.physics.gravity * P.dt;
         const speed = travel.length();
         if (speed < 0.01) continue;
         const hit = this.world.castRayAndGetNormal(
           new RAPIER.Ray(point, travel.multiplyScalar(1 / speed)),
-          speed * P.dt + P.car.contactSkin,
+          speed * P.dt + this.physics.car.contactSkin,
           false,
           undefined,
           undefined,
@@ -1045,9 +1066,10 @@ export class Car {
         if (approach <= 0) continue;
         const gap = Math.max(
           0,
-          hit.timeOfImpact * approach - P.car.contactSkin,
+          hit.timeOfImpact * approach - this.physics.car.contactSkin,
         );
-        const pointMinimum = -gap / P.dt + P.gravity * normal.y * P.dt;
+        const pointMinimum =
+          -gap / P.dt + this.physics.gravity * normal.y * P.dt;
         if (
           (!this.stableContact || normal.dot(up) < -0.5) &&
           !this.recovering
@@ -1079,15 +1101,16 @@ export class Car {
         if (depth > 0)
           correction.addScaledVector(
             edge.normal,
-            Math.min(depth, P.car.maxContactCorrection),
+            Math.min(depth, this.physics.car.maxContactCorrection),
           );
-        if (edge.gap < P.car.contactSkin)
+        if (edge.gap < this.physics.car.contactSkin)
           constrainPoint(edge.point, edge.normal, 0);
       } else {
         constrainPoint(
           edge.point,
           edge.normal,
-          -Math.max(0, edge.gap) / P.dt + P.gravity * edge.normal.y * P.dt,
+          -Math.max(0, edge.gap) / P.dt +
+            this.physics.gravity * edge.normal.y * P.dt,
         );
       }
     }
@@ -1098,7 +1121,7 @@ export class Car {
         .add(position);
       const hit = this.world.castRayAndGetNormal(
         new RAPIER.Ray(origin, up.clone().negate()),
-        P.car.contactReach,
+        this.physics.car.contactReach,
         true,
         undefined,
         undefined,
@@ -1120,7 +1143,8 @@ export class Car {
         b,
         i < 2 ? this.steerAngle : 0,
       );
-      const ordinaryGap = (hit.timeOfImpact - P.car.contactHeight) * alignment;
+      const ordinaryGap =
+        (hit.timeOfImpact - this.physics.car.contactHeight) * alignment;
       const gap =
         rigidHeight > wheelMountY
           ? Math.min(ordinaryGap, -(rigidHeight - wheelMountY) * alignment)
@@ -1131,7 +1155,7 @@ export class Car {
         if (depth > 0)
           correction.addScaledVector(
             normal,
-            Math.min(depth, P.car.maxContactCorrection),
+            Math.min(depth, this.physics.car.maxContactCorrection),
           );
         // A tilted body may move downward while its loaded wheel stays still:
         // that is rotation about the contact, not penetration. Clamping COM
@@ -1139,13 +1163,14 @@ export class Car {
         // its physical settling torque on the following step.
         if (
           (this.stableContact || alignment > 0.9999) &&
-          gap < P.car.contactSkin &&
+          gap < this.physics.car.contactSkin &&
           velocity.dot(normal) < 0
         )
           velocity.addScaledVector(normal, -velocity.dot(normal));
       } else {
         // Permit approach until the clearance plane; account for the next gravity step.
-        const minimum = -Math.max(0, gap) / P.dt + P.gravity * normal.y * P.dt;
+        const minimum =
+          -Math.max(0, gap) / P.dt + this.physics.gravity * normal.y * P.dt;
         if (normal.y > 0.9999 && up.y > 0.9999) {
           if (velocity.dot(normal) < minimum)
             velocity.addScaledVector(normal, minimum - velocity.dot(normal));
@@ -1196,7 +1221,7 @@ export class Car {
           if (remaining > 0)
             correction.addScaledVector(
               normal,
-              Math.min(remaining, P.car.maxContactCorrection),
+              Math.min(remaining, this.physics.car.maxContactCorrection),
             );
           // Rapier resolves velocity at all manifold contacts. A COM-only clamp
           // here would cancel descent/rotation about a loaded roof edge.
@@ -1223,7 +1248,7 @@ export class Car {
         direction.normalize();
         const hit = this.world.castRayAndGetNormal(
           new RAPIER.Ray(center, direction),
-          length + P.car.contactSkin,
+          length + this.physics.car.contactSkin,
           false,
           undefined,
           undefined,
@@ -1237,7 +1262,7 @@ export class Car {
         if (alignment < 0.01) continue;
         const depth =
           (length - hit.timeOfImpact) * alignment +
-          P.car.contactSkin -
+          this.physics.car.contactSkin -
           correction.dot(normal);
         if (depth > 0) correction.addScaledVector(normal, depth);
         if (
@@ -1250,7 +1275,7 @@ export class Car {
       }
     }
     if (afterStep && correction.lengthSq() > 0) {
-      correction.clampLength(0, P.car.maxContactCorrection);
+      correction.clampLength(0, this.physics.car.maxContactCorrection);
       b.setTranslation(position.add(correction), true);
     }
     if (afterStep) this.contactCorrection.copy(correction);

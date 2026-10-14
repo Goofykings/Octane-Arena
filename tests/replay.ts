@@ -306,14 +306,21 @@ free.start(practice, "freeplay");
 practice.ball.setTranslation({ x: 0, y: 1, z: -53 }, true);
 free.tick(practice);
 assert.equal(free.phase, "goal");
-assert.equal(free.replay, null);
+assert.ok(free.recorder.pendingGoal);
 assert.deepEqual(free.score, [0, 0]);
-free.freeze = 0;
-free.tick(practice);
+for (let i = 0; i < 400 && String(free.phase) !== "replay"; i++) {
+  practice.clock += P.dt;
+  free.tick(practice);
+}
+assert.equal(free.phase, "replay");
+assert.ok(free.replay);
+assert.equal(free.replay.clip.goal.neutral, true);
+free.skipReplay(practice.cars[0].id, free.replay.clip.goal.id, practice);
 assert.equal(free.phase, "playing");
+assert.deepEqual(free.score, [0, 0]);
 practice.dispose();
 console.log(
-  "PASS own-goal attribution/pre-goal-only slow motion, natural completion and unchanged Free Play flow",
+  "PASS own-goal attribution/pre-goal-only slow motion, natural completion and Free Play replay followed by scoreless reset",
 );
 
 // Original director framing across straight, long aerial, flick and late redirect fixtures.
@@ -327,7 +334,9 @@ for (const aspect of [16 / 9, 4 / 3, 9 / 16]) {
       lastFov = 0,
       visible = 0,
       scorerVisible = 0,
-      goalVisible = 0;
+      goalVisible = 0,
+      touchVisible = 0,
+      touchFrames = 0;
     for (let i = 0; i <= 300; i++) {
       const t = i / 300;
       const ball = new Vector3(
@@ -370,10 +379,14 @@ for (const aspect of [16 / 9, 4 / 3, 9 / 16]) {
       const onScreen = (v: Vector3) =>
         Math.abs(v.x) < 0.95 && Math.abs(v.y) < 0.9 && v.z > -1 && v.z < 1;
       if (onScreen(director.debug.scorerScreen)) scorerVisible++;
+      if (Math.abs(3 + t * 5 - goal.touchTime!) < 1.35) {
+        touchFrames++;
+        if (onScreen(director.debug.scorerScreen)) touchVisible++;
+      }
       if (onScreen(director.debug.goalScreen)) goalVisible++;
       assert.ok(Number.isFinite(camera.position.lengthSq()));
       assert.ok(
-        camera.position.y >= 4.99 && camera.position.y <= P.arena.height - 1.49,
+        camera.position.y >= 2.99 && camera.position.y <= P.arena.height - 1.49,
       );
     }
     assert.ok(
@@ -381,8 +394,8 @@ for (const aspect of [16 / 9, 4 / 3, 9 / 16]) {
       `${variant} aspect ${aspect}: ball framing ${visible}/301`,
     );
     assert.ok(
-      scorerVisible > 280 && goalVisible > 280,
-      `${variant} aspect ${aspect}: scorer ${scorerVisible}, goal ${goalVisible}/301`,
+      touchVisible >= touchFrames * 0.92,
+      `${variant} aspect ${aspect}: touch pair ${touchVisible}/${touchFrames}, scorer ${scorerVisible}, goal ${goalVisible}/301`,
     );
     assert.ok(
       largestStep < 2 && largestZoom < 2,

@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import { DEFAULT_MUTATORS, matchMutators } from "../../shared/mutators";
 import { randomBytes, randomInt, randomUUID } from "node:crypto";
 import { presetSchema } from "../../shared/accounts.js";
 import {
@@ -10,6 +11,9 @@ import {
   partyMaxPlayers,
   partyModes,
   teamCapacity,
+  isTeam,
+  canStartParty,
+  assignPartyTeams,
   normalizePartyCode,
   validPartyCode,
   type PartyMember,
@@ -89,10 +93,18 @@ export async function registerParties(
     });
   };
   const leave = (p: Player) => {
-    if (p.code) matches.stop(p.code, "PLAYER LEFT — MATCH ENDED");
+    const active = isTeam(p.member.team);
+    if (p.code && (active || parties.get(p.code)?.hostId === p.member.id))
+      matches.stop(p.code, "PLAYER LEFT — MATCH ENDED");
     const party = p.code ? parties.get(p.code) : null;
-    if (party?.transport === "webrtc" && party.stage === "match")
+    if (
+      party?.transport === "webrtc" &&
+      party.stage === "match" &&
+      (active || party.hostId === p.member.id)
+    )
       endRtc(party, "PLAYER LEFT — MATCH ENDED");
+    if (p.code && !active)
+      matches.matches.get(p.code)?.removeSessionMember(p.member.id);
     p.signals = [];
     p.code = null;
     p.member.ready = false;
@@ -334,6 +346,7 @@ export async function registerParties(
       code,
       hostId: p.member.id,
       maxPlayers: partyMaxPlayers,
+      mutators: DEFAULT_MUTATORS,
       transport:
         config.matchTransport ?? (config.production ? "webrtc" : "server"),
       members: [p.member],
@@ -356,12 +369,6 @@ export async function registerParties(
     if (party.stage === "match") return fail(409, "MATCH IN PROGRESS");
     if (party.members.length >= party.maxPlayers)
       return fail(409, "PARTY FULL");
-    if (
-      party.stage === "teams" &&
-      party.mode !== "2v2" &&
-      party.members.length >= 2
-    )
-      return fail(409, "THIS MODE HAS TWO PLAYER SLOTS");
     leave(p);
     p.code = code;
     p.notice = "";
@@ -409,10 +416,10 @@ export async function registerParties(
       team = (req.body as PartyActions["team"])?.team;
     if (!party) return fail(409, "JOIN A PARTY FIRST");
     if (party.stage === "match") return fail(409, "MATCH IN PROGRESS");
-    if (team !== null && team !== 0 && team !== 1)
+    if (team !== null && team !== 0 && team !== 1 && team !== "spectator")
       return fail(400, "INVALID TEAM");
     if (
-      team !== null &&
+      isTeam(team) &&
       party.members.filter((m) => m.id !== p.member.id && m.team === team)
         .length >= teamCapacity(party.mode, team)
     )
@@ -445,9 +452,26 @@ export async function registerParties(
     const counts = [0, 0];
     for (const m of party.members) {
       m.ready = false;
-      if (m.team !== null && ++counts[m.team] > teamCapacity(mode, m.team))
+      if (isTeam(m.team) && ++counts[m.team] > teamCapacity(mode, m.team))
         m.team = null;
     }
+    return state(p);
+  });
+  app.post("/api/party/mutators", async (req) => {
+    const p = get(req),
+      party = p.code ? parties.get(p.code) : null;
+    if (!party || party.hostId !== p.member.id)
+      return fail(403, "ONLY THE HOST CAN CHANGE MUTATORS");
+    if (party.stage === "match" || party.stage === "teams")
+      return fail(409, "RETURN TO MATCH SETUP FIRST");
+    try {
+      party.mutators = matchMutators(
+        (req.body as PartyActions["mutators"])?.mutators,
+      );
+    } catch {
+      return fail(400, "INVALID MUTATORS");
+    }
+    party.members.forEach((m) => (m.ready = false));
     return state(p);
   });
   app.post("/api/party/gamemode", async (req) => {
@@ -475,8 +499,6 @@ export async function registerParties(
       return fail(400, "INVALID LOBBY STAGE");
     if (stage === "teams" && party.stage !== "mode")
       return fail(409, "CHOOSE A MODE FIRST");
-    if (stage === "teams" && party.mode !== "2v2" && party.members.length > 2)
-      return fail(409, "CHOOSE 2 VS 2 FOR MORE THAN TWO PLAYERS");
     if (stage === "teams") {
       party.matchArenaId = chooseMatchArena(previousPartyArena);
       for (const m of party.members) {
@@ -499,40 +521,14 @@ export async function registerParties(
     if (!party || party.hostId !== p.member.id)
       return fail(403, "ONLY THE HOST CAN START");
     if (party.stage === "mode") {
-      const required =
-        teamCapacity(party.mode, 0) + teamCapacity(party.mode, 1);
-      if (party.members.length !== required)
-        return fail(
-          409,
-          "THIS FORMAT NEEDS " +
-            required +
-            " PLAYERS - CHOOSE ANOTHER FORMAT OR INVITE FRIENDS",
-        );
-      const counts = [0, 0];
-      for (const m of party.members) {
-        if (
-          m.team !== null &&
-          counts[m.team] < teamCapacity(party.mode, m.team)
-        )
-          counts[m.team]++;
-        else m.team = null;
-      }
-      for (const m of party.members)
-        if (m.team === null) {
-          const team = counts[0] < teamCapacity(party.mode, 0) ? 0 : 1;
-          m.team = team;
-          counts[team]++;
-        }
+      assignPartyTeams(party);
     } else if (party.stage !== "teams")
       return fail(409, "OPEN MATCH SETUP FIRST");
-    const blue = party.members.filter((m) => m.team === 0).length,
-      orange = party.members.filter((m) => m.team === 1).length;
-    if (
-      party.members.some((m) => m.team === null) ||
-      blue !== teamCapacity(party.mode, 0) ||
-      orange !== teamCapacity(party.mode, 1)
-    )
-      return fail(409, "FILL BOTH TEAMS BEFORE STARTING");
+    if (!canStartParty(party))
+      return fail(409, "CHOOSE AT LEAST ONE PLAYER PER TEAM");
+    party.members.forEach((m) => {
+      if (m.team === null) m.team = "spectator";
+    });
     try {
       if (party.transport === "webrtc") {
         party.matchId = randomUUID();

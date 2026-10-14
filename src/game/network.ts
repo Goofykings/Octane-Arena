@@ -1,8 +1,10 @@
+import { sameMutators, DEFAULT_MUTATORS } from "../../shared/mutators";
 import type { PartyClient } from "./party";
 import { neutralInput, type PlayerInput } from "../../shared/player";
 import type {
   ClientMessage,
   MatchSnapshot,
+  MatchParticipant,
   ServerMessage,
 } from "../../shared/network";
 import { decodeReplay, type ReplayClip } from "../../shared/replay";
@@ -60,6 +62,7 @@ export class NetworkClient {
     const msg = parsed.data;
     if (
       !(
+        this.latest?.sessionMembers ??
         this.latest?.players ??
         (this.party.state ? partyRoster(this.party.state) : [])
       ).some((p) => p.id === msg.playerId)
@@ -71,6 +74,7 @@ export class NetworkClient {
     if (this.chatLog.length > CHAT.history)
       this.chatLog.splice(0, this.chatLog.length - CHAT.history);
   }
+  private sessionMembers: MatchParticipant[] = [];
   snapshots: MatchSnapshot[] = [];
   latest: MatchSnapshot | null = null;
   replayClip: ReplayClip | null = null;
@@ -134,6 +138,7 @@ export class NetworkClient {
     if (
       this.latest?.phase !== "replay" ||
       !replay ||
+      !replay.eligible.includes(this.party.playerId) ||
       replay.votes.includes(this.party.playerId) ||
       this.skipSent === replay.id
     )
@@ -156,7 +161,11 @@ export class NetworkClient {
     return this.rtc.send(host, message);
   }
   private sendInput() {
-    if (!this.latest) return;
+    if (
+      !this.latest ||
+      !this.latest.players.some((p) => p.id === this.party.playerId)
+    )
+      return;
     this.send({
       type: "input",
       matchId: this.latest.matchId,
@@ -176,6 +185,7 @@ export class NetworkClient {
     if (desired !== this.desired) {
       this.close();
       this.desired = desired;
+      this.sessionMembers = structuredClone(this.party.state?.members ?? []);
       this.retryAt = 0;
       this.rtcStartedAt = performance.now();
     }
@@ -252,7 +262,10 @@ export class NetworkClient {
         this.sceneReadyPeers.add(id);
       } else if (message.type === "chat-send")
         this.command({ type: "chat", id, text: message.text });
-      else if (message.type === "input")
+      else if (
+        message.type === "input" &&
+        partyRoster(party).some((p) => p.id === id && p.controller !== "bot")
+      )
         this.command({
           type: "input",
           id,
@@ -270,14 +283,20 @@ export class NetworkClient {
             incoming,
             this.desired,
             roster.map((p) => p.id),
+            this.sessionMembers.map((m) => m.id),
           );
           if (
             !parsed ||
             parsed.arenaId !== party.matchArenaId ||
-            (parsed.gameMode ?? "soccar") !== (party.gameMode ?? "soccar")
+            (parsed.gameMode ?? "soccar") !== (party.gameMode ?? "soccar") ||
+            !sameMutators(
+              parsed.mutators ?? DEFAULT_MUTATORS,
+              party.mutators ?? DEFAULT_MUTATORS,
+            )
           )
             return;
           parsed.players = roster;
+          parsed.sessionMembers = this.sessionMembers;
           this.receive(parsed);
           return;
         }
@@ -320,6 +339,12 @@ export class NetworkClient {
         this.reportEnd("disconnect");
       return;
     }
+    for (const id of this.readyPeers)
+      if (!party.members.some((m) => m.id === id)) {
+        this.readyPeers.delete(id);
+        this.sceneReadyPeers.delete(id);
+        this.command({ type: "session-left", id });
+      }
     const guests = party.members.filter((m) => m.id !== host);
     if (now - this.pingAt > 1000) {
       this.pingAt = now;
@@ -382,7 +407,9 @@ export class NetworkClient {
           matchId: this.desired,
           arenaId: party.matchArenaId!,
           gameMode: party.gameMode ?? "soccar",
+          mutators: party.mutators,
           players: partyRoster(party),
+          sessionMembers: structuredClone(party.members),
         });
       } catch {
         this.status = "MATCH COULD NOT START";
@@ -424,6 +451,7 @@ export class NetworkClient {
     this.readyAt = this.endAt = this.arrived = 0;
     this.reportedFinished = false;
     this.latest = null;
+    this.sessionMembers = [];
     this.chatLog.length = 0;
     this.chatError = "";
     this.chatSent = -Infinity;

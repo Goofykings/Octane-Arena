@@ -1,4 +1,5 @@
-﻿import { z } from "zod";
+﻿import { DEFAULT_MUTATORS, type MatchMutators } from "../../shared/mutators";
+import { z } from "zod";
 import { Simulation, initializeSimulation } from "../physics/simulation";
 import { Match } from "../game/match";
 import { Pads } from "../game/pads";
@@ -6,7 +7,11 @@ import { Opponent } from "../ai/opponent";
 import { BotTeam } from "../ai/team";
 import { P } from "../config/physics";
 import { neutralInput, type PlayerInput } from "../../shared/player";
-import type { MatchSnapshot, NetPlayer } from "../../shared/network";
+import type {
+  MatchSnapshot,
+  NetPlayer,
+  MatchParticipant,
+} from "../../shared/network";
 import type { ArenaId } from "../../shared/arenas";
 import { displayIdentity } from "../../shared/local-profile";
 import type { SoccerMode } from "../../shared/soccer";
@@ -45,7 +50,8 @@ export class NetworkMatch {
   ): { message?: ChatMessage; error?: string } {
     if (
       this.disconnected.has(id) ||
-      !this.players.some((p) => p.id === id && p.controller !== "bot")
+      !this.sessionMembers.some((p) => p.id === id) ||
+      this.players.some((p) => p.id === id && p.controller === "bot")
     )
       return { error: "Player is not in this match." };
     return this.chat.accept(id, text, now);
@@ -72,8 +78,22 @@ export class NetworkMatch {
     readonly arenaId: ArenaId = "city",
     readonly id: string = crypto.randomUUID(),
     readonly gameMode: SoccerMode = "soccar",
+    public readonly sessionMembers: MatchParticipant[] = players,
+    mutators: MatchMutators = DEFAULT_MUTATORS,
   ) {
+    // Copy session metadata independently; watcher cleanup cannot mutate the car roster.
+    this.sessionMembers = sessionMembers.map(
+      ({ id, name, team, localPlayerId, avatarId, avatarColor }) => ({
+        id,
+        name,
+        team,
+        localPlayerId,
+        avatarId,
+        avatarColor,
+      }),
+    );
     this.simulation = new Simulation(false, players);
+    this.simulation.configureMutators(mutators);
     this.simulation.cars.forEach((car, i) => {
       car.setBody(players[i].preset.body);
       car.displayName = displayIdentity(players[i]);
@@ -111,6 +131,16 @@ export class NetworkMatch {
         (!!parsed.data.usePowerup && !previous?.value.usePowerup),
     });
     return true;
+  }
+  sessionActive(id: string) {
+    return (
+      this.sessionMembers.some((m) => m.id === id) && !this.disconnected.has(id)
+    );
+  }
+  removeSessionMember(id: string) {
+    // Preserve authenticated display metadata for earlier chat messages.
+    // Delivery and new messages stop immediately, independently of this history.
+    this.disconnect(id);
   }
   disconnect(id: string) {
     const reset = this.match.resetSequence;
@@ -189,6 +219,7 @@ export class NetworkMatch {
       matchId: this.id,
       arenaId: this.arenaId,
       gameMode: this.gameMode,
+      mutators: s.mutators,
       heatseeker: s.heatseeker ? { ...s.heatseeker.state } : null,
       rumble: s.rumble?.snapshot() ?? null,
       stats: m.stats?.snapshot(),
@@ -201,6 +232,7 @@ export class NetworkMatch {
       reset: m.resetSequence,
       kickoffFormationId: m.kickoffFormationId,
       players: this.players,
+      sessionMembers: this.sessionMembers,
       cars: s.cars.map((c, i) => ({
         id: c.id,
         position: { ...c.body.translation() },

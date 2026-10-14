@@ -4,7 +4,7 @@ import {
 } from "../game/authoritative-match";
 import { FixedLoop } from "../physics/loop";
 import { replayMessage } from "../../shared/replay";
-import type { NetPlayer } from "../../shared/network";
+import type { NetPlayer, MatchParticipant } from "../../shared/network";
 import type { ArenaId } from "../../shared/arenas";
 import type { PlayerInput } from "../../shared/player";
 
@@ -13,13 +13,15 @@ export type AuthorityCommand =
   | {
       type: "start";
       players: NetPlayer[];
+      sessionMembers?: MatchParticipant[];
       arenaId: ArenaId;
       matchId: string;
       gameMode?: SoccerMode;
+      mutators?: import("../../shared/mutators").MatchMutators;
     }
   | { type: "ready" }
   | { type: "input"; id: string; sequence: number; input: PlayerInput }
-  | { type: "connected" | "disconnected"; id: string }
+  | { type: "connected" | "disconnected" | "session-left"; id: string }
   | { type: "skip"; id: string; replayId: string }
   | { type: "chat"; id: string; text: unknown }
   | { type: "ping"; id: string; value: number | null }
@@ -42,6 +44,8 @@ scope.onmessage = (event) => {
         message.arenaId,
         message.matchId,
         message.gameMode ?? "soccar",
+        message.sessionMembers,
+        message.mutators,
       );
       const loop = new FixedLoop();
       let previous = performance.now(),
@@ -108,7 +112,8 @@ scope.onmessage = (event) => {
     if (game.match.stats) game.match.stats.debug = message.enabled;
     return;
   }
-  if (message.type === "input")
+  if (message.type === "session-left") game.removeSessionMember(message.id);
+  else if (message.type === "input")
     game.accept(message.id, message.sequence, message.input);
   else if (message.type === "connected") game.connected(message.id);
   else if (message.type === "disconnected") game.disconnect(message.id);

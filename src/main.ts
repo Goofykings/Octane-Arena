@@ -1,3 +1,4 @@
+import { DEFAULT_MUTATORS } from "../shared/mutators";
 import { MatchLoading, type PreparationJob } from "./ui/match-loading";
 import { MenuNavigation } from "./input/menu-navigation";
 import { AirSpeedEffect } from "./effects/air-speed";
@@ -69,6 +70,8 @@ import { ReplayScenePlayback } from "./replay/scene-playback";
 import { ReplayPanel } from "./ui/replay-panel";
 import { MouseLook } from "./camera/mouse-look";
 import { CameraDrag } from "./input/camera-drag";
+import { FeedbackPanel } from "./ui/feedback-panel";
+import { GAME_VERSION } from "./config/version";
 import { VersionPanel } from "./ui/version-panel";
 import { MatchOverlay } from "./ui/match-overlay";
 import { RumbleEffects } from "./effects/rumble";
@@ -452,6 +455,10 @@ async function boot() {
         resetEffects();
         updatePreset();
         match.gameMode = mode === "bot" ? botSetup.gameMode : "soccar";
+        simulation.configureMutators(
+          mode === "bot" ? botSetup.mutators : DEFAULT_MUTATORS,
+        );
+        ball.scale.setScalar(simulation.physics.ball.radius / P.ball.radius);
         match.start(simulation, mode);
         preparedPhase = match.phase;
         match.phase = "home";
@@ -556,6 +563,9 @@ async function boot() {
     match.phase = "home";
     arena.setNeutral(false);
     goalPlanes.setNeutral(false);
+    simulation.configureMutators();
+    match.mutators = DEFAULT_MUTATORS;
+    ball.scale.setScalar(1);
     simulation.reset();
     input.clear();
     audio.update(0, false, false);
@@ -813,6 +823,21 @@ async function boot() {
     cameraDrag.stop();
     input.clear();
   });
+  const feedbackPanel = new FeedbackPanel(
+    ui.root,
+    () => ({
+      username: accounts.profile.value.name,
+      gameVersion: GAME_VERSION,
+      screen: ui.screen,
+      mode: party.state
+        ? "party/" + (party.state.gameMode ?? "soccar") + "/" + party.state.mode
+        : "home",
+    }),
+    () => {
+      cameraDrag.stop();
+      input.clear();
+    },
+  );
   const menuNavigation = new MenuNavigation(
     input.controller,
     () => {
@@ -938,13 +963,14 @@ async function boot() {
       dt,
     );
     mouseLook.update(dt, settings.value.camera);
-    versionPanel.show(
+    const homeControlsVisible =
       match.phase === "home" &&
-        ui.screen === "home" &&
-        !extraSession &&
-        party.state?.stage !== "match" &&
-        (!party.state || party.state.stage === "home"),
-    );
+      ui.screen === "home" &&
+      !extraSession &&
+      party.state?.stage !== "match" &&
+      (!party.state || party.state.stage === "home");
+    versionPanel.show(homeControlsVisible);
+    feedbackPanel.show(homeControlsVisible);
     const controls = input.sample(false);
     input.scoreboardActive =
       party.state?.stage === "match"
@@ -1101,8 +1127,11 @@ async function boot() {
         now / 1000,
         settings.value.camera,
         settings.value.quality,
+        input,
       );
-      const localNetCar = networkView?.simulation.cars[0];
+      const localNetCar = networkView?.simulation.cars.find(
+        (c) => c.id === party.playerId,
+      );
       airSpeed.update(
         dt,
         localNetCar
@@ -1131,7 +1160,7 @@ async function boot() {
           networkView.camera,
         );
       const netMatch = networkView?.match ?? loadingMatch,
-        car = networkView?.simulation.cars[0];
+        car = networkView?.simulation.cars.find((c) => c.id === party.playerId);
       const snapshot = network.latest;
       const localPlayer = snapshot?.players.find(
         (p) => p.id === party.playerId,
@@ -1159,6 +1188,12 @@ async function boot() {
         networkView?.camera.ballMode ?? true,
         car?.supersonic ?? false,
       );
+      if (snapshot && !localPlayer) {
+        document.querySelector(".boost-hud")!.classList.add("spectator-hidden");
+        document
+          .querySelector(".camera-status")!
+          .classList.add("spectator-hidden");
+      }
       if (snapshot?.phase === "replay")
         replayPanel.update(
           network.replayClip,
@@ -1187,6 +1222,7 @@ async function boot() {
           network.chatError,
           networkPaused && !finished,
           finished,
+          snapshot.sessionMembers,
         );
       else matchOverlay.hide();
       networkMenu.hidden = !networkPaused || finished;
@@ -1263,7 +1299,8 @@ async function boot() {
           networkView.ball,
           camera,
           dt,
-          !networkPaused &&
+          !!car &&
+            !networkPaused &&
             ["countdown", "playing"].includes(network.latest?.phase ?? ""),
           keyName(input.bindings.usePowerup) +
             " / " +
@@ -1611,7 +1648,7 @@ async function boot() {
       replayPanel.update(
         match.replay.clip,
         state,
-        players,
+        match.mode === "freeplay" ? players.slice(0, 1) : players,
         simulation.cars[0].id,
         replayView.director.debug,
       );
@@ -1887,6 +1924,7 @@ async function boot() {
         mouseLook,
         cameraDrag,
         versionPanel,
+        feedbackPanel,
         get replayView() {
           return replayView;
         },

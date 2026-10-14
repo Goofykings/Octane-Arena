@@ -1,3 +1,5 @@
+import { MUTATOR_TUNING as M } from "../../shared/mutators";
+import { ReplayNametags } from "../ui/replay-nametags";
 import { heatseekerBall, heatIntensity } from "../effects/heatseeker-ball";
 import { Vector3, Quaternion, type Group, type PerspectiveCamera } from "three";
 import type { Car } from "../car/car";
@@ -66,6 +68,7 @@ function visualCar(source: Car, model: Group) {
   return { car: proxy as unknown as Car, velocity, angular };
 }
 export class ReplayScenePlayback {
+  private readonly nametags = new ReplayNametags();
   readonly director: ReplayDirectorCamera;
   private sampler: ReplaySampler | null = null;
   private proxies: ReturnType<typeof visualCar>[];
@@ -101,6 +104,7 @@ export class ReplayScenePlayback {
     e.explosion.reset();
   }
   stop() {
+    this.nametags.clear();
     if (!this.sampler) return;
     this.resetEffects();
     this.sampler = null;
@@ -122,6 +126,7 @@ export class ReplayScenePlayback {
     const effectDt = Math.max(0, Math.min(0.1, time - this.previousTime));
     this.previousTime = time;
     this.frame = frame;
+    this.ball.scale.setScalar(M.ballSize[clip.mutators?.ballSize ?? "DEFAULT"]);
     this.ball.position.fromArray(frame, 0);
     this.ball.quaternion.fromArray(frame, 3).normalize();
     this.ball.visible = !!frame[13] && time < clip.goal.time;
@@ -224,6 +229,7 @@ export class ReplayScenePlayback {
       speed,
       this.intervals,
     );
+    this.nametags.update(this.sources, this.models, this.director.camera);
     let touch: ReplayClip["events"][number] | undefined;
     for (let i = clip.events.length - 1; i >= 0; i--) {
       const e = clip.events[i];
@@ -247,7 +253,11 @@ export class ReplayScenePlayback {
     if (time >= clip.goal.time && !this.goalShown) {
       this.effects.explosion.trigger(
         this.ball.position,
-        clip.goal.team === 0 ? 0x69e9ff : 0xffb654,
+        clip.goal.neutral
+          ? 0xbfc8d2
+          : clip.goal.team === 0
+            ? 0x69e9ff
+            : 0xffb654,
       );
       this.goalShown = true;
     }

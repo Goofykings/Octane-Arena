@@ -1,3 +1,8 @@
+import {
+  DEFAULT_MUTATORS,
+  MUTATOR_TUNING as M,
+  type MatchMutators,
+} from "../../shared/mutators";
 import { P } from "../config/physics";
 import type { Simulation } from "../physics/simulation";
 import { modes, type Mode } from "./modes";
@@ -25,6 +30,10 @@ export type Phase =
   | "paused"
   | "finished";
 export class Match {
+  mutators: MatchMutators = DEFAULT_MUTATORS;
+  get timed() {
+    return this.rules.clock && this.mutators.matchLength !== "UNLIMITED";
+  }
   stats: MatchStats | null = null;
   gameMode: SoccerMode = "soccar";
   readonly recorder = new ReplayRecorder();
@@ -80,12 +89,14 @@ export class Match {
   start(s: Simulation, mode: Mode = this.mode) {
     this.simulation = s;
     this.mode = mode;
+    if (mode === "freeplay") s.configureMutators();
+    this.mutators = s.mutators;
     s.setGameMode(this.gameMode);
     this.stats = this.rules.training ? null : new MatchStats(s.players);
     this.practiceKickoff = 0;
     // Explicit collision participation also removes already-registered broadphase pairs.
     this.score = [0, 0];
-    this.remaining = 300;
+    this.remaining = M.duration[this.mutators.matchLength] ?? 0;
     this.overtime = false;
     this.kickoff(s);
     if (mode !== "network")
@@ -111,7 +122,10 @@ export class Match {
     this.kickoffFormationId = formation?.id ?? null;
     s.reset(formation);
     if (!this.rules.training)
-      s.cars.forEach((c) => (c.boost = P.match.kickoffBoost));
+      s.cars.forEach((c) => {
+        c.boost = P.match.kickoffBoost;
+        c.applyBoostRule();
+      });
     this.lastGoal = null;
     this.replay = null;
     this.recorder.reset();
@@ -125,7 +139,7 @@ export class Match {
     this.goTime = 0;
     s.rumble?.setPhase(
       this.phase === "playing",
-      this.remaining > 0 || this.overtime,
+      !this.timed || this.remaining > 0 || this.overtime,
     );
   }
   pause() {
@@ -136,13 +150,13 @@ export class Match {
     }
     this.simulation?.rumble?.setPhase(
       this.phase === "playing",
-      this.remaining > 0 || this.overtime,
+      !this.timed || this.remaining > 0 || this.overtime,
     );
   }
   tick(s: Simulation, pads?: Pads) {
     s.rumble?.setPhase(
       this.phase === "playing",
-      this.remaining > 0 || this.overtime,
+      !this.timed || this.remaining > 0 || this.overtime,
     );
     if (this.phase === "replay") {
       this.replay!.clock.advance(P.dt);
@@ -154,7 +168,10 @@ export class Match {
       if (this.countdown === 0) {
         this.countdown = 0;
         this.phase = "playing";
-        s.rumble?.setPhase(true, this.remaining > 0 || this.overtime);
+        s.rumble?.setPhase(
+          true,
+          !this.timed || this.remaining > 0 || this.overtime,
+        );
         this.goTime = KICKOFF_GO_TIME;
       }
       return;
@@ -181,13 +198,15 @@ export class Match {
     }
     if (this.phase !== "playing") return;
     this.stats?.observe(s);
-    if (!this.rules.training)
-      this.recorder.capture(s, this.resetSequence, pads);
+    this.recorder.capture(s, this.resetSequence, pads);
     this.goTime = Math.max(0, this.goTime - P.dt);
-    if (this.rules.clock) this.remaining = Math.max(0, this.remaining - P.dt);
-    s.rumble?.setPhase(true, this.remaining > 0 || this.overtime);
+    if (this.timed) this.remaining = Math.max(0, this.remaining - P.dt);
+    s.rumble?.setPhase(
+      true,
+      !this.timed || this.remaining > 0 || this.overtime,
+    );
     const p = s.ball.translation();
-    const scoring = scoringTeam(p);
+    const scoring = scoringTeam(p, s.physics.ball.radius);
     if (scoring !== null) {
       this.goalFocus = {
         x: p.x,
@@ -195,6 +214,20 @@ export class Match {
         z: Math.sign(p.z) * P.arena.halfLength,
       };
       if (this.rules.goal === "practice") {
+        const scorer = s.cars.find((c) => c.id === s.lastTouchId) ?? s.cars[0];
+        this.recorder.beginGoal({
+          id: `${this.resetSequence}:${++this.goalSequence}`,
+          time: s.clock,
+          scorerId: scorer.id,
+          neutral: true,
+          team: scoring,
+          ownGoal: false,
+          lastTouchId: s.lastTouchId,
+          touchTime: Number.isFinite(s.lastTouchTime) ? s.lastTouchTime : null,
+          ballSpeed: Math.hypot(...Object.values(s.ball.linvel())),
+          focus: { ...this.goalFocus },
+        });
+        this.pendingEligible = new Set([s.cars[0].id]);
         this.phase = "goal";
         s.rumble?.reset();
         s.rumble?.setPhase(false, false);
@@ -246,7 +279,7 @@ export class Match {
       s.explode(p);
       return;
     }
-    if (this.rules.clock && this.remaining === 0 && s.ballGround.grounded) {
+    if (this.timed && this.remaining === 0 && s.ballGround.grounded) {
       if (this.score[0] === this.score[1]) {
         if (!this.overtime) {
           this.overtime = true;
@@ -292,13 +325,14 @@ export class Match {
   }
   private endReplay(s: Simulation) {
     if (
+      this.timed &&
       (this.remaining <= 0 || this.overtime) &&
       this.score[0] !== this.score[1]
     ) {
       this.replay = null;
       this.finish();
     } else {
-      if (this.rules.clock && this.remaining <= 0) this.overtime = true;
+      if (this.timed && this.remaining <= 0) this.overtime = true;
       this.kickoff(s);
     }
   }

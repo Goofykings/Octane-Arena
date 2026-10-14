@@ -497,6 +497,10 @@ export class MenuNavigation {
       this.repeat = 0;
     }
     if (this.mode !== "controller") return;
+    // Text entry ends when native mouse/keyboard focus leaves the field.
+    // Otherwise switching back to a controller can leave selector navigation locked.
+    if (this.editing && !textField(document.activeElement))
+      this.editing = false;
     const elements = this.list(nextScope);
     if (!elements.length) return;
     const entering =

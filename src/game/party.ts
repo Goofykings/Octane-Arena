@@ -15,6 +15,7 @@ import {
   createPeerParty,
   PeerPartyAuthority,
 } from "../../shared/peer-party";
+import { localMutators } from "./mutator-store";
 import { GAME_VERSION } from "../config/version";
 import { PeerTransport, type PeerLink } from "../network/peer-transport";
 export class PartyClient {
@@ -281,7 +282,11 @@ export class PartyClient {
           try {
             await this.transport.register(code);
             this.authority = new PeerPartyAuthority(
-              createPeerParty(code, peerMember(this.hello())),
+              createPeerParty(
+                code,
+                peerMember(this.hello()),
+                localMutators.value,
+              ),
             );
             this.state = this.authority.state;
             this.message = "PARTY READY";

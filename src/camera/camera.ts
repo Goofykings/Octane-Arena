@@ -24,6 +24,7 @@ export const CAMERA_TRANSITION = {
 /** Camera queries work in both closed arenas and open extra-mode worlds. */
 export interface CameraWorld extends CameraCollisionSpace {
   ball?: { isEnabled(): boolean };
+  physics?: { ball: { radius: number } };
   cameraObstacles?: (collider: RAPIER.Collider) => boolean;
 }
 
@@ -493,7 +494,7 @@ export class GameCamera {
         this.desiredRotation,
         this.carSubject,
         this.subject,
-        goalFocus ? 0.2 : P.ball.radius,
+        goalFocus ? 0.2 : (simulation.physics?.ball.radius ?? P.ball.radius),
         c.aspect,
         p.fov,
       );
@@ -524,7 +525,9 @@ export class GameCamera {
             this.desiredRotation,
             this.carSubject,
             this.subject,
-            goalFocus ? 0.2 : P.ball.radius,
+            goalFocus
+              ? 0.2
+              : (simulation.physics?.ball.radius ?? P.ball.radius),
             c.aspect,
             p.fov,
           ),
@@ -543,7 +546,9 @@ export class GameCamera {
             this.desiredRotation,
             this.carSubject,
             this.anticipatedSubject,
-            goalFocus ? 0.2 : P.ball.radius,
+            goalFocus
+              ? 0.2
+              : (simulation.physics?.ball.radius ?? P.ball.radius),
             c.aspect,
             p.fov,
           ),
@@ -655,7 +660,7 @@ export class GameCamera {
       c.quaternion,
       this.carSubject,
       this.subject,
-      goalFocus ? 0.2 : P.ball.radius,
+      goalFocus ? 0.2 : (simulation.physics?.ball.radius ?? P.ball.radius),
       c.aspect,
       c.fov,
     );
@@ -670,7 +675,7 @@ export class GameCamera {
         this.desiredRotation,
         this.carSubject,
         this.subject,
-        goalFocus ? 0.2 : P.ball.radius,
+        goalFocus ? 0.2 : (simulation.physics?.ball.radius ?? P.ball.radius),
         c.aspect,
         c.fov,
         0.9,
@@ -695,7 +700,9 @@ export class GameCamera {
             this.desiredRotation,
             this.carSubject,
             this.subject,
-            goalFocus ? 0.2 : P.ball.radius,
+            goalFocus
+              ? 0.2
+              : (simulation.physics?.ball.radius ?? P.ball.radius),
             c.aspect,
             c.fov,
             0.9,
@@ -711,7 +718,7 @@ export class GameCamera {
           c.quaternion,
           this.carSubject,
           this.subject,
-          goalFocus ? 0.2 : P.ball.radius,
+          goalFocus ? 0.2 : (simulation.physics?.ball.radius ?? P.ball.radius),
           c.aspect,
           c.fov,
           0.9,
@@ -734,7 +741,7 @@ export class GameCamera {
         c.quaternion,
         this.carSubject,
         this.subject,
-        goalFocus ? 0.2 : P.ball.radius,
+        goalFocus ? 0.2 : (simulation.physics?.ball.radius ?? P.ball.radius),
         c.aspect,
         c.fov,
       );
@@ -775,7 +782,7 @@ export class GameCamera {
       c.quaternion,
       this.carSubject,
       this.subject,
-      goalFocus ? 0.2 : P.ball.radius,
+      goalFocus ? 0.2 : (simulation.physics?.ball.radius ?? P.ball.radius),
       c.aspect,
       c.fov,
       0.9,

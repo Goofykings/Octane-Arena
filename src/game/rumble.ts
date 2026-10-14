@@ -248,7 +248,7 @@ export class Rumble {
       this.sim.powerTouch(
         id,
         () => this.ballImpulse(this.impulse),
-        R.haymaker.impulse / P.ball.mass,
+        R.haymaker.impulse / this.sim.physics.ball.mass,
       );
       this.end(id);
       return true;
@@ -370,7 +370,10 @@ export class Rumble {
           .copy(this.sim.ball.translation())
           .addScaledVector(this.arm.copy(this.sim.ball.linvel()), cfg.leadTime)
           .sub(car.body.translation());
-        const gap = Math.max(0, distance - P.ball.radius - cfg.chassisReach);
+        const gap = Math.max(
+          0,
+          distance - this.sim.physics.ball.radius - cfg.chassisReach,
+        );
         const speed = Math.min(
           cfg.maxApproachSpeed,
           Math.min(
@@ -386,7 +389,8 @@ export class Rumble {
           .sub(car.body.linvel())
           .multiplyScalar(cfg.velocityDamping);
         if (car.grounded)
-          this.impulse.y += cfg.groundUpBias * Math.min(1, gap / P.ball.radius);
+          this.impulse.y +=
+            cfg.groundUpBias * Math.min(1, gap / this.sim.physics.ball.radius);
         this.impulse
           .clampLength(0, cfg.maxAcceleration)
           .multiplyScalar(car.body.mass() * P.dt);
@@ -451,7 +455,7 @@ export class Rumble {
         this.direction
           .copy(projected.point)
           .distanceTo(this.sim.ball.translation()) >
-          P.ball.radius + R.spikes.attachTolerance
+          this.sim.physics.ball.radius + R.spikes.attachTolerance
       )
         return;
       this.inverse.copy(car.body.rotation()).invert();

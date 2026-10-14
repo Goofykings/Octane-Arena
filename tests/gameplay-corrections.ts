@@ -338,7 +338,13 @@ check(
     assert.equal(m.message, "");
     assert.equal(m.lastGoal, null);
     assert.deepEqual(m.score, [0, 0]);
-    for (let i = 0; i <= Math.ceil(P.match.celebration / P.dt); i++) m.tick(s);
+    for (let i = 0; i <= Math.ceil(P.match.celebration / P.dt); i++) {
+      s.clock += P.dt;
+      m.tick(s);
+    }
+    assert.equal(m.phase, "replay");
+    assert.ok(m.replay);
+    m.skipReplay(s.cars[0].id, m.replay.clip.goal.id, s);
     assert.equal(m.phase, "playing");
     assert.deepEqual(m.score, [0, 0]);
     assert.equal(s.ball.translation().z, 0);

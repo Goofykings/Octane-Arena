@@ -5,6 +5,19 @@ import {
   type Preset,
   type CosmeticSlot,
 } from "../../shared/catalog";
+import { newLocalPlayerId } from "../../shared/local-profile";
+export const PRESET_NAME_MAX = 32;
+export function presetName(raw: unknown) {
+  if (typeof raw !== "string") throw Error("ENTER A PRESET NAME");
+  const name = raw.trim();
+  if (
+    !name ||
+    name.length > PRESET_NAME_MAX ||
+    /[\u0000-\u001f\u007f]/.test(name)
+  )
+    throw Error("NAME MUST BE 1-32 CHARACTERS");
+  return name;
+}
 export * from "../../shared/catalog";
 export interface Profile {
   name: string;
@@ -26,12 +39,24 @@ export class Garage {
         localStorage.getItem("octane-arena-garage") ?? "{}",
       );
       if (Array.isArray(data.presets) && data.presets.length) {
+        const ids = new Set<string>();
         this.presets = data.presets
           .slice(0, 24)
           .map((raw: Record<string, unknown>, i: number) => {
             const p = starter();
-            p.id = `preset-${i}`;
-            p.name = `Preset ${i + 1}`;
+            p.id =
+              typeof raw.id === "string" &&
+              raw.id.length > 0 &&
+              raw.id.length <= 64 &&
+              !ids.has(raw.id)
+                ? raw.id
+                : newLocalPlayerId();
+            ids.add(p.id);
+            try {
+              p.name = presetName(raw.name);
+            } catch {
+              p.name = `Preset ${i + 1}`;
+            }
             for (const slot of Object.keys(inventory) as CosmeticSlot[]) {
               if (inventory[slot].some((item) => item.id === raw[slot]))
                 (p[slot] as string) = raw[slot] as string;
@@ -60,12 +85,27 @@ export class Garage {
     if (this.presets.length >= 24) return;
     const p = {
       ...this.current,
-      id: crypto.randomUUID(),
+      id: newLocalPlayerId(),
       name: `Preset ${this.presets.length + 1}`,
     };
     this.presets.push(p);
     this.selected = p.id;
     this.save();
+  }
+  rename(id: string, raw: unknown) {
+    const p = this.presets.find((p) => p.id === id);
+    if (!p) throw Error("PRESET NOT FOUND");
+    p.name = presetName(raw);
+    this.save();
+  }
+  delete(id: string) {
+    const index = this.presets.findIndex((p) => p.id === id);
+    if (index < 0 || this.presets.length <= 1) return false;
+    this.presets.splice(index, 1);
+    if (this.selected === id)
+      this.selected = this.presets[Math.min(index, this.presets.length - 1)].id;
+    this.save();
+    return true;
   }
   save() {
     if (this.onSave) {

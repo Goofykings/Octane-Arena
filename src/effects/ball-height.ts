@@ -49,14 +49,15 @@ export class BallHeightIndicator {
   }
   update(
     ball: T.Object3D,
-    simulation: Pick<Simulation, "world" | "arenaCollider">,
+    simulation: Pick<Simulation, "world" | "arenaCollider"> &
+      Partial<Pick<Simulation, "physics">>,
   ) {
     this.group.visible = ball.visible;
     if (!ball.visible) return;
     const p = ball.position;
     const hit = simulation.world.castRayAndGetNormal(
       new RAPIER.Ray(p, { x: 0, y: -1, z: 0 }),
-      P.arena.height + P.ball.radius,
+      P.arena.height + (simulation.physics?.ball.radius ?? P.ball.radius),
       true,
       undefined,
       undefined,
@@ -68,7 +69,10 @@ export class BallHeightIndicator {
           : col.parent() === null,
     );
     const floor = hit ? p.y - hit.timeOfImpact : 0;
-    this.height = Math.max(0, p.y - floor - P.ball.radius);
+    this.height = Math.max(
+      0,
+      p.y - floor - (simulation.physics?.ball.radius ?? P.ball.radius),
+    );
     const ceiling =
       Math.abs(p.z) > P.arena.halfLength && Math.abs(p.x) < P.arena.goalHalf
         ? P.arena.goalHeight
@@ -83,7 +87,12 @@ export class BallHeightIndicator {
     this.outline.scale.setScalar(outerRadius);
     this.inner.scale.setScalar(
       outerRadius *
-        innerHeightRatio(this.height, ceiling - floor - 2 * P.ball.radius),
+        innerHeightRatio(
+          this.height,
+          ceiling -
+            floor -
+            2 * (simulation.physics?.ball.radius ?? P.ball.radius),
+        ),
     );
   }
 }

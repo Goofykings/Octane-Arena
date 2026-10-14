@@ -113,13 +113,14 @@ export class AirSpeedEffect {
         const depth = -new Vector3()
           .copy(ball.position)
           .applyMatrix4(camera.matrixWorldInverse).z;
-        if (depth <= Math.sqrt(3) * P.ball.radius + camera.near) radius = w + h;
+        if (depth <= Math.sqrt(3) * P.ball.radius * ball.scale.x + camera.near)
+          radius = w + h;
         else
           for (const x of [-1, 1])
             for (const y of [-1, 1])
               for (const z of [-1, 1]) {
                 const corner = new Vector3(x, y, z)
-                  .multiplyScalar(P.ball.radius)
+                  .multiplyScalar(P.ball.radius * ball.scale.x)
                   .add(ball.position)
                   .project(camera);
                 radius = Math.max(

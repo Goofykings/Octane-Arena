@@ -1,8 +1,15 @@
 import { Vector3 } from "three";
+import { MUTATOR_TUNING as M, type MatchMutators } from "../../shared/mutators";
 import { P } from "../config/physics";
 import type { Controls } from "../input/types";
 /** Tick-level jump ownership, independent of input devices and mesh animation. */
 export class JumpState {
+  private airJumps: MatchMutators["airJumps"] = "DEFAULT";
+  availableAirJumps = 1;
+  configureAirJumps(value: MatchMutators["airJumps"]) {
+    this.airJumps = value;
+    this.reset();
+  }
   age = 0;
   held = 0;
   used = false;
@@ -26,9 +33,11 @@ export class JumpState {
   acquireReset() {
     this.second = false;
     this.resetAvailable = true;
+    this.availableAirJumps = Math.max(1, this.availableAirJumps);
   }
   /** Only a real surface jump starts the timed window. Falling preserves the aerial action. */
   get available() {
+    if (this.airJumps !== "DEFAULT") return this.availableAirJumps > 0;
     return (
       !this.second &&
       (this.resetAvailable ||
@@ -37,6 +46,7 @@ export class JumpState {
     );
   }
   reset() {
+    this.availableAirJumps = M.airJumps[this.airJumps];
     this.age = 0;
     this.held = 0;
     this.used = false;
@@ -83,6 +93,12 @@ export class JumpState {
       return "first";
     }
     if (!grounded && this.available) {
+      if (
+        this.airJumps !== "DEFAULT" &&
+        Number.isFinite(this.availableAirJumps)
+      )
+        this.availableAirJumps--;
+      else if (this.airJumps === "DEFAULT") this.availableAirJumps = 0;
       this.second = true;
       this.resetAvailable = false;
       if (this.stall) this.flipAge = Infinity;

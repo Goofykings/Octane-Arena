@@ -142,7 +142,7 @@ export class PartyPanel {
         b.dataset.player = m.id;
         b.dataset.team = String(m.team);
         b.style.color = m.avatarColor ?? defaultAvatarColor;
-        b.title = `${displayIdentity(m)} · ${m.team === null ? "Unassigned" : m.team === 0 ? "Blue" : "Orange"}`;
+        b.title = `${displayIdentity(m)} · ${m.team === null ? "Unassigned" : m.team === "spectator" ? "Spectator" : m.team === 0 ? "Blue" : "Orange"}`;
         b.setAttribute(
           "aria-label",
           b.title + (m.id === s.hostId ? " — Party leader" : ""),

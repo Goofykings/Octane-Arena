@@ -116,7 +116,10 @@ export class BotDecision {
         const upward = car.grounded
           ? P.jump.impulse + P.jump.holdAcceleration * P.jump.holdTime
           : Math.max(0, car.body.linvel().y);
-        const lift = Math.max(0.5, P.car.boostAir - P.gravity);
+        const lift = Math.max(
+          0.5,
+          car.physics.car.boostAir - car.physics.gravity,
+        );
         const verticalTime =
           elevation > 1.5
             ? (Math.sqrt(upward * upward + 2 * lift * elevation) - upward) /

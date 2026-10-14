@@ -13,6 +13,9 @@ import type { Vec } from "../../shared/network";
 
 import { RUMBLE_CONFIG as R } from "../config/rumble";
 export class ReplayRecorder {
+  private mutators = null as
+    | import("../../shared/mutators").MatchMutators
+    | null;
   private rumbleHistory: NonNullable<
     import("../../shared/replay").ReplayClip["rumble"]
   > = [];
@@ -52,6 +55,7 @@ export class ReplayRecorder {
     }
   }
   capture(s: Simulation, reset: number, pads?: Pads) {
+    this.mutators = s.mutators;
     if (
       !this.buffer ||
       this.buffer.carIds.some((id, i) => id !== s.cars[i]?.id) ||
@@ -235,6 +239,7 @@ export class ReplayRecorder {
   clip(goal: ReplayGoal) {
     this.markGoal(goal);
     const clip = this.buffer!.clip(goal);
+    if (this.mutators) clip.mutators = this.mutators;
     if (this.heatHistory.length)
       clip.heatseeker = this.heatHistory.map((entry) => ({
         time: entry.time,

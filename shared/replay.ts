@@ -1,3 +1,4 @@
+import { matchMutators } from "./mutators";
 import { Quaternion } from "three";
 import type { Vec } from "./network";
 import type { HeatseekerState } from "./soccer";
@@ -45,6 +46,7 @@ export interface ReplayGoal {
   ownGoal: boolean;
   lastTouchId: string | null;
   touchTime: number | null;
+  neutral?: boolean; // Free Play retains its neutral goal explosion in playback.
   ballSpeed: number; // SI velocity magnitude captured by the scoring authority.
   focus: Vec;
 }
@@ -57,6 +59,7 @@ export interface ReplayEvent {
   index?: number;
 }
 export interface ReplayClip {
+  mutators?: import("./mutators").MatchMutators;
   rumble?: { time: number; state: import("./rumble").RumbleSnapshot }[];
   heatseeker?: { time: number; state: HeatseekerState }[];
   goal: ReplayGoal;
@@ -110,6 +113,7 @@ export function decodeReplay(message: ReplayMessage): ReplayClip {
     throw Error("Invalid replay buffer dimensions");
   return {
     ...c,
+    mutators: c.mutators ? matchMutators(c.mutators) : undefined,
     times: new Float64Array(c.times),
     frames: new Float32Array(c.frames),
   };

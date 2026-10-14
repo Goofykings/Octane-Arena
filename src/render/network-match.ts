@@ -1,3 +1,6 @@
+import { P } from "../config/physics";
+import { SpectatorCamera } from "../camera/spectator";
+import type { Input } from "../input/input";
 import { heatseekerBall, heatIntensity } from "../effects/heatseeker-ball";
 import type { Quality } from "../../shared/settings";
 import { displayIdentity } from "../../shared/local-profile";
@@ -28,6 +31,7 @@ import { ReplayScenePlayback } from "../replay/scene-playback";
 import { RumbleEffects } from "../effects/rumble";
 import type { RumbleItem } from "../../shared/rumble";
 export class NetworkMatchView {
+  spectator: SpectatorCamera | null = null;
   readonly rumbleEffects: RumbleEffects;
   readonly matchId: string;
   simulation: Simulation;
@@ -54,7 +58,7 @@ export class NetworkMatchView {
     private scene: T.Scene,
     camera: T.PerspectiveCamera,
     initial: MatchSnapshot,
-    localId: string,
+    private localId: string,
     onPowerSound?: (item: RumbleItem) => void,
   ) {
     this.matchId = initial.matchId;
@@ -62,6 +66,11 @@ export class NetworkMatchView {
       a.id === localId ? -1 : b.id === localId ? 1 : 0,
     );
     this.simulation = new Simulation(false, players);
+    this.simulation.configureMutators(initial.mutators);
+    this.match.mutators = this.simulation.mutators;
+    this.ball.scale.setScalar(
+      this.simulation.physics.ball.radius / P.ball.radius,
+    );
     this.cars = players.map((p, i) => {
       this.simulation.cars[i].setBody(p.preset.body);
       const model = carModel(
@@ -128,6 +137,7 @@ export class NetworkMatchView {
     time: number,
     settings: CameraSettings,
     quality: Quality = "high",
+    input?: Input,
   ) {
     this.ballTrails.quality = quality;
     const sample = client.sample();
@@ -137,6 +147,7 @@ export class NetworkMatchView {
     this.match.kickoffFormationId = latest.kickoffFormationId;
     if (this.reset !== latest.reset) {
       this.camera.reset();
+      this.spectator?.rig.reset();
       this.explosion.reset();
       this.effects.forEach((e) => e.reset());
       this.ballTrails.reset();
@@ -158,6 +169,7 @@ export class NetworkMatchView {
       const clip = client.replayClip,
         state = latest.replay;
       this.labels.hidden = true;
+      if (this.spectator) this.spectator.ui.hidden = true;
       this.ballHeight.group.visible = false;
       if (clip && state && clip.goal.id === state.id) {
         const replayTime =
@@ -180,6 +192,7 @@ export class NetworkMatchView {
     if (this.replayView.active) {
       this.replayView.stop();
       this.camera.reset();
+      this.spectator?.resume();
     }
     this.replayPads = null;
     this.labels.hidden = false;
@@ -332,16 +345,39 @@ export class NetworkMatchView {
     );
     this.camera.settings = settings;
     this.camera.camera.clearViewOffset();
-    this.camera.update(
-      this.cars[0],
-      this.ball,
-      this.simulation,
-      dt,
-      false,
-      time,
-      latest.phase === "goal" ? latest.goalFocus : null,
-    );
+    if (
+      !latest.players.some((p) => p.id === this.localId) &&
+      input &&
+      this.camera.mouseLook
+    ) {
+      this.spectator ??= new SpectatorCamera(
+        this.camera.camera,
+        this.camera.mouseLook,
+      );
+      this.spectator.update(
+        this.cars,
+        this.ball,
+        this.simulation,
+        input,
+        dt,
+        time,
+        settings,
+        latest.phase !== "finished" && input.gameplayEnabled && !input.blocked,
+      );
+    } else
+      this.camera.update(
+        this.cars[0],
+        this.ball,
+        this.simulation,
+        dt,
+        false,
+        time,
+        latest.phase === "goal" ? latest.goalFocus : null,
+      );
     this.camera.camera.updateMatrixWorld(true);
+    this.updateLabels();
+  }
+  private updateLabels() {
     this.cars.forEach((model, i) => {
       const point = model.position
           .clone()
@@ -349,7 +385,7 @@ export class NetworkMatchView {
           .project(this.camera.camera),
         label = this.labelsById.get(this.simulation.cars[i].id)!;
       label.hidden =
-        i === 0 ||
+        this.simulation.cars[i].id === this.localId ||
         !model.visible ||
         point.z < 0 ||
         point.z > 1 ||
@@ -361,6 +397,7 @@ export class NetworkMatchView {
   }
   dispose() {
     this.replayView.stop();
+    this.spectator?.dispose();
     this.rumbleEffects.dispose();
     this.effects.forEach((e) => e.dispose());
     this.group.removeFromParent();

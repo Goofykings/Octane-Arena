@@ -1,3 +1,4 @@
+import { mutatorsSchema } from "./mutators";
 import { z } from "zod";
 import { rumbleSnapshotSchema } from "./rumble";
 import type { MatchSnapshot } from "./network";
@@ -89,9 +90,10 @@ const snapshot = z
     type: z.literal("snapshot"),
     matchId: z.string().uuid(),
     arenaId: z.enum(arenaIds),
+    mutators: mutatorsSchema.optional(),
     gameMode: z.enum(["soccar", "heatseeker", "rumble"]).optional(),
     rumble: rumbleSnapshotSchema.nullable().optional(),
-    stats: z.array(playerStatsSchema).max(4).optional(),
+    stats: z.array(playerStatsSchema).max(6).optional(),
     statEvents: z.array(statEventSchema).max(24).optional(),
     chat: z.array(chatMessageSchema).max(8).optional(),
     heatseeker: z
@@ -111,8 +113,8 @@ const snapshot = z
     time: finite,
     reset: z.number().int().nonnegative(),
     kickoffFormationId: z.string().max(80).nullable(),
-    players: z.array(z.unknown()).min(1).max(4),
-    cars: z.array(car).min(1).max(4),
+    players: z.array(z.unknown()).min(1).max(6),
+    cars: z.array(car).min(1).max(6),
     ball: z.object({
       position: vec,
       rotation,
@@ -135,8 +137,8 @@ const snapshot = z
         id: z.string().max(80),
         time: finite,
         speed: finite,
-        eligible: z.array(z.string()).max(4),
-        votes: z.array(z.string()).max(4),
+        eligible: z.array(z.string()).max(6),
+        votes: z.array(z.string()).max(6),
       })
       .nullable()
       .optional(),
@@ -154,6 +156,7 @@ export function peerSnapshot(
   value: unknown,
   matchId: string,
   playerIds: string[],
+  sessionIds: string[] = playerIds,
 ) {
   const result = snapshot.safeParse(value);
   if (
@@ -164,7 +167,7 @@ export function peerSnapshot(
     result.data.cars.some((c) => !playerIds.includes(c.id)) ||
     result.data.stats?.some((p) => !playerIds.includes(p.playerId)) ||
     result.data.statEvents?.some((p) => !playerIds.includes(p.playerId)) ||
-    result.data.chat?.some((p) => !playerIds.includes(p.playerId)) ||
+    result.data.chat?.some((p) => !sessionIds.includes(p.playerId)) ||
     (result.data.rumble &&
       (result.data.gameMode !== "rumble" ||
         result.data.rumble.players.length !== playerIds.length ||
