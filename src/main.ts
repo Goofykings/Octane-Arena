@@ -74,6 +74,8 @@ import { FeedbackPanel } from "./ui/feedback-panel";
 import { GAME_VERSION } from "./config/version";
 import { VersionPanel } from "./ui/version-panel";
 import { MatchOverlay } from "./ui/match-overlay";
+import { MusicManager } from "./audio/music";
+import { NowPlaying } from "./ui/start-screen";
 import { RumbleEffects } from "./effects/rumble";
 import { RumbleHud } from "./ui/rumble-hud";
 import { RUMBLE_CONFIG as R } from "./config/rumble";
@@ -92,8 +94,32 @@ async function boot() {
     botNametags = new BotNametags(document.getElementById("bot-tag")!),
     match = new Match(),
     pads = new Pads(),
-    audio = new GameAudio();
+    audio = new GameAudio(),
+    music = new MusicManager(),
+    nowPlaying = new NowPlaying();
+  music.onTrack = (track) => nowPlaying.show(track);
+  music.setVolume(settings.value.audio.music);
   ui.setProfile(garage.profile);
+  let audioUnlocked = false;
+  const unlockAudio = () => {
+    if (audioUnlocked) return;
+    audioUnlocked = true;
+    audio.unlock();
+    music.unlock();
+    input.clear();
+  };
+  window.addEventListener("keydown", unlockAudio, { capture: true });
+  window.addEventListener("pointerdown", unlockAudio, { capture: true });
+  const padPoll = window.setInterval(() => {
+    for (const p of navigator.getGamepads?.() ?? []) {
+      if (p?.connected && p.buttons.some((b) => b.pressed)) {
+        unlockAudio();
+        break;
+      }
+    }
+    if (audioUnlocked) window.clearInterval(padPoll);
+  }, 120);
+  void music.playContext("menu");
   const renderer = new T.WebGLRenderer({
     antialias: false,
     powerPreference: "high-performance",
@@ -281,6 +307,7 @@ async function boot() {
     input.controller.settings = settings.value.controller;
     audio.settings = settings.value.audio;
     audio.apply();
+    music.setVolume(settings.value.audio.music);
     cameraControl.settings = settings.value.camera;
     effects.density = qualities[settings.value.quality].particles;
     graphics.apply(settings.value.quality);
@@ -372,6 +399,8 @@ async function boot() {
     extraSession = null;
     cameraControl.reset();
     input.clear();
+    music.resumeLoop();
+    if (match.phase === "home") void music.playContext("menu");
   };
   const matchLoader = new MatchLoading(ui.root);
   let partyArenaReady = "";
@@ -542,6 +571,8 @@ async function boot() {
       jobs,
       () => {
         match.phase = preparedPhase;
+        // In-game soundtrack: Slushii - LUV U NEED U (loops until the match ends).
+        void music.playContext("game");
         simulation.rumble?.setPhase(match.phase === "playing", true);
         loop.accumulator = 0;
         previous = performance.now();
@@ -561,6 +592,9 @@ async function boot() {
     ui.modes(false);
     resetEffects();
     match.phase = "home";
+    music.resumeLoop();
+    // Back to the menu soundtrack: Slushii - All I Need.
+    void music.playContext("menu");
     arena.setNeutral(false);
     goalPlanes.setNeutral(false);
     simulation.configureMutators();
@@ -620,6 +654,8 @@ async function boot() {
     input.clear();
     audio.unlock();
     match.phase = "home";
+    // Extra modes share the in-game soundtrack.
+    void music.playContext("game");
     extraSession = create({
       camera,
       preset: garage.current,
@@ -1559,6 +1595,8 @@ async function boot() {
             audio.tone(100, 1.3, 0.2, "sawtooth"),
             audio.tone(660, 0.9, 0.1, "triangle"),
           ].filter((stop): stop is () => void => !!stop);
+          // Goal song: best bit of "We Speak Chinese" (drop at GOAL_STINGER_OFFSET).
+          void music.goalStinger();
           const origin = new T.Vector3().copy(simulation.ball.translation()),
             color = match.rules.training
               ? 0xa8a8a8
@@ -1568,6 +1606,9 @@ async function boot() {
           explosion.trigger(origin, color);
           effects.burst(origin, color);
           vehicleEffects.forEach((e) => e.reset());
+        }
+        if (phase === "goal" && match.phase === "replay") {
+          void music.goalStinger();
         }
         if (phase !== "countdown" && match.phase === "countdown") {
           resetEffects();
@@ -1935,6 +1976,7 @@ async function boot() {
         camera,
         graphics,
         audio,
+        music,
         ui,
         visuals,
         hitboxes,
