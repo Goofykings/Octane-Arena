@@ -45,7 +45,13 @@ for (const body of ["ion", "vector"] as const)
             single = 0;
           let last = up.clone();
           for (let i = 0; i < 210; i++) {
-            s.step([{ ...n, throttle: 1, boost: speed === 16 }, n]);
+            // Hold the low-speed route near its target instead of depending on
+            // a particular acceleration tune. Boosted routes still use full input.
+            const throttle =
+              speed === 16
+                ? 1
+                : Math.max(0, Math.min(1, (speed - c.forwardSpeed) * 0.6));
+            s.step([{ ...n, throttle, boost: speed === 16 }, n]);
             const p = c.body.translation();
             entered ||= side
               ? p.z * sign > a.halfLength + a.goalLip + 0.5

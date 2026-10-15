@@ -324,10 +324,10 @@
   {
     "name": "complete 5-minute live simulation",
     "value": {
-      "seconds": 1140.0416666666667,
+      "seconds": 1126.575,
       "score": [
         0,
-        54
+        53
       ],
       "phase": "finished",
       "escaped": false
