@@ -67,8 +67,8 @@ for (const [label, speed, offset, roof] of [
           assert.ok(ballSpeed < 1, "Light aerial touch does not ping away");
         if (label === "hard nose")
           assert.ok(
-            ballSpeed > 8 && ballSpeed < 16,
-            "Solid hit is strong but not boosted into boomer speed",
+            ballSpeed > speed * 1.3 && ballSpeed < speed * 1.9,
+            "Solid aerial hit uses the driving strike curve with bounded coupled recoil",
           );
         if (label === "corner" || label === "roof" || side)
           assert.ok(

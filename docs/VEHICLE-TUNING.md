@@ -1,6 +1,6 @@
 # Focused vehicle tuning
 
-This describes the initial vehicle pass. See [CONTINUATION-POLISH.md](CONTINUATION-POLISH.md) for the later grip and recovery-speed adjustments.
+This describes the initial vehicle pass. See [CONTACT-CONTROL.md](CONTACT-CONTROL.md) for the latest partial-support, recovery and aerial-strike correction. See [CONTINUATION-POLISH.md](CONTINUATION-POLISH.md) for the later grip and recovery-speed adjustments.
 
 This change preserves rigid car/wheel geometry, arena collisions, current flip/stall/cancel timing, and unrelated game/UI/network systems.
 

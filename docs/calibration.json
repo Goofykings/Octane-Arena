@@ -1,12 +1,12 @@
 [
   {
     "name": "throttle top speed",
-    "value": 14.099996566772461,
+    "value": 14.449996948242188,
     "pass": true
   },
   {
     "name": "boost top speed",
-    "value": 22.999984741210938,
+    "value": 23.199983596801758,
     "pass": true
   },
   {
@@ -22,16 +22,16 @@
   {
     "name": "turning radius at 5 m/s",
     "value": {
-      "radius": 2.4633162479828536,
-      "target": 2.465754244992313
+      "radius": 2.4648346455057593,
+      "target": 2.4671927212272062
     },
     "pass": true
   },
   {
     "name": "turning radius at 10 m/s",
     "value": {
-      "radius": 3.962446871458568,
-      "target": 3.951840425293389
+      "radius": 3.9643058203292014,
+      "target": 3.9537073079717127
     },
     "pass": true
   },
@@ -84,22 +84,22 @@
   },
   {
     "name": "front strike 2 m/s",
-    "value": 1.6121957302093506,
+    "value": 1.5642541646957397,
     "pass": true
   },
   {
     "name": "glancing strike 2 m/s",
-    "value": 1.1047377603099733,
+    "value": 1.1694905095545582,
     "pass": true
   },
   {
     "name": "front strike 10 m/s",
-    "value": 14.54197637626554,
+    "value": 14.54384144949079,
     "pass": true
   },
   {
     "name": "glancing strike 10 m/s",
-    "value": 11.253751979557613,
+    "value": 11.25423168822446,
     "pass": true
   },
   {
@@ -115,8 +115,8 @@
   {
     "name": "floor to vertical wall driving",
     "value": {
-      "maxY": 20.077312469482422,
-      "wallContacts": 172
+      "maxY": 20.084983825683594,
+      "wallContacts": 164
     },
     "pass": true
   },
@@ -126,19 +126,19 @@
       [
         0,
         0.5432745218276978,
-        -12.116436004638672,
+        -12.510496139526367,
         240
       ],
       [
         0,
         0.5432745218276978,
-        -12.116436004638672,
+        -12.510496139526367,
         240
       ],
       [
         0,
         0.5432745218276978,
-        -12.116436004638672,
+        -12.510496139526367,
         240
       ]
     ],
@@ -146,7 +146,7 @@
   },
   {
     "name": "reverse throttle cap",
-    "value": 14.099996566772461,
+    "value": 14.449996948242188,
     "pass": true
   },
   {
@@ -220,8 +220,8 @@
     "name": "air boost follows nose",
     "value": {
       "x": 0,
-      "y": 1.1874984502792358,
-      "z": 3.7788419149364927e-7
+      "y": 1.2668735980987549,
+      "z": 3.8854895478834806e-7
     },
     "pass": true
   },
@@ -274,12 +274,12 @@
   },
   {
     "name": "goal blast launches cars",
-    "value": 8.942558817673559,
+    "value": 9.141034707764884,
     "pass": true
   },
   {
     "name": "cars move during celebration",
-    "value": 8.517281355357897,
+    "value": 8.69014778819914,
     "pass": true
   },
   {
@@ -309,7 +309,7 @@
     "name": "powerslide preserves lateral slip",
     "value": [
       0.11310084164142609,
-      3.8865931034088135
+      3.886561870574951
     ],
     "pass": true
   },
@@ -324,10 +324,10 @@
   {
     "name": "complete 5-minute live simulation",
     "value": {
-      "seconds": 349.60833333333335,
+      "seconds": 1140.0416666666667,
       "score": [
         0,
-        3
+        54
       ],
       "phase": "finished",
       "escaped": false
@@ -338,8 +338,8 @@
     "name": "head-on opponent collision",
     "value": {
       "collision": true,
-      "opponentZ": -4.668824672698975,
-      "playerZ": -2.8907923698425293
+      "opponentZ": -4.752902030944824,
+      "playerZ": -2.806851625442505
     },
     "pass": true
   },
@@ -347,8 +347,8 @@
     "name": "glancing opponent collision",
     "value": {
       "collision": true,
-      "opponentZ": -4.334468841552734,
-      "playerZ": -3.1538705825805664
+      "opponentZ": -4.413257122039795,
+      "playerZ": -3.1016504764556885
     },
     "pass": true
   }

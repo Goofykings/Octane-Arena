@@ -40,6 +40,18 @@ const { staticGame } = require("./static-game.cjs");
     await page.waitForFunction(
       () => __arena.match.phase === "playing" && !__arena.matchLoader.active,
     );
+    await page.evaluate(() => {
+      const s = __arena.simulation,
+        step = s.step.bind(s);
+      window.recoveryStarts = 0;
+      let wasRecovering = false;
+      s.step = (...args) => {
+        step(...args);
+        const active = s.cars[0].recovering;
+        if (active && !wasRecovering) recoveryStarts++;
+        wasRecovering = active;
+      };
+    });
     await page.keyboard.down("w");
     await page.evaluate(() => {
       const c = __arena.simulation.cars[0];
@@ -49,14 +61,19 @@ const { staticGame } = require("./static-game.cjs");
     await page.waitForTimeout(1700);
     assert.ok(
       await page.evaluate(
-        () =>
-          __arena.simulation.cars[0].up.y < -0.95 &&
-          !__arena.simulation.cars[0].recovering,
+        () => recoveryStarts === 0 && !__arena.simulation.cars[0].recovering,
       ),
       "Held keyboard throttle cannot request roof recovery on landing",
     );
     await page.keyboard.up("w");
-    await page.waitForTimeout(100);
+    await page.evaluate(() => {
+      // Held W now retains genuine aerial pitch on roof/edge contact; reset
+      // after release rather than requiring the old rotation lock.
+      const c = __arena.simulation.cars[0];
+      c.reset(0, 15, 0, 0.7);
+      c.body.setRotation({ x: 0, y: 0, z: 1, w: 0 }, true);
+    });
+    await page.waitForTimeout(700);
     await page.keyboard.down("w");
     await page.waitForFunction(() => __arena.simulation.cars[0].recovering);
     await page.waitForFunction(
@@ -74,9 +91,30 @@ const { staticGame } = require("./static-game.cjs");
       "One held press stays recovered without retriggering",
     );
     await page.keyboard.up("w");
+    await page.evaluate(() => {
+      const c = __arena.simulation.cars[0];
+      c.reset(0, 15, 0, 0.44);
+      c.body.setRotation(
+        { x: 0, y: 0, z: Math.SQRT1_2, w: Math.SQRT1_2 },
+        true,
+      );
+      window.partialRollInputs = 0;
+      const s = __arena.simulation,
+        step = s.step.bind(s);
+      s.step = (...args) => {
+        step(...args);
+        const input = args[0],
+          local = Array.isArray(input) ? input[0] : input.get(c.id);
+        if (local?.roll && !c.stableContact && c.aerialControl > 0)
+          partialRollInputs++;
+      };
+    });
+    await page.keyboard.down("e");
+    await page.waitForFunction(() => partialRollInputs >= 3);
+    await page.keyboard.up("e");
     assert.deepEqual(errors, []);
     console.log(
-      "PASS production version number/clickable notes, removed Multiplayer text, real Free Play keyboard landing/release/repress and stable upright recovery",
+      "PASS production version number/clickable notes, removed Multiplayer text, real Free Play keyboard held-input gate/release/repress, stable upright recovery and wheel-edge air-roll",
     );
   } finally {
     await browser?.close();

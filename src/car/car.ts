@@ -52,8 +52,12 @@ export class Car {
   teleportSequence = 0;
   grapplePulling = false;
   grounded = false;
+  jumpSupported = false;
   contacts = 0;
   stableContact = false;
+  supportContacts = 0;
+  private partialDrivingAge = 0;
+  wheelSupport = 0; // Tire force fraction; narrow/tilted contact cannot carry full grip.
   supportKind: "wheel" | "partial" | "edge" | "chassis" | "air" = "air";
   chassisContacts = 0;
   edgeContacts = 0;
@@ -151,6 +155,8 @@ export class Car {
   clearSurfaceHistory() {
     this.contacts = 0;
     this.grounded = this.stableContact = this.normalReady = false;
+    this.jumpSupported = false;
+    this.wheelSupport = this.supportContacts = this.partialDrivingAge = 0;
     this.contactGap = 1;
     this.contactState = "air";
     this.supportKind = "air";
@@ -173,7 +179,9 @@ export class Car {
     this.aerialControl = 1;
     this.contacts = 0;
     this.grounded = false;
+    this.jumpSupported = false;
     this.stableContact = false;
+    this.wheelSupport = this.supportContacts = this.partialDrivingAge = 0;
     this.supportKind = "air";
     this.chassisContacts = this.edgeContacts = 0;
     this.edgeDriveForce.set(0, 0, 0);
@@ -265,7 +273,7 @@ export class Car {
     this.pitchInput = input.pitch;
     this.flipPitchAcceleration = this.flipCancelAcceleration = 0;
     const contactNormal = new Vector3();
-    this.contacts = 0;
+    this.contacts = this.supportContacts = 0;
     for (let i = 0; i < 4; i++) {
       const o = wheelMount(this.bodyId, i, this.wheelOrigins[i])
         .applyQuaternion(this.q)
@@ -309,11 +317,14 @@ export class Car {
           !(this.jump.used && this.jump.age < 0.18)
         ) {
           this.contacts++;
+          if (hit.timeOfImpact < c.supportReach) this.supportContacts++;
           this.wheelContact[i] = true;
           this.wheelNormals[i].copy(hit.normal);
         }
       }
     }
+    this.partialDrivingAge =
+      this.supportContacts >= 3 ? 0 : this.partialDrivingAge + dt;
     if (this.contacts >= 1) {
       contactNormal.normalize();
       // Fit the wheel footprint, rather than selecting a single triangle's normal.
@@ -334,11 +345,13 @@ export class Car {
             plane.add(n);
           }
       if (
+        !flatFloor &&
         active.length === 4 &&
         plane.lengthSq() > 1e-8 &&
         plane.normalize().dot(contactNormal) > 0.7
       )
         contactNormal.lerp(plane, 0.65).normalize();
+      if (!flatFloor && this.contacts >= 3) this.partialDrivingAge = 0;
       const previousNormal = this.normal.clone();
       if (
         flatFloor ||
@@ -359,10 +372,22 @@ export class Car {
       // Touching is not yet stable support. Keep the established ramp controller
       // through short wheel unloading, but let a tilted touchdown settle through
       // the physical wheel-point constraints before enabling orientation feedback.
+      const coherent = this.wheelNormals.every(
+        (n, i) => !this.wheelContact[i] || n.dot(contactNormal) > 0.7,
+      );
+      const curvedContinuation =
+        this.stableContact &&
+        this.contacts >= 1 &&
+        active.length >= 3 &&
+        this.partialDrivingAge <= c.curveContactGrace &&
+        this.surfaceTurn.length() > 0.2 &&
+        Math.abs(this.forwardSpeed) > c.wallDriveSpeed * 0.5;
       this.stableContact =
+        coherent &&
         this.normalReady &&
         this.up.dot(this.normal) > (this.stableContact ? 0.94 : 0.98) &&
-        (this.contacts >= 3 || (this.stableContact && active.length >= 3)) &&
+        ((this.contacts >= 3 && (this.supportContacts >= 3 || !flatFloor)) ||
+          curvedContinuation) &&
         !(this.normal.y < c.overheadPartialNormal && this.contacts < 3);
     } else if (!this.contacts) {
       this.stableContact = false;
@@ -371,7 +396,16 @@ export class Car {
       this.normal.copy(this.up);
     }
     const treadContact = this.contacts > 0 && this.up.dot(this.normal) > 0.55;
-    this.grounded = this.contacts >= 2 && treadContact;
+    // Grounding owns jump reset and driving control, not mere proximity rays.
+    this.grounded = this.stableContact;
+    // A real aligned tread pair can support a surface jump/landing reset even
+    // while driving support is incomplete. It must not own aerial controls,
+    // adhesion or alignment, nor grant jump support to nose/shoulder/ceiling edges.
+    this.jumpSupported =
+      this.stableContact ||
+      (this.supportContacts >= 2 &&
+        this.up.dot(this.normal) > c.partialSurfaceAlignment &&
+        this.normal.y >= c.overheadPartialNormal);
     // Only a fresh deliberate press can request recovery. Held aerial throttle
     // never becomes a new press merely because the roof touches a surface.
     const recoveryInput =
@@ -426,9 +460,9 @@ export class Car {
             (!leavingByJump && this.contactGap < c.contactRelease)
           ? "transition"
           : "air";
-    // Chassis support is independent of wheel grounding. Roof contacts must not
-    // run the aerial pitch/damping controller while the solver is turning the
-    // rigid body around a ramp. Average all near-touching roof manifolds.
+    // Chassis support is independent of driving support. Preserve manifold
+    // rotation around roof ramps without passive aerial damping, while still
+    // accepting deliberate rotation input. Average near-touching roof manifolds.
     const roofNormal = new Vector3();
     let roofContacts = 0;
     this.chassisContacts = 0;
@@ -478,29 +512,43 @@ export class Car {
             : "air";
     this.roofSteer =
       roofContacts && !this.recovering ? Math.abs(input.steer) : 0;
-    // Contact suppresses commanded air torque, never physical angular momentum.
+    // Only genuine driving support owns the orientation controller. A nose,
+    // shoulder or roof edge must leave player aerial torque available. Preserve
+    // the short lost-ray debounce solely after settled driving contact.
+    const partialContact =
+      this.contacts > 0 || this.chassisContacts > 0 || edges.length > 0;
     this.aerialControl =
-      this.contactState !== "air" ||
-      this.recovering ||
-      this.chassisContacts > 0 ||
-      edges.length > 0
+      this.recovering || this.stableContact
         ? 0
-        : leavingByJump
+        : partialContact || leavingByJump
           ? 1
-          : Math.min(1, this.aerialControl + dt / c.airControlBlend);
+          : this.contactState === "transition" && this.aerialControl === 0
+            ? 0
+            : Math.min(1, this.aerialControl + dt / c.airControlBlend);
     this.applyBoostRule(dt);
     this.boosting = input.boost && this.boost > 0;
     const throttle = this.boosting ? 1 : input.throttle;
     if (treadContact) {
-      const partialSurface =
-        this.contacts < 3 &&
-        (this.normal.y < c.overheadPartialNormal ||
-          (!this.stableContact &&
-            this.up.dot(this.normal) < c.partialSurfaceAlignment &&
-            Math.abs(this.forwardSpeed) < c.wallDriveSpeed));
+      const alignment = Math.max(
+        0,
+        Math.min(
+          1,
+          (this.up.dot(this.normal) - 0.55) /
+            (c.partialSurfaceAlignment - 0.55),
+        ),
+      );
+      // Partial support can scrub/drive at a loaded tire, but cannot act as a
+      // full friction patch. Scale continuously with count/alignment, and shed
+      // overhead grip so gravity can release a narrow two-wheel support.
+      this.wheelSupport = this.stableContact
+        ? 1
+        : Math.min(0.5, this.contacts / 4) *
+          alignment *
+          alignment *
+          (c.overheadPartialSupport +
+            (1 - c.overheadPartialSupport) * Math.max(0, this.normal.y) ** 2);
       const support =
-        (this.contacts >= 2 ? 1 : 0.25) *
-        (partialSurface && this.normal.y <= 0 ? c.overheadPartialSupport : 1) *
+        this.wheelSupport *
         (this.grapplePulling ? RUMBLE_CONFIG.grapple.tireLoad : 1);
       this.surfaceForward
         .copy(this.forward)
@@ -588,7 +636,7 @@ export class Car {
       );
       // Contact-normal feedback aligns physical angular motion on every surface, including ramps.
       const curveResponse = Math.min(1, this.surfaceTurn.length() / 2);
-      const alignment =
+      const alignmentTorque =
         c.align *
         (1 + (c.curveAlignmentScale - 1) * curveResponse) *
         Number(this.stableContact);
@@ -602,7 +650,10 @@ export class Car {
           this.surfaceTurn.clone().normalize(),
           Math.min(0.25, this.surfaceTurn.length() / c.normalResponse),
         );
-      this.angular.copy(this.up).cross(supportNormal).multiplyScalar(alignment);
+      this.angular
+        .copy(this.up)
+        .cross(supportNormal)
+        .multiplyScalar(alignmentTorque);
       this.tmp
         .copy(this.w)
         .addScaledVector(this.normal, -this.w.dot(this.normal));
@@ -621,6 +672,7 @@ export class Car {
       this.angular.addScaledVector(
         this.normal,
         (target - this.w.dot(this.normal)) *
+          this.wheelSupport *
           (c.steeringResponse +
             (slide.yawResponse - c.steeringResponse) * this.handbrake) *
           (this.impactTime > 0 ? 0.3 : 1),
@@ -629,6 +681,7 @@ export class Car {
       // traction. Preserve it when a wheel unloads instead of freezing the frame.
       this.angular.addScaledVector(this.surfaceTurn, damping);
     } else {
+      this.wheelSupport = 0;
       this.acceleration.addScaledVector(
         this.forward,
         throttle * (throttle >= 0 ? c.airThrottle : c.airReverse),
@@ -734,7 +787,7 @@ export class Car {
     this.flipResetAge += dt;
     const action = this.jump.step(
       this.recovering ? { ...input, jump: false } : input,
-      this.grounded,
+      this.jumpSupported,
       dt,
     );
     if (this.recovering) this.jump.wasDown = input.jump;
@@ -774,7 +827,7 @@ export class Car {
         this.jump.direction.x * P.jump.dodgeImpulse * (1 + 0.9 * ratio),
       );
     }
-    if (roofContacts && !this.recovering && input.steer) {
+    if (roofContacts && !this.recovering && input.steer && !input.yaw) {
       // Weaker sliding steering, only about the actual support normal. No
       // alignment torque, adhesion, or pitch/roll damping is applied here.
       const target = input.steer * c.roofYawSpeed;
@@ -816,8 +869,31 @@ export class Car {
               : input.roll) *
               c.airRoll *
               this.aerialControl,
-          )
-          .addScaledVector(this.w, -c.airDamping * this.aerialControl);
+          );
+        // Passive air damping must not pin a body rotating about a loaded edge.
+        // Damp commanded axes only during contact; roof ramp torque remains physical.
+        if (!partialContact)
+          this.angular.addScaledVector(
+            this.w,
+            -c.airDamping * this.aerialControl,
+          );
+        else {
+          for (const [axis, amount] of [
+            [this.right, input.pitch * pitchScale],
+            [this.up, this.jump.stallChordHeld ? 0 : input.yaw],
+            [
+              this.forward,
+              this.jump.stallChordHeld
+                ? input.roll - (input.directionalRoll ?? 0)
+                : input.roll,
+            ],
+          ] as const)
+            if (amount)
+              this.angular.addScaledVector(
+                axis,
+                -this.w.dot(axis) * c.airDamping * this.aerialControl,
+              );
+        }
       }
     }
     if (
@@ -979,6 +1055,18 @@ export class Car {
       velocity = new Vector3().copy(b.linvel()),
       correction = new Vector3();
     const initialVelocity = velocity.clone();
+    let floorCount = 0,
+      floorLow = Infinity,
+      floorHigh = -Infinity;
+    for (let i = 0; i < 4; i++) {
+      if (!this.wheelContact[i] || this.wheelNormals[i].y < 0.9999) continue;
+      floorCount++;
+      floorLow = Math.min(floorLow, this.wheelHits[i].y);
+      floorHigh = Math.max(floorHigh, this.wheelHits[i].y);
+    }
+    const flatFloorFootprint =
+      floorCount >= 3 &&
+      floorHigh - floorLow < this.physics.car.contactSkin * 2;
     const constrainPoint = (
       point: Vector3,
       normal: Vector3,
@@ -1114,6 +1202,7 @@ export class Car {
         );
       }
     }
+    let alignedFloorContacts = 0;
     for (let i = 0; i < 4; i++) {
       if (this.jump.used && this.jump.age < 0.18) break;
       const origin = wheelMount(this.bodyId, i)
@@ -1150,6 +1239,12 @@ export class Car {
           ? Math.min(ordinaryGap, -(rigidHeight - wheelMountY) * alignment)
           : ordinaryGap;
       if (afterStep) {
+        if (
+          normal.y > 0.9999 &&
+          alignment > 0.9999 &&
+          gap < this.physics.car.contactSkin
+        )
+          alignedFloorContacts++;
         // Split positional correction: clearance error is not converted to bounce velocity.
         const depth = -gap - correction.dot(normal);
         if (depth > 0)
@@ -1162,7 +1257,7 @@ export class Car {
         // descent here cancels gravity before the point constraint can produce
         // its physical settling torque on the following step.
         if (
-          (this.stableContact || alignment > 0.9999) &&
+          (this.stableContact || (flatFloorFootprint && alignment > 0.9999)) &&
           gap < this.physics.car.contactSkin &&
           velocity.dot(normal) < 0
         )
@@ -1171,7 +1266,11 @@ export class Car {
         // Permit approach until the clearance plane; account for the next gravity step.
         const minimum =
           -Math.max(0, gap) / P.dt + this.physics.gravity * normal.y * P.dt;
-        if (normal.y > 0.9999 && up.y > 0.9999) {
+        if (
+          (this.stableContact || flatFloorFootprint) &&
+          normal.y > 0.9999 &&
+          up.y > 0.9999
+        ) {
           if (velocity.dot(normal) < minimum)
             velocity.addScaledVector(normal, minimum - velocity.dot(normal));
           continue;
@@ -1204,6 +1303,10 @@ export class Car {
         }
       }
     }
+    // Full, geometrically verified floor support also works when this helper
+    // is called directly before tick(). Never use this clamp for a wheel pair.
+    if (afterStep && alignedFloorContacts >= 3 && velocity.y < 0)
+      velocity.y = 0;
     if (afterStep) {
       // Static chassis manifolds cover roof/side impacts too. Correct residual
       // penetration with a bounded split impulse: position only, and remove

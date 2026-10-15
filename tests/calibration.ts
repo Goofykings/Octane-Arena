@@ -41,7 +41,7 @@ for (const boost of [false, true]) {
   record(
     boost ? "boost top speed" : "throttle top speed",
     speed(s),
-    Math.abs(speed(s) - (boost ? 23 : 14.1)) < 0.3,
+    Math.abs(speed(s) - (boost ? P.car.maxSpeed : P.car.throttleMaxSpeed)) < 0.3,
   );
   s.dispose();
 }
@@ -199,7 +199,7 @@ record(
 {
   const s = setup();
   run(s, 3, { throttle: -1 });
-  record("reverse throttle cap", speed(s), Math.abs(speed(s) - 14.1) < 0.1);
+  record("reverse throttle cap", speed(s), Math.abs(speed(s) - P.car.throttleMaxSpeed) < 0.1);
   s.dispose();
 }
 for (const dir of [

@@ -25,15 +25,15 @@ review measured results when deliberately changing their targets.
 | Drift response | `powerslide.yawResponse`, `rise`, `fall` | Turn response and how quickly handbrake engages/releases. |
 | Drift grip | `powerslide.lateralAtForward`, `lateralAtSideways`, `slipGripFalloff` | Lateral grip as the car slides sideways. |
 | Normal turning | `car.steeringResponse`; `curvature()` below `P` | Response speed versus desired turning radius at each driving speed. Higher curvature means tighter turning. |
-| Engine acceleration | `throttleAcceleration()` below `P` | Speed/acceleration pairs for the engine curve. |
-| Maximum driving speed | `car.maxSpeed` = 23 | Linear speed cap. Consider supersonic thresholds if changing it. |
+| Engine acceleration | `throttleAcceleration()` below `P` | Speed/acceleration pairs for the engine curve; `car.throttleMaxSpeed` = 14.45 sets the unboosted limit. |
+| Maximum driving speed | `car.maxSpeed` = 23.2 | Linear speed cap. Consider supersonic thresholds if changing it. |
 | Braking/coasting | `car.brake`, `car.coast` | Higher sheds speed faster. |
 | Boost strength/use | `car.boostGround`, `boostAir`, `boostUse` | Acceleration on surfaces/in air and boost consumed per second. |
 | Rigid contact | `car.contactReach`, `rayLength`, `contactSkin`, `maxContactCorrection` | Detection reach, collision clearance and bounded correction. There are no suspension springs. |
 | Wall driving | `car.adhesion`, `wallDriveSpeed`, `wallIdleGrip`, `ceilingAdhesionEnd`, `align`, `alignDamping` | Stable wheel support only; moving-wall grip and progressively reduced overhead adhesion. |
-| Recovery | `car.recoveryMaxSpeed` = 4.8, `recoveryAcceleration` = 44, `recoveryBraking` = 16; `edgeDriveGrip`, `noseInputGrip` | Roof assist requires a fresh press after touchdown, slows near upright and cannot repeat while held. Edge/nose forces act at real contact points. |
+| Recovery | `car.recoveryMaxSpeed` = 5.6, `recoveryAcceleration` = 58, `recoveryBraking` = 24; `edgeDriveGrip`, `noseInputGrip` | Roof assist requires a fresh press after touchdown, slows near upright and cannot repeat while held. Edge/nose forces act at real contact points. |
 | Ball feel | `ball.mass`, `restitution`, `drag`, `maxSpeed` | Impact response, bounciness, slowing and ball speed cap. |
-| Ball hits | `hit.dodgeHitGain` = 0.65, `dodgeHitMaxImpulse` = 750, `dodgeHitWindow` = 0.3; `angularRestitutionGain` | Leading airborne dodge impulses scale with actual contact closing speed, require rotational approach, and include equal car recoil. Normal drive hits stay unchanged. |
+| Ball hits | `hit.dodgeHitGain` = 0.2, `dodgeHitMaxImpulse` = 250, `dodgeHitWindow` = 0.3; `angularRestitutionGain` | Aerial hits reuse the driving strike curve through pair effective mass. A small leading-dodge bonus requires rotational approach and includes equal car recoil. Normal drive hits stay unchanged. |
 | Gravity | `gravity` = 6.5 | Affects ball, jumps, aerials and wall forces together. |
 | Supersonic | `supersonic.start`, `maintain`, `grace` | Entry speed, maintenance speed and hysteresis duration. |
 | Demolitions | `demolition.respawn`, `boost`, `minClosing`, `frontDot` | Respawn delay/boost and collision eligibility. |

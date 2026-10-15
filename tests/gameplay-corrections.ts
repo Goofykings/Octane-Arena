@@ -236,34 +236,34 @@ for (const kind of ["floor", "wall", "ceiling"] as const)
     s.dispose();
     return data;
   });
-check(
-  "single-wheel landing suppresses input pitch but preserves physical rotation",
-  () => {
-    const samples = [];
-    for (const pitch of [0, 1]) {
-      const s = setup(),
-        c = s.cars[0];
-      c.reset(0, 0, 0, 0.55);
-      c.body.setRotation(
-        new Quaternion().setFromEuler(new Euler(0.25, 0, 0.25)),
-        true,
-      );
-      c.body.setAngvel({ x: 1, y: 0.3, z: 0.1 }, true);
-      tick(s, { throttle: 1, pitch });
-      samples.push({
-        contacts: c.contacts,
-        air: c.aerialControl,
-        omega: new Vector3().copy(c.body.angvel()),
-      });
-      s.dispose();
-    }
-    assert.equal(samples[0].contacts, 1);
-    assert.equal(samples[1].air, 0);
-    assert.ok(samples[0].omega.distanceTo(samples[1].omega) < 1e-7);
-    assert.ok(samples[1].omega.length() > 0.1);
-    return samples;
-  },
-);
+check("single-wheel landing retains aerial pitch and physical rotation", () => {
+  const samples = [];
+  for (const pitch of [0, 1]) {
+    const s = setup(),
+      c = s.cars[0];
+    c.reset(0, 0, 0, 0.55);
+    c.body.setRotation(
+      new Quaternion().setFromEuler(new Euler(0.25, 0, 0.25)),
+      true,
+    );
+    c.body.setAngvel({ x: 1, y: 0.3, z: 0.1 }, true);
+    tick(s, { throttle: 1, pitch });
+    samples.push({
+      contacts: c.contacts,
+      air: c.aerialControl,
+      omega: new Vector3().copy(c.body.angvel()),
+    });
+    s.dispose();
+  }
+  assert.equal(samples[0].contacts, 1);
+  assert.equal(samples[1].air, 1);
+  assert.ok(
+    samples[0].omega.distanceTo(samples[1].omega) > 0.02,
+    "Partial touchdown must not lock commanded pitch",
+  );
+  assert.ok(samples[1].omega.length() > 0.1);
+  return samples;
+});
 check(
   "contact debounce tolerates a lost tick, while jump restores air input promptly",
   () => {

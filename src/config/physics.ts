@@ -17,12 +17,13 @@ export const P = {
     halfLength: 59 * UU,
     hitboxY: 0.04,
     comY: -0.04,
-    maxSpeed: 2300 * UU,
+    maxSpeed: 2320 * UU, // Small +0.9% top-speed increase.
+    throttleMaxSpeed: 1445 * UU,
     sonic: 2200 * UU,
     brake: 3500 * UU,
     coast: 525 * UU,
-    boostGround: 991.666 * UU,
-    boostAir: 1058.333 * UU,
+    boostGround: 1021.416 * UU, // +3% boost acceleration.
+    boostAir: 1090.083 * UU,
     boostUse: 33.3,
     airThrottle: 66.667 * UU,
     airReverse: 33.334 * UU,
@@ -35,6 +36,8 @@ export const P = {
     roofYawResponse: 12,
     contactHeight: 0.31,
     contactReach: 0.5,
+    supportReach: 0.38, // Near enough to carry driving load, not just detect a surface.
+    curveContactGrace: 0.1, // Established fast ramp support through brief wheel unloading.
     contactSkin: 0.008,
     maxContactCorrection: 0.04,
     rayLength: 0.65,
@@ -61,11 +64,11 @@ export const P = {
     airControlBlend: 0.04,
     recoveryCooldown: 0.8,
     recoveryInputThreshold: 0.25,
-    recoveryDuration: 1.35,
-    recoveryMaxSpeed: 4.8,
-    recoveryAcceleration: 44,
-    recoveryResponse: 15,
-    recoveryBraking: 16,
+    recoveryDuration: 1.05,
+    recoveryMaxSpeed: 5.6,
+    recoveryAcceleration: 58,
+    recoveryResponse: 20,
+    recoveryBraking: 24,
     recoveryStopAngle: 0.1,
     recoveryStopSpeed: 0.15,
     recoveryHop: 1.1,
@@ -130,8 +133,8 @@ export const P = {
   hit: {
     angularRestitutionGain: 0.5,
     maxAirRestitution: 0.8,
-    dodgeHitGain: 0.65, // Modest leading-dodge strike scale, with equal car recoil.
-    dodgeHitMaxImpulse: 750,
+    dodgeHitGain: 0.2, // Modest leading-dodge strike scale, with equal car recoil.
+    dodgeHitMaxImpulse: 250,
     dodgeHitWindow: 0.3,
     dodgeLeadingDot: 0.5,
     dodgeMinRotationalClosing: 0.25,
@@ -183,10 +186,10 @@ export function lookup(
 }
 export const throttleAcceleration = (speed: number) =>
   lookup(Math.abs(speed), [
-    [0, 16],
-    [14, 1.6],
-    [14.1, 0],
-    [23, 0],
+    [0, 16.6], // +3.75% initial engine acceleration.
+    [P.car.throttleMaxSpeed - 0.1, 1.66],
+    [P.car.throttleMaxSpeed, 0],
+    [P.car.maxSpeed, 0],
   ]);
 // Community curvature in 1/uu converted to 1/metre.
 export const curvature = (speed: number) =>

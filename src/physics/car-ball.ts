@@ -89,7 +89,7 @@ export class CarBallContact {
     );
     this.relative.copy(this.pointVelocity).sub(ballPointVelocity);
     this.closing = Math.max(0, this.relative.dot(normal));
-    this.aerial = !car.grounded && car.supportKind === "air";
+    this.aerial = !car.stableContact;
     const d = bodies[car.bodyId],
       up = new Vector3(0, 1, 0).applyQuaternion(car.body.rotation());
     const localNormal = normal
@@ -147,9 +147,27 @@ export class CarBallContact {
           P.hit.angularRestitutionGain *
             Math.min(1, this.rotationalClosing / Math.max(this.closing, 0.001)),
       );
-      const target = restitution * this.closing;
+      // Reuse the calibrated driving strike curve for actual normal approach.
+      // Airborne cars previously received restitution only, losing this entire
+      // contribution. Apply it through the pair effective mass with equal recoil;
+      // angular point speed participates before any flip-specific bonus.
+      const speed = Math.min(P.hit.maxRelative, this.relative.length());
+      const gain = lookup(speed, [
+        [0, 0.65],
+        [5, 0.65],
+        [23, 0.55],
+        [46, 0.3],
+      ]);
+      const approach = Math.min(1, this.closing / Math.max(speed, 0.001));
+      const onset = Math.max(
+        0,
+        Math.min(1, (this.closing - P.hit.minClosing) / P.hit.impactRamp),
+      );
+      const strikeImpulse = speed * gain * approach * onset * P.ball.mass;
+      const target = restitution * this.closing + inverseMass * strikeImpulse;
       const bound =
-        ((1 + restitution) * this.closing) / Math.max(inverseMass, 1e-8);
+        ((1 + restitution) * this.closing) / Math.max(inverseMass, 1e-8) +
+        strikeImpulse;
       const correction = Math.max(
         -bound,
         Math.min(bound, (postClosing + target) / Math.max(inverseMass, 1e-8)),
@@ -161,9 +179,9 @@ export class CarBallContact {
         .clone()
         .applyQuaternion(this.rotation)
         .normalize();
-      // Airborne dodges previously lost the existing driving hit curve entirely.
-      // Restore a bounded, kinematics-scaled leading strike with coupled recoil,
-      // only while rotational motion is actually closing into the ball.
+      // Only a small additional leading-dodge strike remains necessary now that
+      // ordinary aerials use the driving curve. Require real rotational approach
+      // and apply coupled recoil; no blanket flipping velocity multiplier.
       if (
         car.jump.flipLeft > 0 &&
         !car.jump.stall &&

@@ -56,7 +56,7 @@ for (const id of ["ion", "vector"] as const)
     assert.ok(angle < Math.PI * 1.35, "No full-turn overshoot");
     assert.ok(
       peak < P.car.recoveryMaxSpeed + 0.6,
-      "Recovery rate remains bounded and below the old 6 rad/s cap",
+      "Recovery rate remains bounded below the ordinary 6 rad/s cap",
     );
     s.dispose();
   }
@@ -267,8 +267,8 @@ assert.ok(
   "Timed flips beat drive hits",
 );
 assert.ok(
-  front.speed > oldFront.speed * 1.4,
-  "Airborne flip hit gap corrected",
+  front.speed > oldFront.speed * 1.08,
+  "Leading flip adds power beyond the now-strong ordinary aerial hit",
 );
 assert.ok(front.rotation > 0.25 && front.bonus > 0);
 assert.equal(late.bonus, 0);

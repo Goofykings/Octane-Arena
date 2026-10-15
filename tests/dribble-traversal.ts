@@ -61,14 +61,14 @@ for (const level of dribbleLevels) {
         gap > 0 &&
         distance <= 1.8 &&
         distance >= 0 &&
-        c.grounded &&
+        c.jumpSupported &&
         !jumped.has(gap);
       if (jump) jumped.add(gap);
       const jumpWall =
         wallIndex >= 0 &&
         wallDistance <= 2.4 &&
         wallDistance >= 0 &&
-        c.grounded;
+        c.jumpSupported;
       if (jumpWall) jumped.add(-wallIndex - 1);
       if (jump || jumpWall) jumpHold = 24;
       // Wait for the lower arms to leave a visible chassis-height opening.
@@ -83,11 +83,15 @@ for (const level of dribbleLevels) {
         spinner &&
         spinner.piece.kind === "spinner" &&
         spinnerDistance > 0 &&
-        spinnerDistance < 4.5
+        spinnerDistance < 1.8
       ) {
         const phase =
           (p.obstacleTime * spinner.piece.angularSpeed) % (Math.PI / 2);
-        waitSpinner = phase < 0.45 || phase > 0.7;
+        // Use the complete symmetric chassis-height opening, and stop near
+        // the gate so a modest, unboosted launch can actually clear it. The old
+        // distant stop/narrow time window drove into the arm and relied on
+        // artificially stable wheel-edge support to survive the collision.
+        waitSpinner = phase < 0.48 || phase > Math.PI / 2 - 0.48;
       }
       const targetSpeed = gap > 0 && distance < 12 ? 7 : 4.5;
       p.step({
