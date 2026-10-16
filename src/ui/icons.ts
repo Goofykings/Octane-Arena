@@ -13,7 +13,6 @@ const paths: Record<string, string> = {
   wheels: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18 M12 8v8m-4-4h8m-7-3 6 6m0-6-6 6",
   boost: "M13 2L5 13h6l-1 9 9-13h-6z",
   topper: "M3 17h18 M6 17l2-9h8l2 9 M8 12h8",
-  decal: "M4 4h16v12l-4 4H4z M16 20v-4h4 M8 8h8m-8 4h5",
   explosion: "M12 2l2 6 7-3-4 6 5 3-7 1-1 7-4-6-7 3 4-7-5-3 7-1z",
   bot: "M5 8h14v12H5z M12 8V4m-2 0h4 M8 12h2m4 0h2 M8 16h8",
   freeplay: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18 M9 9l6 0 2 5-5 3-5-3z",

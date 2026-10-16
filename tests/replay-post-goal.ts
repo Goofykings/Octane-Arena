@@ -91,7 +91,8 @@ for (const mode of ["soccar", "heatseeker"] as const) {
         "Both cars keep moving after goal",
       );
       assert.equal(clip.frames[at + RC.boosting], 1);
-      assert.ok(clip.frames[at + RC.boost] < 100);
+      if (mode === "heatseeker") assert.equal(clip.frames[at + RC.boost], 100);
+      else assert.ok(clip.frames[at + RC.boost] < 100);
       assert.ok(
         new Vector3().fromArray(clip.frames, at + RC.angular).length() > 0.1,
         "Rotation continues",

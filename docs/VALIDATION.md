@@ -35,7 +35,7 @@ tests it in temporary headless Chrome using an existing Playwright installation.
 - Home buttons align; Garage and Settings have identical dimensions/shape, and
   Play is larger. The locally bundled font loads from the repository subpath.
 - Garage opens, duplicates a preset and exposes all seven separate categories.
-  Body, both team paints, wheels, boost, decal and selected preset survive reload.
+  Body, both team paints, wheels, boost, topper, goal explosion and selected preset survive reload.
   The car preview rotates with pointer dragging.
 - Settings and custom keybindings persist. Duplicate bindings are highlighted.
   Rebinding throttle removes the original throttle key and enables the new one.

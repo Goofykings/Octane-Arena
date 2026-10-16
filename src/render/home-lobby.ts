@@ -63,7 +63,7 @@ export class HomeLobby {
           new T.Color(m.preset.blue).getHex(),
           m.preset.body,
           m.preset.wheels,
-          m.preset.decal,
+          m.preset.topper,
         );
         d.model.position.copy(position);
         this.group.add(d.model);
@@ -74,7 +74,7 @@ export class HomeLobby {
             new T.Color(m.preset.blue).getHex(),
             m.preset.body,
             m.preset.wheels,
-            m.preset.decal,
+            m.preset.topper,
           ),
           label = document.createElement("span");
         label.className = "lobby-name";

@@ -97,8 +97,8 @@ const path = require("node:path");
     await page.locator("#new-preset").click();
     await page.locator("#customize-car").click();
     assert(
-      (await page.locator("[data-category]").count()) === 7,
-      "Garage has all seven separate categories",
+      (await page.locator("[data-category]").count()) === 6,
+      "Garage has all six separate categories",
     );
     await page.locator('[data-item="vector"]').click();
     await page.locator('[data-category="paint"]').click();
@@ -109,8 +109,6 @@ const path = require("node:path");
     await page.locator('[data-item="disc"]').click();
     await page.locator('[data-category="boost"]').click();
     await page.locator('[data-item="ember"]').click();
-    await page.locator('[data-category="decal"]').click();
-    await page.locator('[data-item="circuit"]').click();
     await page.locator('[data-category="paint"]').click();
     await page.mouse.move(1100, 440);
     await page.mouse.down();
@@ -127,7 +125,7 @@ const path = require("node:path");
         preset.orange === "#e36a30" &&
         preset.wheels === "disc" &&
         preset.boost === "ember" &&
-        preset.decal === "circuit",
+        preset.topper === "none",
       "Body, both paints, cosmetics and preset selection survive reload",
     );
     await page.locator("#garage-open").click();

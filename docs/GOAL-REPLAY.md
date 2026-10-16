@@ -35,7 +35,7 @@ interpolation cannot cross a reset, demolition/respawn or large teleport.
 interpolation and quaternion slerp. Discrete flags come from recorded ticks.
 `ReplayScenePlayback` applies this output only to the existing match models and
 render-only car proxies. It has no live rigid-body setters or gameplay event
-handlers. The same car body, paint, wheels, decal, boost color, player identity,
+handlers. The same car body, paint, wheels, topper, selected goal explosion, boost color, player identity,
 team colors and arena remain loaded; no generic replay cars are created.
 
 The authoritative physics world, boost, pads, match clock, scoring and stats do

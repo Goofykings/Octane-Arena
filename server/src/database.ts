@@ -23,13 +23,22 @@ export class Store {
       CREATE TABLE IF NOT EXISTS accounts(id TEXT PRIMARY KEY,username TEXT NOT NULL,username_key TEXT NOT NULL UNIQUE,password_hash TEXT NOT NULL,created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS profiles(account_id TEXT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,xp INTEGER NOT NULL DEFAULT 0 CHECK(xp>=0),level INTEGER NOT NULL DEFAULT 1 CHECK(level>=1),avatar_id TEXT NOT NULL DEFAULT 'helmet',title_id TEXT NOT NULL DEFAULT 'rookie',selected_preset TEXT NOT NULL,revision INTEGER NOT NULL DEFAULT 0);
       CREATE TABLE IF NOT EXISTS owned_items(account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,kind TEXT NOT NULL,item_id TEXT NOT NULL,unlocked_at TEXT NOT NULL,PRIMARY KEY(account_id,kind,item_id));
-      CREATE TABLE IF NOT EXISTS presets(account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,id TEXT NOT NULL,position INTEGER NOT NULL,name TEXT NOT NULL,body TEXT NOT NULL,blue TEXT NOT NULL,orange TEXT NOT NULL,wheels TEXT NOT NULL,boost TEXT NOT NULL,topper TEXT NOT NULL,decal TEXT NOT NULL,explosion TEXT NOT NULL,PRIMARY KEY(account_id,id));
+      CREATE TABLE IF NOT EXISTS presets(account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,id TEXT NOT NULL,position INTEGER NOT NULL,name TEXT NOT NULL,body TEXT NOT NULL,blue TEXT NOT NULL,orange TEXT NOT NULL,wheels TEXT NOT NULL,boost TEXT NOT NULL,topper TEXT NOT NULL,explosion TEXT NOT NULL,PRIMARY KEY(account_id,id));
       CREATE TABLE IF NOT EXISTS settings(account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,key TEXT NOT NULL,value_json TEXT NOT NULL,PRIMARY KEY(account_id,key));
       CREATE TABLE IF NOT EXISTS ratings(account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,mode TEXT NOT NULL,rating INTEGER,games INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(account_id,mode));
       CREATE TABLE IF NOT EXISTS sessions(token_hash TEXT PRIMARY KEY,account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,expires_at INTEGER NOT NULL,created_at INTEGER NOT NULL);
       CREATE INDEX IF NOT EXISTS sessions_account ON sessions(account_id);
       CREATE INDEX IF NOT EXISTS sessions_expiry ON sessions(expires_at);
     `);
+    // Remove obsolete cosmetic storage once; preserve every other preset field.
+    if (
+      this.db
+        .prepare("PRAGMA table_info(presets)")
+        .all()
+        .some((c) => c.name === "decal")
+    )
+      this.db.exec("ALTER TABLE presets DROP COLUMN decal");
+    this.db.exec("DELETE FROM owned_items WHERE kind='decal'");
     if (
       this.db.prepare("SELECT version FROM schema_version").get()!.version !== 1
     )
@@ -75,7 +84,7 @@ export class Store {
   private writePresets(id: string, presets: Preset[]) {
     this.db.prepare("DELETE FROM presets WHERE account_id=?").run(id);
     const insert = this.db.prepare(
-      "INSERT INTO presets VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+      "INSERT INTO presets(account_id,id,position,name,body,blue,orange,wheels,boost,topper,explosion) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
     );
     presets.forEach((p, i) =>
       insert.run(
@@ -89,7 +98,6 @@ export class Store {
         p.wheels,
         p.boost,
         p.topper,
-        p.decal,
         p.explosion,
       ),
     );
@@ -142,7 +150,7 @@ export class Store {
       settings,
       presets: this.db
         .prepare(
-          "SELECT id,name,body,blue,orange,wheels,boost,topper,decal,explosion FROM presets WHERE account_id=? ORDER BY position",
+          "SELECT id,name,body,blue,orange,wheels,boost,topper,explosion FROM presets WHERE account_id=? ORDER BY position",
         )
         .all(id) as unknown as Preset[],
       ratings: this.db

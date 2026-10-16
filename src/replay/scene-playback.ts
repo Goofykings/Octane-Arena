@@ -258,6 +258,8 @@ export class ReplayScenePlayback {
           : clip.goal.team === 0
             ? 0x69e9ff
             : 0xffb654,
+        clip.goal.explosion ?? "pulse",
+        !!clip.goal.neutral,
       );
       this.goalShown = true;
     }

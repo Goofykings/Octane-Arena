@@ -42,6 +42,7 @@ export interface ReplayGoal {
   id: string;
   time: number;
   scorerId: string;
+  explosion?: string; // Scorer cosmetic captured at the authoritative goal.
   team: number;
   ownGoal: boolean;
   lastTouchId: string | null;

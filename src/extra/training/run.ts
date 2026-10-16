@@ -21,6 +21,7 @@ export function trainingGameplayInput(input: PlayerInput) {
   );
 }
 export class TrainingRun {
+  explosion = "pulse";
   readonly recorder = new ReplayRecorder();
   replay: { clip: ReplayClip; clock: ReplayClock } | null = null;
   ready = true;
@@ -190,6 +191,7 @@ export class TrainingRun {
           id: `training:${this.pack.id}:${this.index}:${this.resetSequence}:${this.outcomeSequence}`,
           time: s.clock,
           scorerId: car.id,
+          explosion: this.explosion,
           team: 0,
           ownGoal: false,
           lastTouchId: s.lastTouchId,

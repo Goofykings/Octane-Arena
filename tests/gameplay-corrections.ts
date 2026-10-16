@@ -93,16 +93,8 @@ for (const held of [false, true])
         true,
       );
       if (!held) tick(s, {}, 100);
-      if (held) {
-        tick(s, { throttle: 1, pitch: 1 }, 180);
-        assert.equal(
-          c.recovering,
-          false,
-          "Pre-held throttle must not trigger at touchdown",
-        );
-        assert.ok(c.up.y < -0.8, "Held input leaves roof recovery deliberate");
-        tick(s, {}, 2);
-      }
+      // Establish a held request in the air; keep holding through touchdown.
+      if (held) tick(s, { throttle: 1 });
       let triggers = 0,
         was = false,
         recovered = false;

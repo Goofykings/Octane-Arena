@@ -79,6 +79,10 @@ export class Simulation {
   setGameMode(mode: SoccerMode) {
     this.rumble?.dispose();
     this.gameMode = mode;
+    this.cars.forEach((c) => {
+      c.infiniteBoost = mode === "heatseeker";
+      c.applyBoostRule();
+    });
     this.rumble = mode === "rumble" ? new Rumble(this) : null;
     this.heatseeker =
       mode === "heatseeker" ? new Heatseeker(0, this.physics) : null;

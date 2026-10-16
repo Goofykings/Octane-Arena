@@ -1,3 +1,4 @@
+import { goalExplosionId } from "../../shared/catalog";
 import {
   DEFAULT_MUTATORS,
   MUTATOR_TUNING as M,
@@ -30,6 +31,8 @@ export type Phase =
   | "paused"
   | "finished";
 export class Match {
+  /** Cosmetics are resolved by stable scorer ID, outside the physics simulation. */
+  explosionFor: (playerId: string) => string = () => "pulse";
   mutators: MatchMutators = DEFAULT_MUTATORS;
   get timed() {
     return this.rules.clock && this.mutators.matchLength !== "UNLIMITED";
@@ -79,7 +82,12 @@ export class Match {
   goTime = 0;
   message = "";
   overtime = false;
-  lastGoal: { scorerId: string; team: number; ownGoal: boolean } | null = null;
+  lastGoal: {
+    scorerId: string;
+    team: number;
+    ownGoal: boolean;
+    explosion?: string;
+  } | null = null;
   goalFocus: { x: number; y: number; z: number } | null = null;
   private resumePhase: Phase = "playing";
   private simulation: Simulation | null = null;
@@ -219,6 +227,7 @@ export class Match {
           id: `${this.resetSequence}:${++this.goalSequence}`,
           time: s.clock,
           scorerId: scorer.id,
+          explosion: goalExplosionId(this.explosionFor(scorer.id)),
           neutral: true,
           team: scoring,
           ownGoal: false,
@@ -243,6 +252,7 @@ export class Match {
         touch?.team === team ? touch : s.cars.find((c) => c.team === team)!;
       this.lastGoal = {
         scorerId: scorer.id,
+        explosion: goalExplosionId(this.explosionFor(scorer.id)),
         team,
         ownGoal: !!touch && touch.team !== team,
       };
@@ -250,6 +260,7 @@ export class Match {
         id: `${this.resetSequence}:${++this.goalSequence}`,
         time: s.clock,
         scorerId: scorer.id,
+        explosion: goalExplosionId(this.explosionFor(scorer.id)),
         team,
         ownGoal: this.lastGoal.ownGoal,
         lastTouchId: s.lastTouchId,

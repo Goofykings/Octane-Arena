@@ -38,8 +38,8 @@
   {
     "name": "turning radius at 20 m/s",
     "value": {
-      "radius": 9.576636042724994,
-      "target": 9.59835083449224
+      "radius": 9.6792370756293,
+      "target": 9.691505040254548
     },
     "pass": true
   },
@@ -324,10 +324,10 @@
   {
     "name": "complete 5-minute live simulation",
     "value": {
-      "seconds": 1126.575,
+      "seconds": 1140.0583333333334,
       "score": [
         0,
-        53
+        54
       ],
       "phase": "finished",
       "escaped": false

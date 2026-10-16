@@ -1,13 +1,12 @@
 import * as T from "three";
 import type { Car } from "../car/car";
-import { P } from "../config/physics";
-import { polishMaterial } from "../render/material-polish";
+import { BoostPlume } from "./boost-styles";
 import { FlipResetBurst } from "./flip-reset";
 
-/** Continuous exhaust geometry plus world-space ribbons from the rear wheels. */
+/** Pooled exhaust effects plus world-space ribbons from the rear wheels. */
 export class VehicleEffects {
   readonly flipReset: FlipResetBurst;
-  private flames = new T.Group();
+  private flames: BoostPlume;
   private glow: T.PointLight;
   private trails: {
     points: T.Vector3[];
@@ -21,38 +20,13 @@ export class VehicleEffects {
     private model: T.Group,
     scene: T.Scene,
     color: number,
+    style = "standard",
   ) {
     this.flipReset = new FlipResetBurst(scene);
-    for (const x of [-0.22, 0.22]) {
-      const outer = new T.Mesh(
-        new T.ConeGeometry(0.14, 1.5, 10),
-        new T.MeshBasicMaterial({
-          color,
-          transparent: true,
-          opacity: 0.65,
-          depthWrite: false,
-          blending: T.AdditiveBlending,
-        }),
-      );
-      outer.rotation.x = Math.PI / 2;
-      polishMaterial(outer.material, "boost");
-      outer.position.set(x, 0, 1.4);
-      this.flames.add(outer);
-      const inner = new T.Mesh(
-        new T.ConeGeometry(0.065, 1, 8),
-        new T.MeshBasicMaterial({
-          color: 0xeaffff,
-          transparent: true,
-          opacity: 0.95,
-          depthWrite: false,
-          blending: T.AdditiveBlending,
-        }),
-      );
-      inner.rotation.x = Math.PI / 2;
-      polishMaterial(inner.material, "core");
-      inner.position.set(x, 0, 1.15);
-      this.flames.add(inner);
-    }
+    this.flames = new BoostPlume(
+      style,
+      style === "standard" ? color : undefined,
+    );
     this.glow = new T.PointLight(color, 0, 4, 2);
     this.glow.position.set(0, 0, 1);
     // A stable scene light budget avoids recompiling every lit material when boost toggles.
@@ -78,6 +52,7 @@ export class VehicleEffects {
       scene.add(mesh);
       this.trails.push({ points: [], positions, mesh });
     }
+    if (style !== "standard") this.setColor(this.flames.color);
   }
   reset() {
     this.flipReset.reset();
@@ -87,38 +62,41 @@ export class VehicleEffects {
       t.points.length = 0;
       t.mesh.visible = false;
     }
-    this.flames.visible = false;
+    this.flames.resetParticles();
     this.glow.intensity = 0;
   }
   setColor(color: number) {
     this.glow.color.setHex(color);
     for (const t of this.trails) t.mesh.material.color.setHex(color);
-    this.flames.children.forEach((child, i) => {
-      if (child instanceof T.Mesh && i % 2 === 0)
-        child.material.color.setHex(color);
-    });
+    this.flames.setColor(color);
   }
+  setStyle(id: string) {
+    this.flames.setStyle(id);
+    this.setColor(this.flames.color);
+  }
+  private animateBoost(time: number, emitting: boolean) {
+    const shell = this.model.userData.exhaust
+      ? this.model
+      : this.model.children.find((c) => c.userData.exhaust);
+    const outlet = shell?.userData.exhaust as T.Vector3 | undefined;
+    this.flames.position.copy(outlet ?? this.defaultOutlet);
+    this.flames.animate(time, emitting);
+    this.placeGlow();
+  }
+  private defaultOutlet = new T.Vector3(0, -0.025, 0.7);
   private placeGlow() {
-    this.glow.position.set(0, 0, this.flames.position.z + this.flames.scale.z);
+    this.glow.position.copy(this.flames.position);
+    this.glow.position.z += 0.3;
     this.model.localToWorld(this.glow.position);
   }
   previewBoost(time: number, enabled: boolean) {
-    this.flames.visible = enabled;
-    this.flames.scale.z =
-      1 + 0.17 * Math.sin(time * 67) + 0.1 * Math.sin(time * 113);
-    this.flames.position.z = 0.65 * (1 - this.flames.scale.z);
-    this.placeGlow();
-    this.glow.intensity = enabled ? 2.4 : 0;
+    this.animateBoost(time, enabled);
+    this.glow.intensity = enabled ? this.flames.lightIntensity : 0;
   }
   dispose() {
     this.glow.removeFromParent();
     this.flames.removeFromParent();
-    this.flames.traverse((o) => {
-      if (o instanceof T.Mesh) {
-        o.geometry.dispose();
-        o.material.dispose();
-      }
-    });
+    this.flames.dispose();
     this.flipReset.dispose();
     for (const t of this.trails) {
       t.mesh.removeFromParent();
@@ -130,12 +108,9 @@ export class VehicleEffects {
     if (!active && this.wasActive) this.reset();
     this.wasActive = active;
     this.flipReset.update(car, active);
-    this.flames.visible = active && car.boosting;
-    this.flames.scale.z =
-      1 + 0.17 * Math.sin(time * 67) + 0.1 * Math.sin(time * 113);
-    this.flames.position.z = 0.65 * (1 - this.flames.scale.z);
-    this.placeGlow();
-    this.glow.intensity = active && car.boosting ? 2.4 : 0;
+    if (active) this.animateBoost(time, car.boosting);
+    this.glow.intensity =
+      active && car.boosting ? this.flames.lightIntensity : 0;
     const sonic = active && car.wheelContact.some(Boolean) && car.supersonic;
     if (!car.wheelContact.some(Boolean)) {
       this.fade = 0;

@@ -109,7 +109,7 @@ export class RingsSession implements ExtraSession {
       new T.Color(options.preset.blue).getHex(),
       options.preset.body,
       options.preset.wheels,
-      options.preset.decal,
+      options.preset.topper,
     );
     this.car.add(this.model);
     this.level.scene.add(this.car);
@@ -127,6 +127,7 @@ export class RingsSession implements ExtraSession {
       this.car,
       this.scene,
       options.preset.boost === "ember" ? 0xffa548 : 0x69e9ff,
+      options.preset.boost,
     );
     this.jump = new JumpBurst(this.scene);
     this.flips = new FlipTrails(this.scene);

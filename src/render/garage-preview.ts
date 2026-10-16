@@ -2,7 +2,6 @@ import * as T from "three";
 import { carModel, ballModel, disposeModel, material } from "./models";
 import type { Preset, Team } from "../game/inventory";
 import { VehicleEffects } from "../effects/vehicle-effects";
-import { Effects } from "../effects/effects";
 import { GoalExplosion } from "../effects/goal-explosion";
 import { MouseOrbit, type MouseLook } from "../camera/mouse-look";
 export class GaragePreview {
@@ -18,7 +17,6 @@ export class GaragePreview {
   }
   private category = "body";
   private boostEffects: VehicleEffects | null = null;
-  private particles = new Effects(this.scene);
   private color = 0x69e9ff;
   private time = 0;
   private goalScene = new T.Scene();
@@ -26,6 +24,8 @@ export class GaragePreview {
   private goalExplosion = new GoalExplosion(this.goalScene, 0.25);
   private previewAge = -1;
   private exploded = false;
+  private explosionId = "pulse";
+  private explosionColor = 0x69e9ff;
   get renderScene() {
     return this.category === "explosion" ? this.goalScene : this.scene;
   }
@@ -120,6 +120,9 @@ export class GaragePreview {
     this.goalBall.position.set(0, 0.365, 2);
   }
   setPreset(p: Preset, team: Team) {
+    this.explosionId = p.explosion;
+    this.goalExplosion.setStyle(p.explosion);
+    this.explosionColor = team === "blue" ? 0x69e9ff : 0xffb654;
     this.boostEffects?.dispose();
     this.scene.remove(this.car);
     disposeModel(this.car);
@@ -127,28 +130,23 @@ export class GaragePreview {
       new T.Color(p[team]).getHex(),
       p.body,
       p.wheels,
-      p.decal,
+      p.topper,
     );
     this.car.position.y = 0.31;
     this.scene.add(this.car);
     this.color = p.boost === "ember" ? 0xffa548 : 0x69e9ff;
-    this.boostEffects = new VehicleEffects(this.car, this.scene, this.color);
+    this.boostEffects = new VehicleEffects(
+      this.car,
+      this.scene,
+      this.color,
+      p.boost,
+    );
   }
   update(width: number, height: number, dt = 1 / 60, category = "body") {
     this.setCategory(category);
     this.time += dt;
     this.car.rotation.y = this.angle;
     this.boostEffects?.previewBoost(this.time, category === "boost");
-    if (category === "boost")
-      this.particles.emit(
-        new T.Vector3(0, 0, 1.5)
-          .applyQuaternion(this.car.quaternion)
-          .add(this.car.position),
-        new T.Vector3(0, 0.05, 2).applyQuaternion(this.car.quaternion),
-        this.color,
-        2,
-      );
-    this.particles.update(dt);
     if (category === "explosion") {
       if (this.previewAge >= 0) {
         this.previewAge += dt;
@@ -157,9 +155,17 @@ export class GaragePreview {
         if (!this.exploded && this.goalBall.position.z < -3.365) {
           this.exploded = true;
           this.goalBall.visible = false;
-          this.goalExplosion.trigger(this.goalBall.position, 0x69e9ff);
+          this.goalExplosion.trigger(
+            this.goalBall.position,
+            this.explosionColor,
+            this.explosionId,
+          );
         }
-        if (this.previewAge > 4.3) this.previewAge = -1;
+        if (this.exploded && !this.goalExplosion.active) {
+          this.previewAge = -1;
+          this.goalBall.visible = true;
+          this.goalBall.position.set(0, 0.365, 2);
+        }
       }
       this.goalExplosion.update(dt);
       this.camera.position.set(7, 4, 8);

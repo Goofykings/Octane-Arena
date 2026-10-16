@@ -243,9 +243,9 @@ const fs = require("node:fs"),
         () =>
           window.__arena.preview.renderScene ===
             window.__arena.preview.goalScene &&
-          window.__arena.preview.previewAge === -1,
+          window.__arena.preview.previewAge >= 0,
       ),
-      "goal preview waits for item click",
+      "goal category starts a single selected demo",
     );
     for (let i = 0; i < 2; i++) {
       await page.locator('[data-item="pulse"]').click();

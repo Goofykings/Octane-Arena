@@ -73,6 +73,7 @@ export class TrainingSession implements ExtraSession {
       /* Optional local records. */
     }
     this.run = new TrainingRun(this.physics, pack, storage);
+    this.run.explosion = options.preset.explosion;
     this.scene.background = new T.Color(0x183347);
     this.scene.fog = new T.Fog(0x183347, 140, 450);
     this.scene.add(new T.HemisphereLight(0xe1f3ff, 0x597483, 2.4));
@@ -93,7 +94,7 @@ export class TrainingSession implements ExtraSession {
       new T.Color(options.preset.blue).getHex(),
       options.preset.body,
       options.preset.wheels,
-      options.preset.decal,
+      options.preset.topper,
     );
     this.car.add(this.model);
     this.scene.add(this.car, this.ball);
@@ -112,6 +113,7 @@ export class TrainingSession implements ExtraSession {
       this.car,
       this.scene,
       options.preset.boost === "ember" ? 0xffa548 : 0x69e9ff,
+      options.preset.boost,
     );
     this.jump = new JumpBurst(this.scene);
     this.flips = new FlipTrails(this.scene);
@@ -120,6 +122,7 @@ export class TrainingSession implements ExtraSession {
     this.preview.load(this.run.shot);
     this.saveExplosion = new GoalExplosion(this.scene, 0.18);
     this.goalExplosion = new GoalExplosion(this.scene);
+    this.goalExplosion.setStyle(options.preset.explosion);
     this.replayView = new ReplayScenePlayback(
       options.camera,
       [this.car],
@@ -255,7 +258,11 @@ export class TrainingSession implements ExtraSession {
     const pendingGoal = this.run.recorder.pendingGoal;
     if (pendingGoal && this.goalSequence !== this.run.outcomeSequence) {
       this.goalSequence = this.run.outcomeSequence;
-      this.goalExplosion.trigger(pendingGoal.focus, 0x69e9ff);
+      this.goalExplosion.trigger(
+        pendingGoal.focus,
+        0x69e9ff,
+        pendingGoal.explosion,
+      );
     }
     this.goalExplosion.update(this.paused ? 0 : dt);
     if (this.run.replay) {
@@ -324,6 +331,8 @@ export class TrainingSession implements ExtraSession {
   dispose() {
     this.replayView.stop();
     this.effects.dispose();
+    this.goalExplosion.dispose();
+    this.saveExplosion.dispose();
     disposeDribbleResources(this.scene);
     this.physics.dispose();
     const camera = this.options.camera;

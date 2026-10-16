@@ -53,6 +53,36 @@ assert.equal(
   isBackboard({ x: 0, y: 10, z: -P.arena.halfLength }, { x: 0, y: 0, z: 1 }, 0),
   false,
 );
+// The mode rule applies to every car, survives kickoff, and overrides boost mutators.
+{
+  const boostSim = new Simulation(true);
+  try {
+    boostSim.setGameMode("heatseeker");
+    for (const boostAmount of [
+      "DEFAULT",
+      "NO BOOST",
+      "RECHARGE SLOW",
+    ] as const) {
+      boostSim.configureMutators({ ...boostSim.mutators, boostAmount });
+      boostSim.reset();
+      // Keep the two boost-test cars in separate lanes to avoid demolitions.
+      boostSim.cars.forEach((c, i) => {
+        const p = c.body.translation();
+        c.body.setTranslation({ ...p, x: i ? 10 : -10 }, true);
+      });
+      for (let i = 0; i < 360; i++) {
+        boostSim.step(boostSim.cars.map(() => ({ ...n, boost: true })));
+        assert.ok(boostSim.cars.every((c) => c.boost === 100 && c.boosting));
+      }
+    }
+    boostSim.setGameMode("soccar");
+    boostSim.configureMutators();
+    boostSim.step(boostSim.cars.map(() => ({ ...n, boost: true })));
+    assert.ok(boostSim.cars.every((c) => c.boost < 100));
+  } finally {
+    boostSim.dispose();
+  }
+}
 const s = new Simulation(),
   m = new Match();
 m.gameMode = "heatseeker";
@@ -63,6 +93,7 @@ try {
       Math.random = () => value;
       m.start(s, "network");
       assert.equal(m.phase, "countdown");
+      assert.ok(s.cars.every((c) => c.boost === 100));
       assert.equal(m.countdown, 3);
       const receiver = value < 0.5 ? 0 : 1;
       assert.equal(s.heatseeker!.state.kickoffTeam, receiver);

@@ -164,7 +164,7 @@ async function boot() {
       new T.Color(garage.current.blue).getHex(),
       garage.current.body,
       garage.current.wheels,
-      garage.current.decal,
+      garage.current.topper,
     ),
     carModel(0xfa9c3e, "vector"),
   ];
@@ -266,6 +266,8 @@ async function boot() {
   const graphics = new Graphics(renderer, scene, camera, sun),
     hitboxes = new Hitboxes(scene);
   const preview = new GaragePreview(document.getElementById("garage-screen")!);
+  match.explosionFor = (id) =>
+    id === simulation.cars[0].id ? garage.current.explosion : "pulse";
   const updatePreset = () => {
     const p = garage.current;
     cars[0].remove(visuals[0]);
@@ -274,12 +276,13 @@ async function boot() {
       new T.Color(p.blue).getHex(),
       p.body,
       p.wheels,
-      p.decal,
+      p.topper,
     );
     cars[0].add(visuals[0]);
     simulation.cars[0].setBody(p.body);
     simulation.cars[1].setBody("vector");
-    vehicleEffects[0].setColor(p.boost === "ember" ? 0xffa548 : 0x69e9ff);
+    vehicleEffects[0].setStyle(p.boost);
+    explosion.setStyle(p.explosion);
     preview.setPreset(p, garagePanel.team);
   };
   const garagePanel = new GaragePanel(garage, updatePreset, () => {
@@ -1603,7 +1606,12 @@ async function boot() {
               : origin.z < 0
                 ? 0x69e9ff
                 : 0xffb654;
-          explosion.trigger(origin, color);
+          explosion.trigger(
+            origin,
+            color,
+            match.recorder.pendingGoal?.explosion ?? "pulse",
+            match.rules.training,
+          );
           effects.burst(origin, color);
           vehicleEffects.forEach((e) => e.reset());
         }

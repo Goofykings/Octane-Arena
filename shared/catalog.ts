@@ -1,8 +1,6 @@
-/** Original starter bodies. Dimensions are half extents in metres, shared by art and physics.
- * Design direction: preserve Ion as the original low/slim body. Other and future
- * bodies should have a visibly taller cabin, with matching physical roof height.
- * Vary silhouettes, not just heights: Vector is an upright rally hatch; future
- * bodies should explore distinct buggy, truck or van proportions and details.
+/** Original shells. Existing Ion/Vector collision dimensions are preserved.
+ * New bodies share Vector's tested chassis and rigid wheel geometry; cosmetics
+ * never alter the length, inertia, contact solver or driving tuning.
  */
 export const bodies = {
   ion: {
@@ -21,27 +19,89 @@ export const bodies = {
     hitboxY: 0.13, // Raise the roof while preserving the existing underside clearance.
     axle: 0.49,
   },
+  cargo: {
+    name: "Cargo",
+    halfWidth: 0.43,
+    halfHeight: 0.25,
+    halfLength: 0.66,
+    hitboxY: 0.13,
+    axle: 0.49,
+  },
+  slicer: {
+    name: "Slicer",
+    halfWidth: 0.43,
+    halfHeight: 0.25,
+    halfLength: 0.66,
+    hitboxY: 0.13,
+    axle: 0.49,
+  },
+  wraith: {
+    name: "Wraith",
+    halfWidth: 0.43,
+    halfHeight: 0.25,
+    halfLength: 0.66,
+    hitboxY: 0.13,
+    axle: 0.49,
+  },
 } as const;
 export type BodyId = keyof typeof bodies;
 export const inventory = {
   body: [
     { id: "ion", name: "Ion" },
     { id: "vector", name: "Vector" },
+    { id: "cargo", name: "Cargo" },
+    { id: "slicer", name: "Slicer" },
+    { id: "wraith", name: "Wraith" },
   ],
   wheels: [
     { id: "apex", name: "Apex" },
     { id: "disc", name: "Orbit" },
+    { id: "filament", name: "Filament" },
+    { id: "dish", name: "Recess" },
+    { id: "offroad", name: "Badland" },
+    { id: "turbine", name: "Vortex" },
+    { id: "glow", name: "Pulse" },
+    { id: "star", name: "Aster" },
+    { id: "steel", name: "Heritage" },
+    { id: "experimental", name: "Gyro" },
   ],
   boost: [
     { id: "plasma", name: "Plasma" },
     { id: "ember", name: "Ember" },
+    { id: "standard", name: "Slipstream" },
+    { id: "ion", name: "Ion Drive" },
+    { id: "lightning", name: "Arc" },
+    { id: "thermal", name: "Heatwave" },
+    { id: "sparkles", name: "Stardust" },
+    { id: "sacred", name: "Astral" },
+    { id: "datastream", name: "Byte Stream" },
+    { id: "dust", name: "Dune" },
   ],
-  topper: [{ id: "none", name: "None" }],
-  decal: [
+  topper: [
     { id: "none", name: "None" },
-    { id: "circuit", name: "Circuit" },
+    { id: "top-hat", name: "Top Hat" },
+    { id: "cat-ears", name: "Cat Ears" },
+    { id: "birthday", name: "Birthday Hat" },
+    { id: "pickle", name: "Pickle" },
+    { id: "crown", name: "Crown" },
+    { id: "cone", name: "Traffic Cone" },
+    { id: "beanie", name: "Propeller Beanie" },
+    { id: "halo", name: "Halo Ring" },
+    { id: "ufo", name: "Tiny UFO" },
+    { id: "pirate", name: "Pirate Hat" },
   ],
-  explosion: [{ id: "pulse", name: "Pulse" }],
+  explosion: [
+    { id: "pulse", name: "Pulse" },
+    { id: "inferno", name: "Afterburn" },
+    { id: "electric", name: "Arcstorm" },
+    { id: "confetti", name: "Confetti" },
+    { id: "crystal", name: "Prism Bloom" },
+    { id: "bubbles", name: "Bubble Pop" },
+    { id: "digital", name: "Databurst" },
+    { id: "debris", name: "Quarry" },
+    { id: "blue-wash", name: "Blue Horizon" },
+    { id: "violet-wash", name: "Violet Eclipse" },
+  ],
 } as const;
 export type CosmeticSlot = keyof typeof inventory;
 export type Team = "blue" | "orange";
@@ -54,7 +114,6 @@ export interface Preset {
   wheels: string;
   boost: string;
   topper: string;
-  decal: string;
   explosion: string;
 }
 export const palette = [
@@ -104,12 +163,21 @@ export const palette = [
 export const starter = (): Preset => ({
   id: "starter",
   name: "Preset 1",
-  body: "ion",
+  body: "vector",
   blue: "#36cedd",
   orange: "#f89a49",
   wheels: "apex",
   boost: "plasma",
   topper: "none",
-  decal: "none",
   explosion: "pulse",
 });
+
+/** Accept only known effects; missing/obsolete saved choices use the original Pulse. */
+export const goalExplosionId = (value: unknown): string =>
+  inventory.explosion.some((x) => x.id === value) ? (value as string) : "pulse";
+/** Narrow legacy migration only. The rest of preset validation remains strict. */
+export function migratePreset(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const { decal: _removed, ...preset } = raw as Record<string, unknown>;
+  return { ...preset, explosion: goalExplosionId(preset.explosion) };
+}

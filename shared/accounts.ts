@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { inventory, palette, type Preset } from "./catalog.js";
+import {
+  bodies,
+  inventory,
+  palette,
+  migratePreset,
+  type Preset,
+} from "./catalog.js";
 import { cameraRanges, type Preferences } from "./settings.js";
 import { defaultBindings } from "./controls.js";
 import {
@@ -43,7 +49,7 @@ const choice = (slot: keyof typeof inventory) =>
       (v) => inventory[slot].some((i) => i.id === v),
       "Unknown cosmetic item.",
     );
-export const presetSchema = z
+const currentPresetSchema = z
   .object({
     id: z
       .string()
@@ -55,7 +61,9 @@ export const presetSchema = z
       .min(1)
       .max(32)
       .regex(/^[A-Za-z0-9 _-]+$/),
-    body: z.enum(["ion", "vector"]),
+    body: z.enum(
+      Object.keys(bodies) as [keyof typeof bodies, ...(keyof typeof bodies)[]],
+    ),
     blue: z
       .string()
       .refine((v) => palette.includes(v), "Choose a palette color."),
@@ -65,10 +73,10 @@ export const presetSchema = z
     wheels: choice("wheels"),
     boost: choice("boost"),
     topper: choice("topper"),
-    decal: choice("decal"),
     explosion: choice("explosion"),
   })
   .strict();
+export const presetSchema = z.preprocess(migratePreset, currentPresetSchema);
 export const preferencesSchema = z
   .object({
     infiniteBoost: z.boolean(),

@@ -77,7 +77,12 @@ export interface MatchSnapshot {
   overtime: boolean;
   message: string;
   goalFocus: Vec | null;
-  lastGoal?: { scorerId: string; team: number; ownGoal: boolean } | null;
+  lastGoal?: {
+    scorerId: string;
+    team: number;
+    ownGoal: boolean;
+    explosion?: string;
+  } | null;
 }
 export type ClientMessage =
   | { type: "auth"; token: string }

@@ -1,13 +1,11 @@
 import * as T from "three";
 import { P } from "../config/physics";
 import { bodies, type BodyId } from "../game/inventory";
-import {
-  wheelMount,
-  wheelRadius,
-  wheelMountY,
-  wheelHalfWidth,
-} from "../car/wheels";
+import { wheelMount, wheelMountY } from "../car/wheels";
 import type { Car } from "../car/car";
+import { bodyStyles } from "./body-styles";
+import { addWheelDesign } from "./wheel-model";
+import { createTopper } from "./toppers";
 import { polishMaterial } from "./material-polish";
 export const material = (color: number, metalness = 0.1, roughness = 0.65) =>
   new T.MeshStandardMaterial({ color, metalness, roughness });
@@ -31,159 +29,165 @@ export function carModel(
   color: number,
   bodyId: BodyId = "ion",
   wheels = "apex",
-  decal = "none",
+  topper = "none",
 ) {
   const g = new T.Group(),
     d = bodies[bodyId],
-    rally = bodyId === "vector";
+    art = bodyStyles[bodyId];
   const paint = material(color, 0.4, 0.42),
-    dark = material(0x101c25, 0.45, 0.4),
-    glass = material(0x446778, 0.7, 0.28);
+    dark = material(0x101c25, 0.25, 0.48),
+    glass = material(0x345f73, 0.45, 0.24);
   [paint, dark, glass].forEach((mat) => polishMaterial(mat, "car"));
   const W = d.halfWidth * 2,
     L = d.halfLength * 2,
-    roof = d.hitboxY + d.halfHeight - 0.012;
-  // Roof/body vertices stay within the physical top plane; wheels follow contact geometry.
-  const hull = profileMesh(
-    W - 0.04,
-    rally
-      ? [
-          [-L / 2 + 0.02, -0.125],
-          [-L / 2 + 0.02, 0.075],
-          [-L * 0.36, 0.135],
-          [L * 0.41, 0.135],
-          [L / 2 - 0.02, 0.085],
-          [L / 2 - 0.02, -0.125],
-        ]
-      : [
-          [-L / 2 + 0.02, -0.125],
-          [-L / 2 + 0.02, -0.015],
-          [-L * 0.4, 0.045],
-          [L * 0.4, 0.045],
-          [L / 2 - 0.02, -0.005],
-          [L / 2 - 0.02, -0.125],
-        ],
-    paint,
-  );
-  g.add(hull);
-  const hoodY = rally ? 0.15 : 0.07,
-    hoodLength = L * (rally ? 0.27 : 0.4),
-    hoodZ = -L * (rally ? 0.335 : 0.275),
-    roofLength = L * (rally ? 0.49 : 0.39),
-    roofZ = L * (rally ? 0.085 : 0.1);
-  box(g, [W - 0.17, 0.07, hoodLength], [0, hoodY, hoodZ], paint);
-  g.add(
+    roof = art.roof;
+  const shell = new T.Group();
+  shell.name = "body-shell";
+  g.add(shell);
+  shell.add(
     profileMesh(
-      W - (rally ? 0.17 : 0.25),
-      rally
-        ? [
-            [-L * 0.245, 0.135],
-            [-L * 0.16, roof - 0.032],
-            [L * 0.33, roof - 0.032],
-            [L * 0.4, 0.135],
-          ]
-        : [
-            [-L * 0.2, 0.07],
-            [-L * 0.095, roof - 0.032],
-            [L * 0.29, roof - 0.032],
-            [L * 0.36, 0.07],
-          ],
+      W - 0.04,
+      [
+        [-L / 2 + 0.02, -0.125],
+        [-L / 2 + 0.02, art.nose],
+        [-L * 0.34, art.hood],
+        [L * 0.35, art.rear],
+        [L / 2 - 0.02, art.rear - 0.03],
+        [L / 2 - 0.02, -0.125],
+      ],
+      paint,
+    ),
+  );
+  shell.add(
+    profileMesh(
+      W * art.roofWidth,
+      [
+        [L * art.cabinFront, art.hood],
+        [L * art.roofFront, roof - 0.025],
+        [L * art.roofBack, roof - 0.025],
+        [L * art.cabinBack, art.rear],
+      ],
       glass,
     ),
   );
+  const roofLength = L * (art.roofBack - art.roofFront),
+    roofZ = (L * (art.roofBack + art.roofFront)) / 2;
   box(
-    g,
-    [W - (rally ? 0.14 : 0.22), 0.025, roofLength],
+    shell,
+    [W * art.roofWidth + 0.025, 0.025, roofLength],
     [0, roof - 0.0125, roofZ],
     paint,
   );
-  box(g, [W, 0.045, 0.07], [0, -0.025, -L / 2], dark);
-  box(
-    g,
-    [W - (rally ? 0.12 : 0.01), 0.045, 0.09],
-    [0, roof - 0.025, L * (rally ? 0.35 : 0.44)],
-    dark,
-  );
-  if (rally) {
-    // Upright rally hatch: split side glazing, broad shoulders and a blunt grille.
-    box(g, [W * 0.48, 0.075, 0.025], [0, 0.052, -L / 2 - 0.01], dark);
-    for (const sign of [-1, 1])
+  // Distinct body structures, with wheel envelopes left open.
+  if (bodyId === "cargo") {
+    for (const side of [-1, 1]) {
       box(
-        g,
-        [0.03, roof - 0.16, 0.042],
-        [(sign * (W - 0.16)) / 2, (roof + 0.11) / 2, L * 0.08],
+        shell,
+        [0.028, roof - art.hood, 0.04],
+        [side * W * 0.435, (roof + art.hood) / 2, L * 0.08],
         paint,
       );
-    for (const side of [-1, 1])
+      box(
+        shell,
+        [0.035, 0.055, L * 0.6],
+        [side * W * 0.36, roof - 0.04, L * 0.04],
+        dark,
+      );
+    }
+    box(shell, [W * 0.6, 0.1, 0.025], [0, 0.015, -L / 2], dark);
+  } else if (bodyId === "wraith") {
+    for (const side of [-1, 1]) {
+      const pod = profileMesh(
+        W * 0.16,
+        [
+          [-L * 0.32, -0.07],
+          [-L * 0.23, 0.17],
+          [L * 0.31, 0.24],
+          [L * 0.44, -0.07],
+        ],
+        paint,
+      );
+      pod.position.x = side * W * 0.37;
+      shell.add(pod);
+      box(
+        shell,
+        [0.03, 0.012, L * 0.37],
+        [side * W * 0.37, 0.245, L * 0.14],
+        dark,
+      );
+    }
+  } else if (bodyId === "vector") {
+    for (const side of [-1, 1]) {
+      box(shell, [0.03, 0.14, 0.035], [side * W * 0.37, 0.24, L * 0.09], paint);
       for (const end of [-1, 1]) {
-        const flare = profileMesh(
-          0.075,
-          [
-            [-0.22, -0.08],
-            [-0.19, 0.055],
-            [-0.1, 0.12],
-            [0.1, 0.12],
-            [0.19, 0.055],
-            [0.22, -0.08],
-            [0.175, -0.08],
-            [0.14, 0.025],
-            [0.075, 0.07],
-            [-0.075, 0.07],
-            [-0.14, 0.025],
-            [-0.175, -0.08],
-          ],
+        const arch = new T.Mesh(
+          new T.TorusGeometry(0.19, 0.015, 4, 12, Math.PI),
           dark,
         );
-        flare.position.set(side * (W / 2 - 0.025), -0.025, end * d.axle);
-        g.add(flare);
+        arch.rotation.y = Math.PI / 2;
+        arch.position.set(side * (W / 2 - 0.02), -0.07, end * d.axle);
+        shell.add(arch);
       }
+    }
+  } else if (bodyId === "slicer") {
+    // Split angular nose and raised rear deck distinguish the wedge from Ion.
+    box(shell, [0.05, 0.014, L * 0.26], [0, art.hood + 0.008, -L * 0.3], dark);
+    for (const side of [-1, 1])
+      box(shell, [0.065, 0.05, 0.18], [side * W * 0.32, 0.15, L * 0.32], dark);
+  } else {
+    box(
+      shell,
+      [W * 0.36, 0.025, L * 0.21],
+      [0, art.hood + 0.012, -L * 0.31],
+      dark,
+    );
+  }
+  if (art.spoiler) {
+    for (const side of [-1, 1])
+      box(
+        shell,
+        [0.025, 0.06, 0.035],
+        [side * W * 0.3, art.rear + 0.025, L * art.spoiler],
+        dark,
+      );
+    box(
+      shell,
+      [W * 0.92, 0.025, 0.1],
+      [0, art.rear + 0.065, L * art.spoiler],
+      paint,
+    );
   }
   for (const sign of [-1, 1]) {
     box(
-      g,
-      [rally ? 0.16 : 0.12, rally ? 0.065 : 0.027, 0.02],
-      [sign * W * 0.32, rally ? 0.06 : 0.057, -L / 2 - 0.005],
-      new T.MeshBasicMaterial({ color: 0xcfffff }),
+      shell,
+      [W * 0.22, 0.035, 0.025],
+      [sign * W * 0.3, art.nose - 0.01, -L / 2],
+      new T.MeshBasicMaterial({ color: 0xd4f8ff }),
     );
     box(
-      g,
-      [rally ? 0.055 : 0.2, rally ? 0.1 : 0.025, 0.02],
-      [sign * W * 0.29, rally ? 0.045 : 0.028, L / 2 + 0.005],
-      new T.MeshBasicMaterial({ color: 0xff4b35 }),
+      shell,
+      [W * 0.2, 0.03, 0.025],
+      [sign * W * 0.3, art.rear - 0.055, L / 2],
+      new T.MeshBasicMaterial({ color: 0xff4335 }),
     );
-    box(g, [0.035, 0.04, L * 0.68], [sign * (W / 2 - 0.01), -0.075, 0], dark);
-    box(g, [0.11, 0.075, 0.08], [sign * 0.21, -0.025, L / 2 + 0.015], dark);
-    const vent = box(
-      g,
-      [0.09, 0.01, 0.18],
-      [sign * 0.19, hoodY + 0.038, rally ? hoodZ : -L * 0.26],
+    box(
+      shell,
+      [0.035, 0.035, L * 0.66],
+      [sign * (W / 2 - 0.01), -0.09, 0],
       dark,
     );
-    vent.rotation.y = sign * 0.15;
+    box(shell, [0.1, 0.065, 0.06], [sign * 0.21, -0.025, L / 2 + 0.015], dark);
   }
-  if (decal === "circuit")
-    for (const sign of [-1, 1]) {
-      const stripe = new T.MeshBasicMaterial({ color: 0xd7f4ed });
-      box(
-        g,
-        [0.042, 0.008, hoodLength],
-        [sign * 0.12, hoodY + 0.039, hoodZ],
-        stripe,
-      );
-      box(
-        g,
-        [0.042, 0.008, roofLength],
-        [sign * 0.12, roof + 0.003, roofZ],
-        stripe,
-      );
-    }
+  const accessory = createTopper(topper);
+  accessory.position.set(0, roof + 0.008, roofZ);
+  g.add(accessory);
+  g.userData.topper = accessory;
+  g.userData.roofY = roof;
+  g.userData.exhaust = new T.Vector3(0, -0.025, L / 2 + 0.045);
   const spins: T.Group[] = [],
     mounts: T.Group[] = [],
     steering: T.Group[] = [];
-  const rubber = material(0x111318, 0, 0.9);
   for (let i = 0; i < 4; i++) {
-    const x = (i % 2 ? 1 : -1) * (d.halfWidth + 0.005),
-      z = (i < 2 ? -1 : 1) * d.axle;
     const pivot = new T.Group(),
       spin = new T.Group();
     pivot.position.copy(wheelMount(bodyId, i));
@@ -191,44 +195,7 @@ export function carModel(
     mounts.push(pivot);
     pivot.add(spin);
     g.add(pivot);
-    const tyre = new T.Mesh(
-      new T.LatheGeometry(
-        // Closed annular cross-section: tread remains outward-facing, but the
-        // sidewalls stop at the rim instead of sealing the hub behind rubber.
-        // Outer profile runs bottom-to-top; the inner return faces the opening.
-        [
-          [0.12, -wheelHalfWidth * 0.85],
-          [0.15, -wheelHalfWidth],
-          [wheelRadius * 0.97, -wheelHalfWidth * 0.72],
-          [wheelRadius, -wheelHalfWidth * 0.4],
-          [wheelRadius, wheelHalfWidth * 0.4],
-          [wheelRadius * 0.97, wheelHalfWidth * 0.72],
-          [0.15, wheelHalfWidth],
-          [0.12, wheelHalfWidth * 0.85],
-          [0.12, -wheelHalfWidth * 0.85],
-        ].map(([radius, axial]) => new T.Vector2(radius, axial)),
-        20,
-      ),
-      rubber,
-    );
-    tyre.rotation.z = Math.PI / 2;
-    tyre.castShadow = true;
-    spin.add(tyre);
-    const hub = new T.Mesh(
-      new T.CylinderGeometry(
-        wheels === "disc" ? 0.14 : 0.115,
-        wheels === "disc" ? 0.14 : 0.115,
-        0.07,
-        wheels === "disc" ? 24 : 6,
-      ),
-      // Keep the alloy legible with the garage's direct lights and no env map.
-      material(0xa6cad3, 0.4, 0.38),
-    );
-    hub.rotation.z = Math.PI / 2;
-    spin.add(hub);
-    // Separate the painted face from the hub caps to avoid coplanar flicker.
-    const spoke = box(spin, [0.082, 0.025, 0.26], [0, 0, 0], paint);
-    if (wheels === "disc") spoke.rotation.x = Math.PI / 4;
+    addWheelDesign(spin, wheels, i % 2 ? 1 : -1);
     spins.push(spin);
     if (i < 2) steering.push(pivot);
   }

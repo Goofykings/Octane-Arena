@@ -497,7 +497,7 @@ for (const mode of ["soccar", "heatseeker", "rumble"] as const) {
     ),
   );
   assert.equal(m.timed, false);
-  assert.ok(s.cars.every((c) => c.boost === 0));
+  assert.ok(s.cars.every((c) => c.boost === (mode === "heatseeker" ? 100 : 0)));
   if (mode === "heatseeker") {
     assert.ok(s.ball.translation().y > s.physics.ball.radius);
     s.heatseeker!.touch("human", 0, 1);

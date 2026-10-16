@@ -29,21 +29,15 @@ for (const id of ["ion", "vector"] as const)
       new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), Math.PI),
       true,
     );
-    for (let i = 0; i < 180; i++) {
-      s.step([{ ...n(), throttle: direction }, n()]);
-      assert.equal(c.recovering, false, "Held throttle cannot fire at landing");
-    }
-    assert.ok(c.up.y < -0.95);
-    tick(s, 2);
-    s.step([{ ...n(), throttle: direction }, n()]);
-    assert.ok(c.recovering);
     let peak = 0,
       angle = 0,
       previous = new Quaternion().copy(c.body.rotation()),
-      triggers = 1,
-      was = true;
-    for (let i = 0; i < 480; i++) {
+      triggers = 0,
+      was = false,
+      firstTrigger = -1;
+    for (let i = 0; i < 600; i++) {
       s.step([{ ...n(), throttle: direction }, n()]);
+      if (c.recovering && firstTrigger < 0) firstTrigger = i * P.dt;
       const q = new Quaternion().copy(c.body.rotation());
       angle += q.angleTo(previous);
       previous = q;
@@ -51,6 +45,10 @@ for (const id of ["ion", "vector"] as const)
       if (c.recovering && !was) triggers++;
       was = c.recovering;
     }
+    assert.ok(
+      firstTrigger >= 0 && firstTrigger < 0.7,
+      "Held aerial throttle starts recovery at roof landing without repress",
+    );
     assert.equal(triggers, 1);
     assert.ok(c.up.y > 0.99 && c.contacts >= 3, id + " recovered onto wheels");
     assert.ok(angle < Math.PI * 1.35, "No full-turn overshoot");
@@ -117,7 +115,9 @@ for (const yaw of [10, 20, 30]) {
       }
       const loss = before.sub(c.body.linvel()).dot(right);
       assert.ok(
-        Math.abs(loss) < P.car.lateralMaxAcceleration * P.dt + 0.03,
+        Math.abs(loss) <
+          P.car.lateralMaxAcceleration * (1 + P.car.highSpeedForceGain) * P.dt +
+            0.03,
         "Finite tire correction per step",
       );
       min = Math.min(min, slip);
@@ -151,12 +151,17 @@ for (const sign of [-1, 1])
     c.body.setRotation(q, true);
     let motion = 0;
     for (let i = 0; i < 240; i++) {
+      const wasRecovering = c.recovering;
       s.step([{ ...n(), ...input }, n()]);
       motion = Math.max(
         motion,
         q.angleTo(new Quaternion().copy(c.body.rotation())),
       );
-      assert.equal(c.recovering, false);
+      if (c.recovering && !wasRecovering)
+        assert.ok(
+          c.up.y < -0.65,
+          "Recovery starts only after nose contact falls onto roof",
+        );
       if (Math.abs(c.up.y) < 0.5)
         assert.equal(c.adhesionAcceleration.length(), 0);
     }
@@ -290,7 +295,7 @@ assert.ok(upcomingUpdates.every((u) => !/multiplayer/i.test(u.title)));
     new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), Math.PI),
     true,
   );
-  tick(s, 120, { ...n(), throttle: 1 });
+  tick(s, 120);
   const target = {
     point: new Vector3(0, 1, -20),
     intent: "chase",
@@ -372,6 +377,6 @@ for (const roll of [-1, 1])
     s.dispose();
   }
 console.log(
-  "PASS deliberate/reduced roof recovery, partial ceiling release, finite off-angle tire slip, nose input, coupled leading flip strikes and version text",
+  "PASS immediate held-throttle roof recovery, partial ceiling release, finite off-angle tire slip, nose input, coupled leading flip strikes and version text",
   { drive, front, diag, oldFront, late, soft, angular },
 );

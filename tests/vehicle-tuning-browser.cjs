@@ -55,27 +55,15 @@ const { staticGame } = require("./static-game.cjs");
     await page.keyboard.down("w");
     await page.evaluate(() => {
       const c = __arena.simulation.cars[0];
-      c.reset(0, 15, 0, 1);
+      // Start on the roof: W also binds aerial pitch, so a long falling
+      // fixture would rotate before reaching the floor and miss roof support.
+      c.setBody("ion");
+      c.reset(0, 15, 0, 0.228);
       c.body.setRotation({ x: 0, y: 0, z: 1, w: 0 }, true);
     });
-    await page.waitForTimeout(1700);
-    assert.ok(
-      await page.evaluate(
-        () => recoveryStarts === 0 && !__arena.simulation.cars[0].recovering,
-      ),
-      "Held keyboard throttle cannot request roof recovery on landing",
+    await page.waitForFunction(
+      () => recoveryStarts === 1 && __arena.simulation.cars[0].recovering,
     );
-    await page.keyboard.up("w");
-    await page.evaluate(() => {
-      // Held W now retains genuine aerial pitch on roof/edge contact; reset
-      // after release rather than requiring the old rotation lock.
-      const c = __arena.simulation.cars[0];
-      c.reset(0, 15, 0, 0.7);
-      c.body.setRotation({ x: 0, y: 0, z: 1, w: 0 }, true);
-    });
-    await page.waitForTimeout(700);
-    await page.keyboard.down("w");
-    await page.waitForFunction(() => __arena.simulation.cars[0].recovering);
     await page.waitForFunction(
       () =>
         __arena.simulation.cars[0].up.y > 0.99 &&
@@ -114,7 +102,7 @@ const { staticGame } = require("./static-game.cjs");
     await page.keyboard.up("e");
     assert.deepEqual(errors, []);
     console.log(
-      "PASS production version number/clickable notes, removed Multiplayer text, real Free Play keyboard held-input gate/release/repress, stable upright recovery and wheel-edge air-roll",
+      "PASS production version number/clickable notes, removed Multiplayer text, real Free Play preheld keyboard throttle starts roof recovery immediately, stable upright recovery and wheel-edge air-roll",
     );
   } finally {
     await browser?.close();

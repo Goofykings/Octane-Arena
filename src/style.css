@@ -1835,3 +1835,5 @@ output {
 #feedback footer {display:flex;justify-content:flex-end;}
 #feedback-submit {min-width:130px;}
 #feedback :disabled {opacity:.55;}
+
+.mutators-actions {display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;}

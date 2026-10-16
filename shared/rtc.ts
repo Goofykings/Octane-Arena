@@ -145,6 +145,7 @@ const snapshot = z
     lastGoal: z
       .object({
         scorerId: z.string().max(80),
+        explosion: z.string().max(40).optional(),
         team: z.number().int(),
         ownGoal: z.boolean(),
       })

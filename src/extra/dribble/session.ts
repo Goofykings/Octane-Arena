@@ -78,7 +78,7 @@ export class DribbleSession implements ExtraSession {
       new T.Color(options.preset.blue).getHex(),
       options.preset.body,
       options.preset.wheels,
-      options.preset.decal,
+      options.preset.topper,
     );
     this.car.add(this.model);
     this.scene.add(this.car, this.ball);
@@ -97,6 +97,7 @@ export class DribbleSession implements ExtraSession {
       this.car,
       this.scene,
       options.preset.boost === "ember" ? 0xffa548 : 0x69e9ff,
+      options.preset.boost,
     );
     this.jump = new JumpBurst(this.scene);
     this.flips = new FlipTrails(this.scene);

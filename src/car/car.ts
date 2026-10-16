@@ -1,5 +1,5 @@
 import RAPIER from "@dimforge/rapier3d-compat";
-import { Quaternion, Vector3 } from "three";
+import { MathUtils, Quaternion, Vector3 } from "three";
 import { RUMBLE_CONFIG } from "../config/rumble";
 import { P, curvature, throttleAcceleration } from "../config/physics";
 import type { PlayerInput } from "../../shared/player";
@@ -22,9 +22,11 @@ import {
 export class Car {
   physics: MatchPhysics = P;
   mutators: MatchMutators = DEFAULT_MUTATORS;
+  infiniteBoost = false;
   applyBoostRule(dt = 0) {
     const mode = this.mutators.boostAmount;
-    if (mode === "NO BOOST") this.boost = 0;
+    if (this.infiniteBoost) this.boost = 100;
+    else if (mode === "NO BOOST") this.boost = 0;
     else if (mode === "UNLIMITED") this.boost = 100;
     else if (mode === "RECHARGE SLOW" || mode === "RECHARGE FAST")
       this.boost = Math.min(100, this.boost + M.recharge[mode] * dt);
@@ -406,15 +408,15 @@ export class Car {
       (this.supportContacts >= 2 &&
         this.up.dot(this.normal) > c.partialSurfaceAlignment &&
         this.normal.y >= c.overheadPartialNormal);
-    // Only a fresh deliberate press can request recovery. Held aerial throttle
-    // never becomes a new press merely because the roof touches a surface.
+    // Held throttle requests recovery immediately when real roof support appears.
+    // Jump retains its press edge; upright braking and cooldown remain unchanged.
     const recoveryInput =
-      input.jump || Math.abs(input.throttle) > c.recoveryInputThreshold;
-    const recoveryEdge = recoveryInput && !this.recoveryHeld;
-    this.recoveryHeld = recoveryInput;
+      Math.abs(input.throttle) > c.recoveryInputThreshold ||
+      (input.jump && !this.recoveryHeld);
+    this.recoveryHeld = input.jump;
     if (
       !this.grounded &&
-      recoveryEdge &&
+      recoveryInput &&
       this.recoveryCooldown === 0 &&
       this.recovery === 0
     ) {
@@ -620,9 +622,22 @@ export class Car {
           support *
           (Math.abs(throttle) > 0.01 ? 1 : wallGrip),
       );
-      const ordinaryLateral = Math.max(
-        -c.lateralMaxAcceleration,
-        Math.min(c.lateralMaxAcceleration, -lateral * c.grip),
+      // More authority at speed for settled tracking, without grabbing a sideways
+      // landing. The separate handbrake force below keeps its original curve.
+      const highSpeedGrip =
+        Number(this.stableContact) *
+        MathUtils.smoothstep(
+          Math.abs(vf),
+          c.highSpeedGripStart,
+          c.highSpeedGripEnd,
+        ) *
+        (1 - MathUtils.smoothstep(slipRatio, 0.12, 0.35));
+      const lateralLimit =
+        c.lateralMaxAcceleration * (1 + c.highSpeedForceGain * highSpeedGrip);
+      const ordinaryLateral = MathUtils.clamp(
+        -lateral * c.grip * (1 + c.highSpeedGripGain * highSpeedGrip),
+        -lateralLimit,
+        lateralLimit,
       );
       const slidingLateral = -lateral * c.grip * lateralFactor;
       this.acceleration.addScaledVector(
@@ -781,7 +796,7 @@ export class Car {
         this.forward,
         this.grounded ? c.boostGround : c.boostAir,
       );
-      if (this.mutators.boostAmount !== "UNLIMITED")
+      if (!this.infiniteBoost && this.mutators.boostAmount !== "UNLIMITED")
         this.boost = Math.max(0, this.boost - c.boostUse * dt);
     }
     this.flipResetAge += dt;

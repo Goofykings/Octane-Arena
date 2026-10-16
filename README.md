@@ -30,12 +30,11 @@ existing match setup and starts 1v1, 2v2 or two humans versus two bots. See the
 `npm run lan` remains an optional way to serve built files, not a PeerJS requirement.
 
 The home screen has Play, Garage and Settings on the left, plus a compact clickable Guest/account
-profile. Garage includes two original starter bodies (Ion and Vector), curated
-team paint, two wheel styles, two boost effects, a Circuit decal and local presets.
+profile. Garage includes five original bodies, curated team paint, ten wheel designs,
+ten boosts, ten toppers, ten goal explosions and local presets.
 Ion keeps the original low, slim profile. Vector is a taller rally hatch with a
 short hood, upright split windows, broad shoulders, wheel-arch flares and a roof
-spoiler. Future bodies should vary their silhouettes (buggy, truck, van, etc.)
-while following the taller design direction, rather than stretching one model.
+spoiler. Cargo, Slicer and Wraith add boxy, wedge-shaped and angular silhouettes.
 The variety seen in [Rocket League's car designs](https://www.rocketleague.com/news/the-fit-check-community-contest-finale)
 is a reference for that direction; the game uses its own procedural geometry.
 Topper and goal-explosion slots begin with None and Pulse respectively. Drag the

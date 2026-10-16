@@ -74,6 +74,10 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright"),
       );
       await p.locator("#replay-nametags").waitFor({ state: "visible" });
       const local = await p.evaluate(() => __arena.simulation.cars[0].id);
+      // The label is projected after the replay camera updates; wait for its rendered frame.
+      await p
+        .locator('#replay-nametags [data-player="' + local + '"]')
+        .waitFor({ state: "visible" });
       assert.ok(
         await p
           .locator('#replay-nametags [data-player="' + local + '"]')
@@ -93,9 +97,9 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright"),
           original = view.effects.explosion.trigger.bind(
             view.effects.explosion,
           );
-        view.effects.explosion.trigger = (point, color) => {
+        view.effects.explosion.trigger = (point, color, ...options) => {
           window.replayExplosionColor = color;
-          original(point, color);
+          original(point, color, ...options);
         };
         __arena.match.replay.clock.time =
           __arena.match.replay.clip.goal.time + 0.1;

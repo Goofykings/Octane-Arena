@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { Mesh, Raycaster, Vector3 } from "three";
-import { carModel } from "../src/render/models";
+import { bodies, inventory, type BodyId } from "../shared/catalog";
+import { carModel, disposeModel } from "../src/render/models";
 
-for (const body of ["ion", "vector"] as const) {
-  for (const style of ["apex", "disc"]) {
+for (const body of Object.keys(bodies) as BodyId[]) {
+  for (const { id: style } of inventory.wheels) {
     const model = carModel(0x22aacc, body, style);
     for (const pivot of model.userData.wheelMounts) {
       const spin = pivot.children[0];
@@ -44,16 +45,20 @@ for (const body of ["ion", "vector"] as const) {
             tire,
             "Rubber must not cover the equipped hub face",
           );
-          const hub = spin.children[1] as Mesh;
-          const face = new Vector3(0, 0.065, 0).applyMatrix4(spin.matrixWorld);
-          const hubRay = new Raycaster(
+          // Real spoked rims have gaps; check their exposed metal lip rather
+          // than expecting the old solid cylinder to fill the entire face.
+          const face = new Vector3(0, 0.127, 0).applyMatrix4(spin.matrixWorld);
+          const rimRay = new Raycaster(
             face.clone().addScaledVector(outward, 1),
             outward.clone().negate(),
           );
+          const rimHit = rimRay.intersectObject(spin, true)[0];
           assert.equal(
-            hubRay.intersectObject(spin, true)[0]?.object,
-            hub,
-            "Equipped rim must remain exposed beside the painted spoke",
+            (rimHit?.object as Mesh)?.material &&
+              ((rimHit!.object as Mesh).material as import("three").Material)
+                .userData.wheelPart,
+            "rim",
+            body + "/" + style + ": exposed rim lip",
           );
         }
         // Sample exposed tread from front, rear and above, away from the hub.
@@ -70,8 +75,9 @@ for (const body of ["ion", "vector"] as const) {
           );
           const hit = ray.intersectObject(spin, true)[0];
           assert.equal(
-            hit?.object,
-            tire,
+            ((hit?.object as Mesh)?.material as import("three").Material)
+              ?.userData.wheelPart,
+            "tire",
             "Rubber must cover the hub from the tread view",
           );
           assert.ok(
@@ -81,11 +87,9 @@ for (const body of ["ion", "vector"] as const) {
         }
       }
     }
-    model.traverse((object) => {
-      if (object instanceof Mesh) object.geometry.dispose();
-    });
+    disposeModel(model);
   }
 }
 console.log(
-  "PASS exposed equipped rims, outward annular tire faces and visible near-side rubber on both bodies/wheel styles, including steering and spin",
+  "PASS exposed equipped rims, outward annular tire faces and visible near-side rubber on all five bodies/ten wheel styles, including steering and spin",
 );

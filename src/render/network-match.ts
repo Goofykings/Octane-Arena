@@ -77,7 +77,7 @@ export class NetworkMatchView {
         new T.Color(p.team === 0 ? p.preset.blue : p.preset.orange).getHex(),
         p.preset.body,
         p.preset.wheels,
-        p.preset.decal,
+        p.preset.topper,
       );
       this.group.add(model);
       return model;
@@ -88,9 +88,11 @@ export class NetworkMatchView {
           car,
           this.group,
           players[i].preset.boost === "ember" ? 0xffa548 : 0x69e9ff,
+          players[i].preset.boost,
         ),
     );
     this.explosion = new GoalExplosion(this.group);
+    this.explosion.setStyle(players[0].preset.explosion);
     this.ballTrails = new BallTrails(this.group);
     this.flips = players.map(() => new FlipTrails(this.group));
     this.jumps = players.map(() => new JumpBurst(this.group));
@@ -200,6 +202,10 @@ export class NetworkMatchView {
       this.explosion.trigger(
         new T.Vector3().copy(latest.goalFocus),
         latest.goalFocus.z < 0 ? 0x69e9ff : 0xffb654,
+        latest.lastGoal?.explosion ??
+          latest.players.find((p) => p.id === latest.lastGoal?.scorerId)?.preset
+            .explosion ??
+          "pulse",
       );
     this.phase = latest.phase;
     this.simulation.cars.forEach((car, i) => {
@@ -400,6 +406,7 @@ export class NetworkMatchView {
     this.spectator?.dispose();
     this.rumbleEffects.dispose();
     this.effects.forEach((e) => e.dispose());
+    this.explosion.dispose();
     this.group.removeFromParent();
     disposeModel(this.group);
     this.labels.remove();

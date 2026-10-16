@@ -43,6 +43,10 @@ export const P = {
     rayLength: 0.65,
     grip: 24,
     lateralMaxAcceleration: 34, // Finite ordinary tire force (m/s^2); handbrake curve unchanged.
+    highSpeedGripStart: 14,
+    highSpeedGripEnd: 23,
+    highSpeedGripGain: 0.18, // Settled low-slip driving only.
+    highSpeedForceGain: 0.15, // Still a finite tire-force limit.
     overheadPartialSupport: 0.12,
     overheadPartialNormal: -0.05, // Ignore near-zero normal noise on vertical walls.
     partialSurfaceAlignment: 0.95,

@@ -100,6 +100,8 @@ export class NetworkMatch {
     });
     for (const p of players)
       if (p.controller === "bot") this.bots.set(p.id, new Opponent());
+    this.match.explosionFor = (id) =>
+      players.find((p) => p.id === id)?.preset.explosion ?? "pulse";
     this.match.gameMode = gameMode;
     this.match.start(this.simulation, "network");
     this.botTeam.prepare(this.simulation, this.pads);

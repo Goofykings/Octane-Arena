@@ -57,12 +57,27 @@ export class MutatorsPanel {
             '">&rsaquo;</button></div></div>',
         )
         .join("") +
-      '</div><p class="mutators-error" role="status"></p><footer><button class="back-button" data-nav-back>BACK</button><button class="party-button" data-reset>RESET TO DEFAULT</button></footer>';
+      '</div><p class="mutators-error" role="status"></p><footer><button class="back-button" data-nav-back>BACK</button><div class="mutators-actions"><button class="party-button" data-randomize>RANDOMIZE</button><button class="party-button" data-reset>RESET TO DEFAULT</button></div></footer>';
     document.getElementById("app")!.append(this.dialog);
     this.dialog.querySelector<HTMLButtonElement>("[data-nav-back]")!.onclick =
       () => this.close();
     this.dialog.querySelector<HTMLButtonElement>("[data-reset]")!.onclick =
       () => void this.commit(DEFAULT_MUTATORS);
+    this.dialog.querySelector<HTMLButtonElement>("[data-randomize]")!.onclick =
+      () =>
+        void this.commit(
+          matchMutators(
+            Object.fromEntries(
+              mutatorKeys.map((key) => {
+                const options = mutatorOptions[key];
+                return [
+                  key,
+                  options[Math.floor(Math.random() * options.length)],
+                ];
+              }),
+            ),
+          ),
+        );
     this.dialog.querySelectorAll<HTMLButtonElement>("[data-step]").forEach(
       (b) =>
         (b.onclick = () => {
@@ -113,8 +128,9 @@ export class MutatorsPanel {
         .querySelectorAll<HTMLButtonElement>("button")
         .forEach((b) => (b.disabled = !writable));
     }
-    this.dialog.querySelector<HTMLButtonElement>("[data-reset]")!.disabled =
-      !writable;
+    this.dialog
+      .querySelectorAll<HTMLButtonElement>("[data-reset], [data-randomize]")
+      .forEach((button) => (button.disabled = !writable));
     this.dialog.dataset.navDefault = '[data-mutator="matchLength"]';
   }
   show() {
