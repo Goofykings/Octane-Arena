@@ -190,8 +190,13 @@ export class NetworkClient {
       this.rtcStartedAt = performance.now();
     }
     if (!desired) return;
+    if (this.party.state?.gameMode === "dropshot")
+      for (const member of this.party.state.members)
+        if (!this.sessionMembers.some((m) => m.id === member.id))
+          this.sessionMembers.push(structuredClone(member));
     this.pumpRtc();
   }
+  private invalidReplayId = "";
   private receive(message: ServerMessage) {
     if (message.type === "latency-probe") {
       this.send({ type: "latency-reply", nonce: message.nonce });
@@ -211,7 +216,14 @@ export class NetworkClient {
       return;
     }
     if (message.type === "replay" && message.matchId === this.desired) {
-      this.replayClip = decodeReplay(message);
+      try {
+        this.replayClip = decodeReplay(message);
+        this.invalidReplayId = "";
+      } catch {
+        this.replayClip = null;
+        this.invalidReplayId = message.clip?.goal?.id ?? "";
+        this.skipReplay();
+      }
     } else if (
       message.type === "snapshot" &&
       message.matchId === this.desired
@@ -223,8 +235,10 @@ export class NetworkClient {
       for (const m of message.chat ?? []) this.addChat(m);
       if (!message.replay) {
         this.replayClip = null;
+        this.invalidReplayId = "";
         this.skipSent = "";
       }
+      if (message.replay?.id === this.invalidReplayId) this.skipReplay();
       this.arrived = performance.now();
       this.status = "";
       this.snapshots.push(message);
@@ -250,6 +264,9 @@ export class NetworkClient {
       if (!party.members.some((m) => m.id === id)) return;
       if ((value as { type: string }).type === "match-ready") {
         if (!this.readyPeers.has(id)) {
+          const member = party.members.find((m) => m.id === id);
+          if (party.gameMode === "dropshot" && member?.team === "spectator")
+            this.command({ type: "session-joined", member });
           this.command({ type: "connected", id });
           this.rtc.send(id, {
             type: "chat-history",

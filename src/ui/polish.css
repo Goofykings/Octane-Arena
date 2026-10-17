@@ -1,0 +1,271 @@
+﻿/* Octane Arena shared interface language. Existing card art and cut corners stay intact. */
+:root {
+  --ui-radius: 8px;
+  --ui-border: 1px;
+  --ui-panel: #102334eb;
+  --ui-panel-soft: #102334bf;
+  --ui-border-color: #7ba7bf55;
+  --ui-space-1: 6px;
+  --ui-space-2: 12px;
+  --ui-space-3: 20px;
+  --ui-space-4: 32px;
+  --ui-text-small: clamp(12px, 0.95vw, 15px);
+  --ui-title: clamp(26px, 3.2vw, 42px);
+  --ui-fast: 120ms;
+  --ui-enter: 220ms;
+  --ui-exit: 150ms;
+  --ui-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ui-hover-scale: 1.015;
+  --ui-glow: 0 0 18px #81e4f528;
+  --ui-shadow: 0 20px 65px #020a1659;
+  --ui-disabled: 0.4;
+}
+button,
+select,
+input,
+textarea {
+  font-family: inherit;
+  font-weight: inherit;
+}
+button {
+  transition:
+    scale var(--ui-fast) var(--ui-ease),
+    background-color var(--ui-fast),
+    border-color var(--ui-fast),
+    box-shadow var(--ui-fast),
+    filter var(--ui-fast),
+    transform var(--ui-fast) var(--ui-ease);
+  -webkit-tap-highlight-color: transparent;
+}
+button:not(:disabled):not([aria-disabled="true"]):is(
+    :focus-visible,
+    .gamepad-focus
+  ) {
+  scale: var(--ui-hover-scale);
+  box-shadow:
+    var(--ui-glow),
+    inset 0 0 0 1px #bceeff44;
+}
+@media (hover: hover) {
+  :root:not([data-ui-input="controller"]) button:not(:disabled):hover {
+    scale: var(--ui-hover-scale);
+    filter: brightness(1.09);
+  }
+}
+button:not(:disabled):active {
+  scale: 0.975;
+}
+button:disabled,
+button[aria-disabled="true"] {
+  opacity: var(--ui-disabled);
+  filter: saturate(0.3);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+:where(button, input, textarea, select, [data-nav-cycle]):focus-visible {
+  outline: 2px solid #b7f8ff;
+  outline-offset: 3px;
+}
+:where(
+  dialog,
+  .modal-card,
+  .replay-skip,
+  #spectator-controls,
+  #match-chat,
+  .preset-row
+) {
+  border-radius: var(--ui-radius);
+  border-color: var(--ui-border-color);
+}
+dialog,
+.modal-card {
+  box-shadow: var(--ui-shadow);
+  background: linear-gradient(135deg, #254154f2, var(--ui-panel) 58%);
+}
+:is(.full-screen, dialog, .modal-card) h2 {
+  font-size: var(--ui-title);
+}
+:is(.settings-tabs, .category-tabs) button {
+  transition:
+    background var(--ui-fast),
+    color var(--ui-fast),
+    box-shadow var(--ui-fast),
+    scale var(--ui-fast);
+}
+:is(
+  [role="tab"][aria-selected="true"],
+  .item-card[aria-pressed="true"],
+  .preset-equip[aria-pressed="true"],
+  .arena-option[aria-pressed="true"]
+) {
+  box-shadow:
+    inset 0 -2px #9deef7,
+    inset 0 0 28px #75d5ed18;
+}
+:where(.back-button, .party-button, .icon-button, .item-card, .preset-icon) {
+  border-radius: calc(var(--ui-radius) * 0.5);
+}
+input[type="range"] {
+  accent-color: var(--cyan);
+  cursor: ew-resize;
+  transition: filter var(--ui-fast);
+}
+input[type="range"]:is(:focus-visible, :active) {
+  filter: drop-shadow(0 0 4px #86e9ff88);
+}
+textarea,
+input:not([type="range"]):not([type="checkbox"]),
+select {
+  transition:
+    border-color var(--ui-fast),
+    background-color var(--ui-fast),
+    box-shadow var(--ui-fast);
+}
+textarea:focus,
+input:not([type="range"]):focus,
+select:focus {
+  border-color: #91e4f3;
+  box-shadow: 0 0 0 2px #73d9f514;
+}
+.screen[data-transition-managed] {
+  animation: none;
+}
+[inert] {
+  pointer-events: none !important;
+}
+dialog[open] {
+  animation: none;
+}
+/* Native dialogs retain their top-layer position while fading closed where supported. */
+@supports (transition-behavior: allow-discrete) {
+  dialog {
+    transition:
+      opacity var(--ui-exit),
+      display var(--ui-exit) allow-discrete,
+      overlay var(--ui-exit) allow-discrete;
+    opacity: 0;
+  }
+  dialog[open] {
+    opacity: 1;
+  }
+  dialog::backdrop {
+    transition:
+      opacity var(--ui-exit),
+      display var(--ui-exit) allow-discrete,
+      overlay var(--ui-exit) allow-discrete;
+    opacity: 0;
+  }
+  dialog[open]::backdrop {
+    opacity: 1;
+  }
+  @starting-style {
+    dialog[open]::backdrop {
+      opacity: 0;
+    }
+  }
+}
+/* One lightweight light wash keeps menus alive without particles or DOM churn. */
+#home-shade:after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 20% 40%, #82dcea0b, transparent 52%);
+  animation: menu-ambient 12s ease-in-out infinite alternate;
+}
+@keyframes menu-ambient {
+  to {
+    opacity: 0.4;
+    translate: 4% 0;
+  }
+}
+#match-loading {
+  background: linear-gradient(115deg, #081623eb, #122b3bd9);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  overflow: hidden;
+}
+#match-loading:before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 70% 35%, #75dbf218, transparent 55%);
+}
+#match-loading strong {
+  letter-spacing: 0.12em;
+  text-shadow: 0 0 30px #8fe5f52b;
+}
+#match-loading progress {
+  height: 4px;
+  border: 0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+#match-loading span {
+  min-height: 1.5em;
+  letter-spacing: 0.08em;
+}
+#match-board {
+  border-radius: var(--ui-radius);
+  box-shadow: var(--ui-shadow);
+}
+#match-board .stat-row {
+  transition: background-color var(--ui-fast);
+}
+.mvp-badge {
+  animation: mvp-reveal var(--ui-enter) var(--ui-ease);
+}
+@keyframes mvp-reveal {
+  from {
+    opacity: 0;
+    scale: 0.85;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+#countdown {
+  font-variant-numeric: tabular-nums;
+}
+#spectator-controls {
+  border: var(--ui-border) solid var(--ui-border-color);
+  background: var(--ui-panel-soft);
+}
+.replay-scorer,
+.replay-skip {
+  box-shadow: var(--ui-shadow);
+}
+#party-flow > section {
+  animation: screen-in var(--ui-enter) var(--ui-ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *:before,
+  *:after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  button:is(:hover, :focus-visible, .gamepad-focus, :active) {
+    scale: 1 !important;
+  }
+}
+:root[data-quality="low"] #match-loading {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+:root[data-quality="low"] #home-shade:after {
+  animation: none;
+}
+dialog footer {
+  gap: var(--ui-space-2);
+}
+.dialog-heading {
+  margin-bottom: var(--ui-space-3);
+}
+dialog:not([open]) {
+  pointer-events: none;
+}

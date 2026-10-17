@@ -1,3 +1,4 @@
+import { ScreenTransitions } from "./motion";
 export interface PreparationJob {
   name: string;
   run: () => void | Promise<unknown>;
@@ -6,6 +7,7 @@ export interface PreparationJob {
 export class MatchLoading {
   readonly root = document.createElement("section");
   active = false;
+  private transitions = new ScreenTransitions();
   timings: { name: string; ms: number }[] = [];
   private generation = 0;
   private label = document.createElement("span");
@@ -34,7 +36,7 @@ export class MatchLoading {
     if (this.active) return false;
     const token = ++this.generation;
     this.active = true;
-    this.root.hidden = false;
+    this.transitions.setVisible(this.root, true);
     this.timings = [];
     this.bar.max = jobs.length;
     this.bar.value = 0;
@@ -55,7 +57,7 @@ export class MatchLoading {
       if (token !== this.generation) return false;
       commit();
       this.active = false;
-      this.root.hidden = true;
+      this.transitions.setVisible(this.root, false);
       return true;
     } catch (error) {
       if (token !== this.generation) return false;

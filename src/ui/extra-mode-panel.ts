@@ -1,7 +1,9 @@
+import { ScreenTransitions } from "./motion";
 import { ringsTime } from "../extra/rings";
 import type { ExtraSession } from "../extra/session";
 
 export class ExtraModePanel {
+  private transitions = new ScreenTransitions();
   readonly root = document.createElement("section");
   private outcomeSequence = 0;
   constructor(
@@ -93,8 +95,10 @@ export class ExtraModePanel {
         run.zeroTime ? "ZERO TIME" : run.phase === "ready" ? "READY" : "",
       );
       document.getElementById("hud")!.hidden = !!this.session.replayActive;
-      this.root.querySelector<HTMLElement>("#training-modal")!.hidden =
-        !this.session.paused && !this.session.complete;
+      this.transitions.setVisible(
+        this.root.querySelector<HTMLElement>("#training-modal")!,
+        this.session.paused || this.session.complete,
+      );
       this.root.querySelector<HTMLElement>("#training-result")!.hidden =
         !this.session.complete;
       this.root.querySelector<HTMLElement>("#training-resume")!.hidden =
@@ -134,8 +138,10 @@ export class ExtraModePanel {
       )!.disabled = run.progress <= 1;
       this.root.querySelector<HTMLButtonElement>("#dribble-next")!.disabled =
         run.progress >= (run.unlocked ?? 1);
-      this.root.querySelector<HTMLElement>("#dribble-modal")!.hidden =
-        !this.session.paused && !this.session.complete;
+      this.transitions.setVisible(
+        this.root.querySelector<HTMLElement>("#dribble-modal")!,
+        this.session.paused || this.session.complete,
+      );
       this.root.querySelector("#dribble-title")!.textContent = this.session
         .complete
         ? "CHALLENGE COMPLETE"
@@ -153,8 +159,10 @@ export class ExtraModePanel {
     set("rings-time", ringsTime(run.elapsed));
     set("rings-progress", `${run.progress} / ${run.total}`);
     set("rings-best", String(run.bestProgress));
-    this.root.querySelector<HTMLElement>("#rings-modal")!.hidden =
-      !this.session.paused && !this.session.complete;
+    this.transitions.setVisible(
+      this.root.querySelector<HTMLElement>("#rings-modal")!,
+      this.session.paused || this.session.complete,
+    );
     this.root.querySelector<HTMLElement>("#rings-result")!.hidden =
       !this.session.complete;
     this.root.querySelector<HTMLElement>("#rings-resume")!.hidden =

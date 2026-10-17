@@ -1568,6 +1568,9 @@ output {
 /* Extra modes retain the existing cut-corner cards and screen transitions. */
 #extra-mode { margin-left: clamp(12px, 2.6vw, 44px); background: linear-gradient(145deg, #34475bcc, #122338ed); border-color: #94aabd; }
 #extras { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 24px; }
+/* Hover lift/scale must not turn this three-card menu into a scroll container. */
+#extras .extra-grid { overflow: visible; grid-auto-rows: minmax(0, 1fr); }
+#extras .mode-card { min-height: 0; max-height: 100%; }
 .extra-grid { grid-template-columns: repeat(auto-fit, minmax(210px, 320px)); justify-content: start; }
 #rings-mode { background: radial-gradient(ellipse at 50% 30%, #4c846459, transparent 65%), linear-gradient(145deg, #1b3544e8, #101f32ee); }
 #rings-mode > svg { color: #85f8b1; }
@@ -1837,3 +1840,9 @@ output {
 #feedback :disabled {opacity:.55;}
 
 .mutators-actions {display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;}
+
+.arena-option.hoops .arena-swatch { background:repeating-linear-gradient(0deg,#bb804a 0 8px,#8d582d 9px 10px); }
+
+#match-board.dropshot-board .stat-row {grid-template-columns:minmax(75px,2fr) repeat(7,minmax(24px,.6fr));}
+
+.arena-option.dropshot .arena-swatch {background:repeating-linear-gradient(60deg,transparent 0 12px,#729bc355 12px 14px),linear-gradient(90deg,#174e85 0 49%,#1b263b 49% 51%,#82522c 51%);}

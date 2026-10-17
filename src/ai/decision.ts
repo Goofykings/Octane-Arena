@@ -1,3 +1,5 @@
+import { chooseDropshotTarget } from "./dropshot";
+import { chooseHoopsTarget } from "./hoops";
 import { Vector3, Quaternion } from "three";
 import { P } from "../config/physics";
 import type { Car } from "../car/car";
@@ -62,6 +64,16 @@ export class BotDecision {
     perception: BotPerception,
     pads?: Pads,
   ): BotTarget {
+    if (s.gameMode === "dropshot") return chooseDropshotTarget(car,s,perception,this.difficulty,this.roles.get(car.id) ?? "first");
+    if (s.gameMode === "hoops")
+      return chooseHoopsTarget(
+        car,
+        s,
+        perception,
+        this.difficulty,
+        this.roles.get(car.id) ?? "first",
+        pads,
+      );
     const config = BOT_TUNING[this.difficulty],
       role = this.roles.get(car.id) ?? "first",
       own = new Vector3(

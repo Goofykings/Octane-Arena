@@ -1,3 +1,4 @@
+import { setControlText } from "./motion";
 import {
   DEFAULT_MUTATORS,
   matchMutators,
@@ -117,8 +118,10 @@ export class MutatorsPanel {
     this.dialog.querySelector(".mutators-authority")!.textContent =
       this.editable() ? "" : "HOST SETTINGS";
     for (const key of mutatorKeys) {
-      this.dialog.querySelector('[data-value="' + key + '"]')!.textContent =
-        config[key];
+      setControlText(
+        this.dialog.querySelector('[data-value="' + key + '"]')!,
+        config[key],
+      );
       const row = this.dialog.querySelector<HTMLElement>(
         '[data-mutator="' + key + '"]',
       )!;

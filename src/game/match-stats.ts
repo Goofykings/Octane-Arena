@@ -45,6 +45,8 @@ export class MatchStats {
   readonly events: MatchStatEvent[] = [];
   debug = false;
   private sequence = 0;
+  private dropshotEpoch = -1;
+  private damageSequence = 0;
   private lastTick = -1;
   private goals = new Set<string>();
   private history: { playerId: string; team: number; time: number }[] = [];
@@ -66,17 +68,17 @@ export class MatchStats {
   private log(data: unknown) {
     if (this.debug) console.debug("[Octane match stats]", data);
   }
-  private award(type: StatKind, playerId: string, time: number) {
+  private award(type: StatKind, playerId: string, time: number, amount = 1) {
     const player = this.roster.find((p) => p.id === playerId),
       stats = this.players.get(playerId);
     if (!player || !stats) return;
-    applyStatAward(stats, type);
+    applyStatAward(stats, type, amount);
     const event: MatchStatEvent = {
       id: ++this.sequence,
       type,
       playerId,
       team: player.team,
-      scoreAward: MATCH_POINTS[type],
+      scoreAward: MATCH_POINTS[type] * amount,
       timestamp: time,
     };
     this.events.push(event);
@@ -149,6 +151,17 @@ export class MatchStats {
     if (this.lastTick === s.clock) return;
     this.lastTick = s.clock;
     for (const touch of s.statTouches) this.touch(touch, s);
+    if (s.dropshot) {
+      if (this.dropshotEpoch !== s.dropshot.epoch) {
+        this.dropshotEpoch = s.dropshot.epoch;
+        this.damageSequence = 0;
+      }
+      for (const e of s.dropshot.events)
+        if (e.id > this.damageSequence) {
+          this.damageSequence = e.id;
+          this.award("DAMAGE", e.playerId, s.clock, e.changes.length);
+        }
+    }
     if (
       this.activeShot &&
       s.clock - this.lastThreatCheck >= STAT_TUNING.threatCheckInterval
@@ -158,6 +171,9 @@ export class MatchStats {
         position: { ...s.ball.translation() },
         velocity: { ...s.ball.linvel() },
         heat: s.heatseeker ? { ...s.heatseeker.state } : null,
+        mode: s.gameMode,
+        dropshot: s.dropshot ? { tiles: s.dropshot.tiles } : undefined,
+        physics: s.physics,
       };
       const threat = s.ball.isEnabled()
         ? predictGoal(sample, s.world, this.horizon(sample))

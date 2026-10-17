@@ -18,6 +18,13 @@ class CameraVisualOcclusion {
     { mats: T.Material[]; opacity: number[] }
   >();
   constructor(private meshes: T.Mesh[]) {}
+  add(meshes: T.Mesh[]) {
+    for (const mesh of meshes)
+      if (!this.meshes.includes(mesh)) {
+        mesh.updateWorldMatrix(true, false);
+        this.meshes.push(mesh);
+      }
+  }
   update(camera: T.Camera, now: number) {
     const dt = this.lastTime
       ? Math.min(0.1, Math.max(0, now - this.lastTime))
@@ -77,6 +84,12 @@ export function registerCameraVisualOcclusion(
 ) {
   meshes.forEach((mesh) => mesh.updateWorldMatrix(true, false));
   controllers.set(scene, new CameraVisualOcclusion(meshes));
+}
+/** Extend a lazily constructed arena without losing existing fade/restoration state. */
+export function addCameraVisualOccluders(scene: T.Scene, meshes: T.Mesh[]) {
+  const controller = controllers.get(scene);
+  if (controller) controller.add(meshes);
+  else registerCameraVisualOcclusion(scene, meshes);
 }
 export function updateCameraVisualOcclusion(
   scene: T.Scene,

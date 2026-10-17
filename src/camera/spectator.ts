@@ -1,3 +1,4 @@
+import { reveal } from "../ui/motion";
 import * as T from "three";
 import { GameCamera } from "./camera";
 import type { MouseLook } from "./mouse-look";
@@ -107,12 +108,16 @@ export class SpectatorCamera {
       if (input.takeAction("spectateNext")) this.cycle(1);
     }
     const index = s.players.findIndex((p) => p.id === this.target);
-    this.caption.textContent =
+    const caption =
       index >= 0
         ? "PLAYER: " + s.cars[index].displayName
         : this.target === "ball"
           ? "BALL CAM"
           : "FREE CAM";
+    if (this.caption.textContent !== caption) {
+      this.caption.textContent = caption;
+      reveal(this.caption, 4);
+    }
     this.speedField.hidden = this.target !== "free";
     this.hint.textContent =
       this.target === "free"

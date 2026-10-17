@@ -1,3 +1,8 @@
+import {
+  HOOPS_CAR_GROUP,
+  DROPSHOT_CAR_GROUP,
+} from "../physics/collision-groups";
+import { hoopsCrossing, HOOPS_CONFIG as H } from "../../shared/hoops";
 import { goalExplosionId } from "../../shared/catalog";
 import {
   DEFAULT_MUTATORS,
@@ -12,6 +17,7 @@ import { KickoffBag, freeplayKickoffs } from "../../shared/kickoff";
 import { ReplayRecorder } from "../replay/recorder";
 import {
   ReplayClock,
+  playableReplay,
   type ReplayClip,
   type ReplayState,
 } from "../../shared/replay";
@@ -47,6 +53,7 @@ export class Match {
     votes: Set<string>;
   } | null = null;
   private goalSequence = 0;
+  private previousBall = { x: 0, y: 0, z: 0 };
   private pendingEligible: Set<string> | null = null;
   get replayActive() {
     return (
@@ -109,14 +116,24 @@ export class Match {
     this.kickoff(s);
     if (mode !== "network")
       for (let i = 1; i < s.cars.length; i++) {
-        s.cars[i].collider.setCollisionGroups(this.rules.bot ? 0xffffffff : 0);
+        s.cars[i].collider.setCollisionGroups(
+          this.rules.bot
+            ? this.gameMode === "hoops"
+              ? HOOPS_CAR_GROUP
+              : this.gameMode === "dropshot"
+                ? DROPSHOT_CAR_GROUP
+                : 0xffffffff
+            : 0,
+        );
         s.cars[i].body.setEnabled(this.rules.bot);
       }
   }
   kickoff(s: Simulation) {
     this.stats?.kickoff();
     const formation =
-      this.gameMode === "heatseeker"
+      this.gameMode === "heatseeker" ||
+      this.gameMode === "hoops" ||
+      this.gameMode === "dropshot"
         ? undefined
         : this.rules.training
           ? freeplayKickoffs[this.practiceKickoff++ % freeplayKickoffs.length]
@@ -129,9 +146,10 @@ export class Match {
             );
     this.kickoffFormationId = formation?.id ?? null;
     s.reset(formation);
+    this.previousBall = { ...s.ball.translation() };
     if (!this.rules.training)
       s.cars.forEach((c) => {
-        c.boost = P.match.kickoffBoost;
+        c.boost = this.gameMode === "dropshot" ? 100 : P.match.kickoffBoost;
         c.applyBoostRule();
       });
     this.lastGoal = null;
@@ -141,6 +159,7 @@ export class Match {
     this.goalFocus = null;
     this.countdown = this.rules.countdown;
     this.phase = this.countdown ? "countdown" : "playing";
+    if (this.phase === "playing") s.launchKickoff();
     this.freeze = 0;
     this.resetSequence++;
     this.message = "";
@@ -167,7 +186,11 @@ export class Match {
       !this.timed || this.remaining > 0 || this.overtime,
     );
     if (this.phase === "replay") {
-      this.replay!.clock.advance(P.dt);
+      if (!this.replay || !this.replay.clock.valid) {
+        this.endReplay(s);
+        return;
+      }
+      this.replay.clock.advance(P.dt);
       if (this.replay!.clock.done) this.endReplay(s);
       return;
     }
@@ -181,6 +204,7 @@ export class Match {
           !this.timed || this.remaining > 0 || this.overtime,
         );
         this.goTime = KICKOFF_GO_TIME;
+        s.launchKickoff();
       }
       return;
     }
@@ -188,7 +212,7 @@ export class Match {
       const clip = this.recorder.capturePostGoal(s, this.resetSequence, pads);
       if (!clip && !this.recorder.pendingGoal && this.replay)
         this.recorder.capture(s, this.resetSequence, pads); // Keep live wheel/pickup state moving; finalized clip is an immutable copy.
-      if (clip) {
+      if (clip && playableReplay(clip)) {
         this.replay = {
           clip,
           clock: new ReplayClock(clip),
@@ -214,13 +238,23 @@ export class Match {
       !this.timed || this.remaining > 0 || this.overtime,
     );
     const p = s.ball.translation();
-    const scoring = scoringTeam(p, s.physics.ball.radius);
+    const scoring =
+      this.gameMode === "dropshot"
+        ? (s.dropshot?.goal ?? null)
+        : this.gameMode === "hoops"
+          ? hoopsCrossing(this.previousBall, p, s.physics.ball.radius)
+          : scoringTeam(p, s.physics.ball.radius);
+    this.previousBall = { ...p };
     if (scoring !== null) {
       this.goalFocus = {
         x: p.x,
-        y: p.y,
-        z: Math.sign(p.z) * P.arena.halfLength,
+        y: this.gameMode === "hoops" ? H.hoopHeight : p.y,
+        z:
+          Math.sign(p.z) *
+          (this.gameMode === "hoops" ? H.hoopZ : P.arena.halfLength),
       };
+      if (this.gameMode === "dropshot")
+        this.goalFocus = { x: p.x, y: p.y, z: p.z };
       if (this.rules.goal === "practice") {
         const scorer = s.cars.find((c) => c.id === s.lastTouchId) ?? s.cars[0];
         this.recorder.beginGoal({

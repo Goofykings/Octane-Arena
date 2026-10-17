@@ -1,3 +1,14 @@
+import { createDropshotArena, insideDropshot } from "../arena/dropshot";
+import { Dropshot } from "../game/dropshot";
+import { DROPSHOT_CONFIG as D, dropshotSpawn } from "../../shared/dropshot";
+import {
+  HOOPS_CAR_GROUP,
+  HOOPS_BALL_GROUP,
+  DROPSHOT_CAR_GROUP,
+  DROPSHOT_BALL_GROUP,
+} from "./collision-groups";
+import { createHoopsArena } from "../arena/hoops";
+import { HOOPS_CONFIG as HOOPS, hoopsSpawn } from "../../shared/hoops";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { Vector3 } from "three";
 import { P } from "../config/physics";
@@ -33,6 +44,7 @@ import { BallGroundContact } from "./ball-ground";
 // Initialize the same Rapier module used by the simulation, including in Node.
 export const initializeSimulation = () => RAPIER.init();
 export interface Hit {
+  kind?: "rim";
   position: Vector3;
   normal: Vector3;
   relative: Vector3;
@@ -69,16 +81,40 @@ export class Simulation {
       velocity: { ...this.ball.linvel() },
       heat: this.heatseeker ? { ...this.heatseeker.state } : null,
       physics: this.physics,
+      mode: this.gameMode,
+      dropshot: this.dropshot ? { tiles: this.dropshot.tiles } : undefined,
     };
   }
   gameMode: SoccerMode = "soccar";
+  dropshot: Dropshot | null = null;
   heatseeker: Heatseeker | null = null;
   rumble: Rumble | null = null;
   private heatContacts = new Set<string>();
   private backboardContact: number | null = null;
   setGameMode(mode: SoccerMode) {
+    if (
+      mode !== this.gameMode &&
+      [mode, this.gameMode].some((m) => m === "hoops" || m === "dropshot")
+    )
+      this.switchArena(mode);
     this.rumble?.dispose();
     this.gameMode = mode;
+    this.ballCollider.setCollisionGroups(
+      mode === "hoops"
+        ? HOOPS_BALL_GROUP
+        : mode === "dropshot"
+          ? DROPSHOT_BALL_GROUP
+          : 0xffffffff,
+    );
+    this.cars.forEach((c) =>
+      c.collider.setCollisionGroups(
+        mode === "hoops"
+          ? HOOPS_CAR_GROUP
+          : mode === "dropshot"
+            ? DROPSHOT_CAR_GROUP
+            : 0xffffffff,
+      ),
+    );
     this.cars.forEach((c) => {
       c.infiniteBoost = mode === "heatseeker";
       c.applyBoostRule();
@@ -113,6 +149,50 @@ export class Simulation {
   ballContacts: CarBallContact[];
   private relative: Vector3[] = [];
   arenaCollider?: RAPIER.Collider;
+  private flatArena = false;
+  private arenaColliders: RAPIER.Collider[] = [];
+  private hoopLaunchPending = false;
+  private hoopRims = new Set<number>();
+  private switchArena(mode: SoccerMode) {
+    this.dropshot = null;
+    this.hoopRims.clear();
+    for (const c of this.arenaColliders) this.world.removeCollider(c, true);
+    if (mode === "dropshot") {
+      const a = createDropshotArena(this.world);
+      this.arenaCollider = a.shell;
+      this.arenaColliders = a.colliders;
+      this.dropshot = new Dropshot(a);
+    } else if (mode === "hoops") {
+      const a = createHoopsArena(this.world);
+      this.arenaCollider = a.shell;
+      this.arenaColliders = a.colliders;
+      this.hoopRims = new Set(a.rims.map((c) => c.handle));
+    } else {
+      const c = createArena(this.world, this.flatArena);
+      this.arenaCollider = this.flatArena ? undefined : c;
+      this.arenaColliders = [c];
+    }
+    this.ballGround?.setArena(this.arenaColliders[0]);
+  }
+  launchKickoff() {
+    if (
+      (this.gameMode === "hoops" || this.gameMode === "dropshot") &&
+      this.hoopLaunchPending
+    ) {
+      this.ball.setLinvel(
+        {
+          x: 0,
+          y:
+            this.gameMode === "dropshot"
+              ? D.kickoffVerticalVelocity
+              : HOOPS.kickoffVerticalVelocity,
+          z: 0,
+        },
+        true,
+      );
+      this.hoopLaunchPending = false;
+    }
+  }
   containmentRecoveries = 0;
   constructor(
     flat = false,
@@ -122,6 +202,7 @@ export class Simulation {
     ],
   ) {
     this.players = players;
+    this.flatArena = flat;
     if (
       players.length < 1 ||
       players.length > 6 ||
@@ -135,6 +216,7 @@ export class Simulation {
     this.world.maxCcdSubsteps = 4;
     const arenaSurface = createArena(this.world, flat);
     this.arenaCollider = flat ? undefined : arenaSurface;
+    this.arenaColliders = [arenaSurface];
     this.cars = players.map(() => new Car(this.world));
     this.velocities = players.map(() => new Vector3());
     this.relative = players.map(() => new Vector3());
@@ -175,6 +257,7 @@ export class Simulation {
     this.ballPose.snap();
   }
   reset(formation?: KickoffFormation) {
+    this.dropshot?.reset();
     this.rumble?.reset();
     this.ballGround.reset();
     this.statContacts.clear();
@@ -182,34 +265,64 @@ export class Simulation {
     for (const c of this.cars)
       if (c.demolitionState !== "active") {
         c.body.setEnabled(true);
-        c.collider.setCollisionGroups(0xffffffff);
+        c.collider.setCollisionGroups(
+          this.gameMode === "hoops"
+            ? HOOPS_CAR_GROUP
+            : this.gameMode === "dropshot"
+              ? DROPSHOT_CAR_GROUP
+              : 0xffffffff,
+        );
       }
     this.demolitions = [];
     this.lastTouchId = null;
     this.lastTouchTime = -Infinity;
     this.touchEvents.length = 0;
-    this.ballCollider.setCollisionGroups(0xffffffff);
+    this.ballCollider.setCollisionGroups(
+      this.gameMode === "hoops"
+        ? HOOPS_BALL_GROUP
+        : this.gameMode === "dropshot"
+          ? DROPSHOT_BALL_GROUP
+          : 0xffffffff,
+    );
     this.ball.setEnabled(true);
     for (const c of this.cars) {
       const team = this.cars.filter((p) => p.team === c.team),
         slot = team.indexOf(c);
-      const spawn = formation
-        ? kickoffSpawn(formation.slots[slot], c.team, P.arena)
-        : null;
+      const spawn =
+        this.gameMode === "dropshot"
+          ? dropshotSpawn(c.team, slot, team.length)
+          : this.gameMode === "hoops"
+            ? hoopsSpawn(c.team, slot, team.length)
+            : formation
+              ? kickoffSpawn(formation.slots[slot], c.team, P.arena)
+              : null;
       c.reset(
         spawn?.x ??
           (team.length === 1 ? 0 : (slot - (team.length - 1) / 2) * 12),
         spawn?.z ?? (c.team === 0 ? 26 : -26),
         spawn?.yaw ?? (c.team === 0 ? 0 : Math.PI),
       );
+      if (this.gameMode === "dropshot") {
+        c.boost = 100;
+        c.applyBoostRule();
+      }
     }
     this.ball.setTranslation(
-      { x: 0, y: this.physics.ball.radius + 0.02, z: 0 },
+      {
+        x: 0,
+        y:
+          this.gameMode === "hoops"
+            ? Math.max(HOOPS.kickoffBallHeight, this.physics.ball.radius + 0.02)
+            : this.physics.ball.radius + 0.02,
+        z: 0,
+      },
       true,
     );
     this.ball.setLinvel({ x: 0, y: 0, z: 0 }, true);
     this.ball.setAngvel({ x: 0, y: 0, z: 0 }, true);
     this.ballPose.snap();
+    this.hoopLaunchPending =
+      this.gameMode === "hoops" || this.gameMode === "dropshot";
     this.cars.forEach((c) => c.applyBoostRule());
     this.hits = [];
     this.ballContacts.forEach((contact) => contact.reset());
@@ -261,7 +374,13 @@ export class Simulation {
       car.team = players[i].team;
       car.displayName = players[i].name;
       car.body.setEnabled(true);
-      car.collider.setCollisionGroups(0xffffffff);
+      car.collider.setCollisionGroups(
+        this.gameMode === "hoops"
+          ? HOOPS_CAR_GROUP
+          : this.gameMode === "dropshot"
+            ? DROPSHOT_CAR_GROUP
+            : 0xffffffff,
+      );
     });
     this.velocities = this.cars.map(() => new Vector3());
     this.relative = this.cars.map(() => new Vector3());
@@ -296,6 +415,7 @@ export class Simulation {
   step(inputs: Controls[] | ReadonlyMap<string, PlayerInput>, passive = false) {
     this.statTouches.length = 0;
     this.clock += P.dt;
+    this.dropshot?.tick(P.dt, this.clock);
     this.touchEvents.length = 0;
     this.demolitions = this.demolitions.filter((e) => (e.age += P.dt) < 1);
     this.cars.forEach((c) => {
@@ -303,7 +423,18 @@ export class Simulation {
       c.respawnTimer = Math.max(0, c.respawnTimer - P.dt);
       if (c.respawnTimer > 1e-8) return;
       c.demolitionState = "respawning";
-      const locations = respawnLocations(c.team),
+      const locations =
+          this.gameMode === "dropshot"
+            ? [0, 1].map((slot) => {
+                const p = this.dropshot!.respawnPoint(c.team, slot);
+                return new Vector3(p.x, 0.31, p.z);
+              })
+            : this.gameMode === "hoops"
+              ? [0, 1].map((slot) => {
+                  const p = hoopsSpawn(c.team, slot, 2);
+                  return new Vector3(p.x, 0.31, p.z);
+                })
+              : respawnLocations(c.team),
         start = Math.floor(Math.random() * locations.length);
       for (let i = 0; i < locations.length; i++) {
         const p = locations[(start + i) % locations.length];
@@ -318,8 +449,14 @@ export class Simulation {
         )
           continue;
         c.reset(p.x, p.z, c.team === 0 ? 0 : Math.PI);
-        c.boost = P.demolition.boost;
-        c.collider.setCollisionGroups(0xffffffff);
+        c.boost = this.gameMode === "dropshot" ? 100 : P.demolition.boost;
+        c.collider.setCollisionGroups(
+          this.gameMode === "hoops"
+            ? HOOPS_CAR_GROUP
+            : this.gameMode === "dropshot"
+              ? DROPSHOT_CAR_GROUP
+              : 0xffffffff,
+        );
         c.body.setEnabled(true);
         break;
       }
@@ -336,6 +473,13 @@ export class Simulation {
             neutralInput(),
         );
       }
+      if (!passive)
+        this.dropshot?.regenBoost(
+          c,
+          (Array.isArray(inputs) ? inputs[i] : inputs.get(c.id))?.boost ??
+            false,
+          P.dt,
+        );
       c.constrainSurface();
       c.updateSupersonic(P.dt);
       this.velocities[i].copy(c.body.linvel());
@@ -388,6 +532,9 @@ export class Simulation {
             relative: new Vector3(),
             impulse: new Vector3(),
             strength: Math.min(speed, 20),
+            kind: this.hoopRims.has(a === this.ballCollider.handle ? b : a)
+              ? "rim"
+              : undefined,
             age: 0,
           });
       }
@@ -397,6 +544,8 @@ export class Simulation {
     this.cars.forEach((car, i) => {
       const response = this.ballContacts[i];
       let touched = false;
+      if (car.body.isEnabled() && this.ball.isEnabled())
+        response.sampleResetSupport(car, this.ball);
       if (car.body.isEnabled() && this.ball.isEnabled())
         this.world.contactPair(
           car.collider,
@@ -421,6 +570,15 @@ export class Simulation {
               Math.max(0, solverImpulse + response.impulse.dot(normal)),
               !this.statContacts.has(car.id),
             );
+            if (!this.statContacts.has(car.id))
+              this.dropshot?.touch(
+                car.id,
+                car.team as 0 | 1,
+                Math.max(
+                  solverImpulse / this.physics.ball.mass,
+                  response.closing,
+                ),
+              );
             statContacts.add(car.id);
             if (this.heatseeker) {
               heatContacts.add(car.id);
@@ -456,6 +614,18 @@ export class Simulation {
         );
       if (!touched) response.separate(car, this.ball);
     });
+    if (this.dropshot && this.ball.isEnabled()) {
+      this.dropshot.afterStep(
+        this.ball,
+        this.ballCollider,
+        this.world,
+        statBefore.position,
+        statBefore.velocity,
+        this.physics.ball.radius,
+        this.clock,
+      );
+      this.ballGround.grounded = this.dropshot.grounded;
+    }
     this.rumble?.afterStep();
     this.heatContacts = heatContacts;
     this.statContacts = statContacts;
@@ -490,24 +660,41 @@ export class Simulation {
       if (
         this.arenaCollider &&
         c.body.isEnabled() &&
-        !insideArena(this.arenaCollider, c.body.translation())
+        (this.dropshot
+          ? !insideDropshot(c.body.translation())
+          : !insideArena(this.arenaCollider, c.body.translation()))
       ) {
         const boost = c.boost;
         this.rumble?.end(c.id);
+        const team = this.cars.filter((p) => p.team === c.team),
+          spawn =
+            this.gameMode === "dropshot"
+              ? dropshotSpawn(c.team, team.indexOf(c), team.length)
+              : this.gameMode === "hoops"
+                ? hoopsSpawn(c.team, team.indexOf(c), team.length)
+                : null;
         c.reset(
-          (this.cars.indexOf(c) - 1.5) * 4,
-          c.team === 0 ? 26 : -26,
-          c.team === 0 ? 0 : Math.PI,
+          spawn?.x ?? (this.cars.indexOf(c) - 1.5) * 4,
+          spawn?.z ?? (c.team === 0 ? 26 : -26),
+          spawn?.yaw ?? (c.team === 0 ? 0 : Math.PI),
         );
         c.boost = boost;
         this.containmentRecoveries++;
       }
+      if (
+        this.dropshot &&
+        c.body.isEnabled() &&
+        c.body.translation().y < D.carFallDepth
+      )
+        this.demolish(c, c);
       c.pose.after();
     });
     if (
       this.arenaCollider &&
       this.ball.isEnabled() &&
-      !insideArena(this.arenaCollider, this.ball.translation())
+      (this.dropshot
+        ? !insideDropshot(this.ball.translation())
+        : !insideArena(this.arenaCollider, this.ball.translation()))
     ) {
       this.rumble?.recoverBall();
       this.ball.setTranslation(

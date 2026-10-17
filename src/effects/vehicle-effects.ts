@@ -1,3 +1,4 @@
+import { LandingPulse } from "./landing-pulse";
 import * as T from "three";
 import type { Car } from "../car/car";
 import { BoostPlume } from "./boost-styles";
@@ -6,6 +7,7 @@ import { FlipResetBurst } from "./flip-reset";
 /** Pooled exhaust effects plus world-space ribbons from the rear wheels. */
 export class VehicleEffects {
   readonly flipReset: FlipResetBurst;
+  private landing: LandingPulse;
   private flames: BoostPlume;
   private glow: T.PointLight;
   private trails: {
@@ -23,6 +25,7 @@ export class VehicleEffects {
     style = "standard",
   ) {
     this.flipReset = new FlipResetBurst(scene);
+    this.landing = new LandingPulse(scene);
     this.flames = new BoostPlume(
       style,
       style === "standard" ? color : undefined,
@@ -56,6 +59,7 @@ export class VehicleEffects {
   }
   reset() {
     this.flipReset.reset();
+    this.landing.reset();
     this.fade = 0;
     this.wasActive = false;
     for (const t of this.trails) {
@@ -98,6 +102,7 @@ export class VehicleEffects {
     this.flames.removeFromParent();
     this.flames.dispose();
     this.flipReset.dispose();
+    this.landing.dispose();
     for (const t of this.trails) {
       t.mesh.removeFromParent();
       t.mesh.geometry.dispose();
@@ -108,6 +113,7 @@ export class VehicleEffects {
     if (!active && this.wasActive) this.reset();
     this.wasActive = active;
     this.flipReset.update(car, active);
+    this.landing.update(car, this.model, dt, active);
     if (active) this.animateBoost(time, car.boosting);
     this.glow.intensity =
       active && car.boosting ? this.flames.lightIntensity : 0;

@@ -20,6 +20,7 @@ export type AuthorityCommand =
       mutators?: import("../../shared/mutators").MatchMutators;
     }
   | { type: "ready" }
+  | { type: "session-joined"; member: MatchParticipant }
   | { type: "input"; id: string; sequence: number; input: PlayerInput }
   | { type: "connected" | "disconnected" | "session-left"; id: string }
   | { type: "skip"; id: string; replayId: string }
@@ -110,6 +111,10 @@ scope.onmessage = (event) => {
   }
   if (message.type === "stats-debug") {
     if (game.match.stats) game.match.stats.debug = message.enabled;
+    return;
+  }
+  if (message.type === "session-joined") {
+    game.addSpectator(message.member);
     return;
   }
   if (message.type === "session-left") game.removeSessionMember(message.id);

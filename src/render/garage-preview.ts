@@ -9,6 +9,13 @@ export class GaragePreview {
   camera = new T.PerspectiveCamera(37, 1, 0.05, 60);
   private car = new T.Group();
   private angle = -0.55;
+  private readonly motionPreference = matchMedia(
+    "(prefers-reduced-motion: reduce)",
+  );
+  private modelKey = "";
+  private boostId = "";
+  private selectionAge = 1;
+  private topperY = 0;
   mouseLook?: MouseLook;
   private mouseOrbit = new MouseOrbit();
   private mouseFocus = new T.Vector3(0, 0.25, 0);
@@ -123,6 +130,18 @@ export class GaragePreview {
     this.explosionId = p.explosion;
     this.goalExplosion.setStyle(p.explosion);
     this.explosionColor = team === "blue" ? 0x69e9ff : 0xffb654;
+    const modelKey = [p.body, p.wheels, p.topper, p[team]].join("|");
+    if (modelKey === this.modelKey) {
+      if (p.boost !== this.boostId) {
+        this.boostEffects?.setStyle(p.boost);
+        if (p.boost === "standard") this.boostEffects?.setColor(0x69e9ff);
+        this.boostId = p.boost;
+      }
+      return;
+    }
+    this.modelKey = modelKey;
+    this.boostId = p.boost;
+    this.selectionAge = 0;
     this.boostEffects?.dispose();
     this.scene.remove(this.car);
     disposeModel(this.car);
@@ -132,6 +151,7 @@ export class GaragePreview {
       p.wheels,
       p.topper,
     );
+    this.topperY = (this.car.userData.topper as T.Object3D).position.y;
     this.car.position.y = 0.31;
     this.scene.add(this.car);
     this.color = p.boost === "ember" ? 0xffa548 : 0x69e9ff;
@@ -145,7 +165,16 @@ export class GaragePreview {
   update(width: number, height: number, dt = 1 / 60, category = "body") {
     this.setCategory(category);
     this.time += dt;
-    this.car.rotation.y = this.angle;
+    this.selectionAge = Math.min(1, this.selectionAge + dt / 0.18);
+    const ease = 1 - Math.pow(1 - this.selectionAge, 3);
+    const reduced = this.motionPreference.matches;
+    this.car.scale.setScalar(reduced ? 1 : 0.97 + 0.03 * ease);
+    const topper = this.car.userData.topper as T.Object3D | undefined;
+    if (topper)
+      topper.position.y =
+        this.topperY +
+        (!reduced && category === "topper" ? 0.08 * (1 - ease) : 0);
+    this.car.rotation.y = this.angle + (reduced ? 0 : (1 - ease) * 0.08);
     this.boostEffects?.previewBoost(this.time, category === "boost");
     if (category === "explosion") {
       if (this.previewAge >= 0) {

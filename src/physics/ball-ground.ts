@@ -12,6 +12,12 @@ export class BallGroundContact {
     private ball: RAPIER.Collider,
     private surface: RAPIER.Collider,
   ) {
+    this.setArena(surface);
+  }
+  setArena(surface: RAPIER.Collider) {
+    this.surface = surface;
+    this.triangles = [];
+    this.reset();
     const shape = surface.shape;
     if (shape instanceof RAPIER.TriMesh) {
       const v = shape.vertices,

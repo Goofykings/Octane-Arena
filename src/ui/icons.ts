@@ -1,4 +1,6 @@
 const paths: Record<string, string> = {
+  hoops:
+    "M3 3h18v10H3z M6 11h12 M7 13l2 8h6l2-8 M9 14l6 7m0-7-6 7 M10 5a2 2 0 1 0 4 0",
   pencil: "M4 16 16 4l4 4-12 12H4z M14 6l4 4",
   trash: "M3 6h18 M9 6V3h6v3 M6 6l1 15h10l1-15 M10 10v7m4-7v7",
   helmet: "M4 13V9l4-6h8l4 6v11H4z M5 10h14v5H5 M8 18h8",

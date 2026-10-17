@@ -69,7 +69,7 @@ export class PartyFlow {
     this.dialog
       .querySelector("#party-mode-screen footer")!
       .prepend(mutatorsButton);
-    this.dialog.dataset.navDefault = "#party-continue";
+    this.dialog.dataset.navDefault = "#gamemode-cycle";
     this.dialog
       .querySelectorAll<HTMLButtonElement>("[data-cycle]")
       .forEach((b) => {
@@ -159,6 +159,13 @@ export class PartyFlow {
       this.dialog.querySelector<HTMLButtonElement>("#party-launch")!;
     launch.hidden = !host;
     launch.disabled = p.busy || !canStartParty(s);
+    launch.title = p.busy
+      ? "Updating party"
+      : canStartParty(s)
+        ? "Start match"
+        : s.mode === "2v2bots"
+          ? "Join Blue before starting"
+          : "Assign a player to both teams before starting";
     this.dialog.querySelector<HTMLButtonElement>("#party-mode-leave")!.hidden =
       host;
     this.dialog.querySelector<HTMLButtonElement>(
@@ -168,7 +175,7 @@ export class PartyFlow {
     this.dialog.dataset.navDefault =
       s.stage === "teams"
         ? ".party-team-join:not(:disabled)"
-        : "#party-continue";
+        : "#gamemode-cycle";
     this.dialog.querySelector(".arena-caption")!.textContent = s.matchArenaId
       ? arenaThemes[s.matchArenaId].name.toUpperCase()
       : "ARENA";

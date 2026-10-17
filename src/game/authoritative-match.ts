@@ -81,6 +81,14 @@ export class NetworkMatch {
     public readonly sessionMembers: MatchParticipant[] = players,
     mutators: MatchMutators = DEFAULT_MUTATORS,
   ) {
+    this.arenaId =
+      gameMode === "dropshot"
+        ? "dropshot"
+        : gameMode === "hoops"
+          ? "hoops"
+          : ["hoops", "dropshot"].includes(arenaId)
+            ? "city"
+            : arenaId;
     // Copy session metadata independently; watcher cleanup cannot mutate the car roster.
     this.sessionMembers = sessionMembers.map(
       ({ id, name, team, localPlayerId, avatarId, avatarColor }) => ({
@@ -104,6 +112,7 @@ export class NetworkMatch {
       players.find((p) => p.id === id)?.preset.explosion ?? "pulse";
     this.match.gameMode = gameMode;
     this.match.start(this.simulation, "network");
+    this.pads.configure(gameMode);
     this.botTeam.prepare(this.simulation, this.pads);
     this.match.recorder.prepare(this.simulation);
   }
@@ -153,7 +162,20 @@ export class NetworkMatch {
     this.match.replayDisconnected(id, this.simulation);
     if (this.match.resetSequence !== reset) this.pads.reset();
   }
+  addSpectator(member: MatchParticipant) {
+    if (
+      this.gameMode !== "dropshot" ||
+      member.team !== "spectator" ||
+      this.sessionMembers.some((m) => m.id === member.id) ||
+      this.sessionMembers.length >= 8
+    )
+      return false;
+    this.sessionMembers.push({ ...member });
+    this.simulation.dropshot?.forceFull();
+    return true;
+  }
   connected(id: string) {
+    this.simulation.dropshot?.forceFull();
     this.inputs.delete(id);
     this.disconnected.delete(id);
     this.simulation.rumble?.suspend(id, false);
@@ -224,6 +246,7 @@ export class NetworkMatch {
       mutators: s.mutators,
       heatseeker: s.heatseeker ? { ...s.heatseeker.state } : null,
       rumble: s.rumble?.snapshot() ?? null,
+      dropshot: s.dropshot?.snapshot(s.clock) ?? null,
       stats: m.stats?.snapshot(),
       statEvents: m.stats?.events.map((e) => ({ ...e })),
       chat: this.chat.messages.slice(-8),

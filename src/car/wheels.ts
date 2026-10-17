@@ -1,3 +1,7 @@
+import {
+  HOOPS_NET_GROUP,
+  DROPSHOT_TILE_GROUP,
+} from "../physics/collision-groups";
 import { Vector3, Quaternion } from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { bodies, type BodyId } from "../../shared/catalog";
@@ -77,7 +81,10 @@ export function wheelClearance(
     undefined,
     collider,
     body,
-    (col) => col.parent() === null,
+    (col) =>
+      col.parent() === null &&
+      col.collisionGroups() !== HOOPS_NET_GROUP &&
+      col.collisionGroups() !== DROPSHOT_TILE_GROUP,
   );
   if (!hit || up.dot(hit.normal) < 0.25) return -Infinity;
   surfaceNormal.copy(hit.normal);
@@ -110,7 +117,10 @@ export function wheelClearance(
       undefined,
       collider,
       body,
-      (col) => col.parent() === null,
+      (col) =>
+        col.parent() === null &&
+        col.collisionGroups() !== HOOPS_NET_GROUP &&
+        col.collisionGroups() !== DROPSHOT_TILE_GROUP,
     );
     if (!edge || up.dot(edge.normal) < 0.25) continue;
     const support = roundedWheelOffset(

@@ -1,3 +1,4 @@
+import { dropshotSchema } from "./dropshot";
 import { mutatorsSchema } from "./mutators";
 import { z } from "zod";
 import { rumbleSnapshotSchema } from "./rumble";
@@ -91,8 +92,11 @@ const snapshot = z
     matchId: z.string().uuid(),
     arenaId: z.enum(arenaIds),
     mutators: mutatorsSchema.optional(),
-    gameMode: z.enum(["soccar", "heatseeker", "rumble"]).optional(),
+    gameMode: z
+      .enum(["soccar", "heatseeker", "rumble", "hoops", "dropshot"])
+      .optional(),
     rumble: rumbleSnapshotSchema.nullable().optional(),
+    dropshot: dropshotSchema.nullable().optional(),
     stats: z.array(playerStatsSchema).max(6).optional(),
     statEvents: z.array(statEventSchema).max(24).optional(),
     chat: z.array(chatMessageSchema).max(8).optional(),
@@ -169,6 +173,13 @@ export function peerSnapshot(
     result.data.stats?.some((p) => !playerIds.includes(p.playerId)) ||
     result.data.statEvents?.some((p) => !playerIds.includes(p.playerId)) ||
     result.data.chat?.some((p) => !sessionIds.includes(p.playerId)) ||
+    (result.data.dropshot &&
+      (result.data.gameMode !== "dropshot" ||
+        (result.data.dropshot.lastTouchPlayerId !== null &&
+          !playerIds.includes(result.data.dropshot.lastTouchPlayerId)) ||
+        result.data.dropshot.events.some(
+          (e) => !playerIds.includes(e.playerId),
+        ))) ||
     (result.data.rumble &&
       (result.data.gameMode !== "rumble" ||
         result.data.rumble.players.length !== playerIds.length ||

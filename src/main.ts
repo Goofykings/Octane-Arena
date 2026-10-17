@@ -1,3 +1,7 @@
+import { dropshotBall, replayDropshot } from "./render/dropshot";
+import { LandingPulse } from "./effects/landing-pulse";
+import { InterfaceFeedback } from "./ui/interface-feedback";
+import { hoopsBall } from "./render/hoops";
 import { DEFAULT_MUTATORS } from "../shared/mutators";
 import { MatchLoading, type PreparationJob } from "./ui/match-loading";
 import { MenuNavigation } from "./input/menu-navigation";
@@ -10,6 +14,7 @@ import { HomeLobby } from "./render/home-lobby";
 import RAPIER from "@dimforge/rapier3d-compat";
 import * as T from "three";
 import "./style.css";
+import "./ui/polish.css";
 import { Simulation } from "./physics/simulation";
 import { FixedLoop } from "./physics/loop";
 import { Input } from "./input/input";
@@ -97,6 +102,7 @@ async function boot() {
     audio = new GameAudio(),
     music = new MusicManager(),
     nowPlaying = new NowPlaying();
+  const interfaceFeedback = new InterfaceFeedback(ui.root, audio);
   music.onTrack = (track) => nowPlaying.show(track);
   music.setVolume(settings.value.audio.music);
   ui.setProfile(garage.profile);
@@ -194,6 +200,7 @@ async function boot() {
         new T.TorusGeometry(p.large ? 0.95 : 0.5, 0.045, 6, 24),
         new T.MeshBasicMaterial({ color: 0xfeb84f }),
       );
+    group.name = "boost-pad";
     ring.rotation.x = Math.PI / 2;
     group.add(ring);
     const crystal = new T.Mesh(
@@ -314,6 +321,8 @@ async function boot() {
     cameraControl.settings = settings.value.camera;
     effects.density = qualities[settings.value.quality].particles;
     graphics.apply(settings.value.quality);
+    LandingPulse.enabled = settings.value.quality !== "low";
+    document.documentElement.dataset.quality = settings.value.quality;
     ballTrails.quality = settings.value.quality;
   };
   const settingsPanel = new SettingsPanel(settings, input, applySettings);
@@ -424,7 +433,7 @@ async function boot() {
     const selectedArena =
       mode === "freeplay"
         ? freeplayArena
-        : chooseMatchArena(previousMatchArena);
+        : chooseMatchArena(previousMatchArena, Math.random, botSetup.gameMode);
     let preparedPhase: typeof match.phase = "countdown";
     const jobs: PreparationJob[] = [
       {
@@ -474,7 +483,11 @@ async function boot() {
       name: "Arena",
       run: () => {
         if (mode !== "freeplay") previousMatchArena = selectedArena;
-        arena.setMap(selectedArena);
+        arena.setMap(
+          mode === "bot" && botSetup.gameMode === "hoops"
+            ? "hoops"
+            : selectedArena,
+        );
         document.querySelector(".arena-caption")!.textContent =
           arenaThemes[selectedArena].name.toUpperCase();
       },
@@ -486,12 +499,22 @@ async function boot() {
           cars[i].visible = false;
         resetEffects();
         updatePreset();
-        match.gameMode = mode === "bot" ? botSetup.gameMode : "soccar";
+        match.gameMode =
+          mode === "bot"
+            ? botSetup.gameMode
+            : arena.mapId === "dropshot"
+              ? "dropshot"
+              : arena.mapId === "hoops"
+                ? "hoops"
+                : "soccar";
         simulation.configureMutators(
           mode === "bot" ? botSetup.mutators : DEFAULT_MUTATORS,
         );
         ball.scale.setScalar(simulation.physics.ball.radius / P.ball.radius);
         match.start(simulation, mode);
+        pads.configure(match.gameMode);
+        hoopsBall(ball, match.gameMode === "hoops");
+        goalPlanes.setMode(match.gameMode);
         preparedPhase = match.phase;
         match.phase = "home";
         simulation.rumble?.setPhase(false, true);
@@ -785,12 +808,6 @@ async function boot() {
       cameraControl.reset();
     }
   });
-  ui.root.addEventListener("click", (e) => {
-    if ((e.target as HTMLElement).closest("button")) {
-      audio.unlock();
-      audio.tone(560, 0.055, 0.04, "sine", "ui");
-    }
-  });
   window.addEventListener("blur", () => {
     if (extraSession && !extraSession.paused)
       extraSession.pause(performance.now());
@@ -880,6 +897,7 @@ async function boot() {
   const menuNavigation = new MenuNavigation(
     input.controller,
     () => {
+      audio.ui("back");
       if (matchOverlay.typing) {
         matchOverlay.close();
         return;
@@ -900,6 +918,9 @@ async function boot() {
     },
   );
   function updatePadVisuals(dt: number, replayPads?: Float32Array | null) {
+    padMeshes.forEach((mesh, i) => {
+      mesh.visible = i < pads.items.length;
+    });
     pads.items.forEach((livePad, i) => {
       const cooldown = replayPads?.[i];
       const p =
@@ -910,6 +931,7 @@ async function boot() {
               cooldown,
               pulse: Math.max(0, 0.28 - (livePad.large ? 10 : 4) + cooldown),
             };
+      padMeshes[i].position.set(p.x, 0.06, p.z);
       padRecharge[i].update(p);
       const pulse = (p.pulse ?? 0) / 0.28;
       padMeshes[i].children[1].visible = p.cooldown === 0 || pulse > 0;
@@ -926,7 +948,9 @@ async function boot() {
     });
   }
   function frame(now: number) {
-    const dt = Math.min((now - previous) / 1000, 0.1);
+    // A loader/initialization callback can advance the clock past this RAF
+    // timestamp. Negative dt extrapolated the Home preview camera out of view.
+    const dt = Math.min(Math.max(0, (now - previous) / 1000), 0.1);
     previous = now;
     if (matchLoader.active) {
       input.gameplayEnabled = false;
@@ -1060,7 +1084,11 @@ async function boot() {
             {
               name: "Network arena",
               run: () => {
-                arena.setMap(initial.arenaId);
+                arena.setMap(
+                  initial.gameMode === "hoops" ? "hoops" : initial.arenaId,
+                );
+                pads.configure(initial.gameMode ?? "soccar");
+                goalPlanes.setMode(initial.gameMode ?? "soccar");
                 document.querySelector(".arena-caption")!.textContent =
                   arenaThemes[initial.arenaId].name.toUpperCase();
               },
@@ -1247,6 +1275,7 @@ async function boot() {
       networkStatus.hidden = !network.status;
       networkStatus.textContent = network.status;
       const finished = netMatch.phase === "finished";
+      matchOverlay.gameMode = netMatch.gameMode;
       if (snapshot)
         matchOverlay.update(
           snapshot.matchId,
@@ -1325,11 +1354,28 @@ async function boot() {
         networkBoost = car.boost;
       }
       if (networkPhase !== netMatch.phase) {
-        if (netMatch.phase === "goal") audio.tone(100, 1.3, 0.2, "sawtooth");
+        if (netMatch.phase === "goal")
+          audio.tone(
+            netMatch.gameMode === "hoops" ? 185 : 100,
+            netMatch.gameMode === "hoops" ? 0.55 : 1.3,
+            0.2,
+            "sawtooth",
+          );
         if (netMatch.phase === "playing") audio.tone(760, 0.12, 0.08, "sine");
         networkPhase = netMatch.phase;
       }
-      if (networkView) goalPlanes.update(networkView.ball);
+      if (networkView) {
+        const ds =
+          network.latest?.phase === "replay" &&
+          network.replayClip &&
+          network.latest.replay
+            ? replayDropshot(network.replayClip, network.latest.replay.time)
+            : network.latest?.dropshot;
+        arena.updateDropshot(ds, dt*(network.latest?.phase === "replay" ? network.latest.replay?.speed??1 : 1), (open) =>
+          audio.tone(open ? 145 : 380, 0.12, 0.055, "triangle"),
+        );
+        goalPlanes.update(networkView.ball);
+      }
       if (networkView)
         rumbleHud.update(
           network.latest?.rumble,
@@ -1554,7 +1600,7 @@ async function boot() {
           for (const h of simulation.hits)
             if (h.age === 0) {
               audio.tone(
-                100 + Math.min(h.strength, 30) * 5,
+                h.kind === "rim" ? 520 : 100 + Math.min(h.strength, 30) * 5,
                 0.12,
                 Math.min(0.14, h.strength * 0.008),
                 "triangle",
@@ -1595,7 +1641,12 @@ async function boot() {
           audio.tone(match.phase === "playing" ? 760 : 420, 0.12, 0.08, "sine");
         if (phase === "playing" && match.phase === "goal") {
           goalSounds = [
-            audio.tone(100, 1.3, 0.2, "sawtooth"),
+            audio.tone(
+              match.gameMode === "hoops" ? 185 : 100,
+              match.gameMode === "hoops" ? 0.55 : 1.3,
+              0.2,
+              "sawtooth",
+            ),
             audio.tone(660, 0.9, 0.1, "triangle"),
           ].filter((stop): stop is () => void => !!stop);
           // Goal song: best bit of "We Speak Chinese" (drop at GOAL_STINGER_OFFSET).
@@ -1642,6 +1693,7 @@ async function boot() {
         match.lastGoal,
         match.stats?.players.get(simulation.cars[0].id),
       );
+    matchOverlay.gameMode = match.gameMode;
     if (match.mode === "bot" && match.phase !== "home")
       matchOverlay.update(
         localMatchId,
@@ -1684,6 +1736,7 @@ async function boot() {
         state.speed,
         match.phase === "paused" ? 0 : dt,
       );
+      arena.updateDropshot(replayDropshot(match.replay.clip, state.time), match.phase === "paused" ? 0 : dt*state.speed);
       updatePadVisuals(dt, cooldowns);
       ballHeight.group.visible = false;
       document.getElementById("bot-tag")!.hidden = true;
@@ -1704,6 +1757,7 @@ async function boot() {
       ui.update(match, 0, false, false);
       audio.update(0, false, false);
       goalPlanes.update(ball);
+
       graphics.render(scene, camera);
       requestAnimationFrame(frame);
       return;
@@ -1716,6 +1770,10 @@ async function boot() {
       input.clear();
       if (match.phase === "countdown") pads.reset();
     }
+    const dropshotState = simulation.dropshot?.visualState();
+    arena.updateDropshot(dropshotState, dt, (open) =>
+      audio.tone(open ? 145 : 380, 0.12, 0.055, "triangle"),
+    );
     simulation.cars.forEach((c, i) => {
       c.pose.render(cars[i], alpha);
       cars[i].visible = match.phase !== "home" && c.body.isEnabled();
@@ -1739,6 +1797,7 @@ async function boot() {
       match.phase === "paused" ? 0 : dt,
     );
     ball.visible = simulation.ball.isEnabled();
+    dropshotBall(ball, dropshotState, now / 1000);
     goalPlanes.update(ball);
     ballHeight.update(ball, simulation);
     if (match.phase === "home") {
@@ -1805,6 +1864,7 @@ async function boot() {
       camera.position,
       heatIntensity(simulation.heatseeker?.state),
       simulation.heatseeker?.state,
+      dropshotState,
     );
     simulation.cars.forEach((c, i) =>
       flipTrails[i].updateCar(
@@ -1966,6 +2026,7 @@ async function boot() {
         simulation,
         match,
         matchLoader,
+        interfaceFeedback,
         input,
         settings,
         garage,

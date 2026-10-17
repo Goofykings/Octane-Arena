@@ -1,3 +1,4 @@
+import { reveal } from "./motion";
 import type { Input } from "../input/input";
 import type { NetPlayer } from "../../shared/network";
 import type {
@@ -9,12 +10,14 @@ import { displayIdentity } from "../../shared/local-profile";
 import { scoreboardOrder, matchMvp } from "../../shared/match-stats";
 export const STAT_NOTICE = { enterMs: 200, holdMs: 1000, exitMs: 200 } as const;
 const symbols = {
+  DAMAGE: '<path d="m12 2 9 5v10l-9 5-9-5V7Z M12 5 8 11l6 2-3 6"/>',
   SHOT: '<circle cx="12" cy="12" r="7"/><path d="M12 1v6m0 10v6M1 12h6m10 0h6"/>',
   SAVE: '<path d="M12 2 21 6v6c0 5-9 10-9 10S3 17 3 12V6Z"/>',
   ASSIST: '<path d="M3 8h16m-5-5 5 5-5 5M21 16H5m5-5-5 5 5 5"/>',
   GOAL: '<circle cx="12" cy="12" r="9"/><path d="m12 6 5 4-2 6H9l-2-6Z"/>',
 };
 export class MatchOverlay {
+  gameMode: import("../../shared/soccer").SoccerMode = "soccar";
   readonly chat = document.createElement("section");
   readonly board = document.createElement("section");
   readonly notice = document.createElement("div");
@@ -28,6 +31,7 @@ export class MatchOverlay {
   private log = document.createElement("div");
   private error = document.createElement("small");
   private boardSignature = "";
+  private boardVisible = false;
   private eventSequence = 0;
   private queue: MatchStatEvent[] = [];
   private showing = false;
@@ -180,6 +184,7 @@ export class MatchOverlay {
     );
     const mvp = finished ? matchMvp(players, stats) : undefined;
     this.board.classList.toggle("results-board", finished);
+    this.board.classList.toggle("dropshot-board", this.gameMode === "dropshot");
     const parent = finished
       ? document.getElementById("results-board")
       : document.getElementById("app");
@@ -192,6 +197,7 @@ export class MatchOverlay {
       score,
       localId,
       finished,
+      this.gameMode,
     ]);
     if (!this.board.hidden && signature !== this.boardSignature) {
       this.boardSignature = signature;
@@ -215,6 +221,7 @@ export class MatchOverlay {
           ["ASSISTS", "A"],
           ["SAVES", "SV"],
           ["SHOTS", "SH"],
+          ...(this.gameMode === "dropshot" ? [["DAMAGE","DMG"]] : []),
           ["PING", "PING"],
         ]) {
           const cell = document.createElement("span");
@@ -236,6 +243,7 @@ export class MatchOverlay {
             s?.assists ?? 0,
             s?.saves ?? 0,
             s?.shots ?? 0,
+            ...(this.gameMode === "dropshot" ? [s?.damage ?? 0] : []),
             s?.ping ?? "--",
           ];
           values.forEach((value, i) => {
@@ -255,6 +263,13 @@ export class MatchOverlay {
         this.board.append(section);
       }
     }
+    if (!this.board.hidden && !this.boardVisible) {
+      reveal(this.board, 0);
+      this.board
+        .querySelectorAll<HTMLElement>(".stat-row:not(.stat-columns)")
+        .forEach((row) => reveal(row, 6));
+    }
+    this.boardVisible = !this.board.hidden;
     for (const event of events)
       if (event.id > this.eventSequence) {
         this.eventSequence = event.id;
@@ -278,6 +293,7 @@ export class MatchOverlay {
     this.close();
     this.chat.classList.remove("shown");
     this.board.hidden = true;
+    this.boardVisible = false;
     this.notice.hidden = true;
   }
   private showAward() {

@@ -19,6 +19,7 @@ export class ReplayRecorder {
   private rumbleHistory: NonNullable<
     import("../../shared/replay").ReplayClip["rumble"]
   > = [];
+  private dropshotHistory:NonNullable<import("../../shared/replay").ReplayClip["dropshot"]>=[];
   pendingGoal: ReplayGoal | null = null;
   private recordedGoalId: string | null = null;
   private resetSequences: number[] = [];
@@ -31,6 +32,7 @@ export class ReplayRecorder {
   private padCooldowns = new Float32Array(20);
   reset() {
     this.rumbleHistory = [];
+    this.dropshotHistory = [];
     this.pendingGoal = null;
     this.recordedGoalId = null;
     this.resetSequences = [];
@@ -199,6 +201,10 @@ export class ReplayRecorder {
       )
         this.rumbleHistory.shift();
     }
+    if (s.dropshot && (s.clock-(this.dropshotHistory.at(-1)?.time ?? -Infinity) >= .1 || s.dropshot.revision!==this.dropshotHistory.at(-1)?.state.revision)){
+      this.dropshotHistory.push({time:s.clock,state:s.dropshot.snapshot(s.clock,true)});
+      while(this.dropshotHistory.length>1 && this.dropshotHistory[1].time<s.clock-8)this.dropshotHistory.shift();
+    }
     if (s.heatseeker) {
       const previous = this.heatHistory.at(-1)?.state,
         state = s.heatseeker.state;
@@ -240,6 +246,7 @@ export class ReplayRecorder {
     this.markGoal(goal);
     const clip = this.buffer!.clip(goal);
     if (this.mutators) clip.mutators = this.mutators;
+    if(this.dropshotHistory.length)clip.dropshot=structuredClone(this.dropshotHistory);
     if (this.heatHistory.length)
       clip.heatseeker = this.heatHistory.map((entry) => ({
         time: entry.time,

@@ -1,3 +1,4 @@
+import { ScreenTransitions } from "./motion";
 import { icon } from "./icons";
 import {
   displayIdentity,
@@ -7,6 +8,7 @@ import type { PlayerEntity } from "../../shared/player";
 import type { ReplayClip, ReplayState } from "../../shared/replay";
 
 export class ReplayPanel {
+  private transitions = new ScreenTransitions();
   readonly root = document.createElement("section");
   private signature = "";
   private debugEnabled = new URLSearchParams(location.search).has(
@@ -28,7 +30,7 @@ export class ReplayPanel {
       skip;
   }
   hide() {
-    this.root.hidden = true;
+    this.transitions.setVisible(this.root, false);
     this.signature = "";
   }
   update(
@@ -38,7 +40,7 @@ export class ReplayPanel {
     localId: string,
     debug?: unknown,
   ) {
-    this.root.hidden = false;
+    this.transitions.setVisible(this.root, true);
     const scorer = players.find((p) => p.id === clip?.goal.scorerId);
     const signature = JSON.stringify([
       clip?.goal.id,

@@ -1,3 +1,7 @@
+import { refreshStaticQueries } from "../physics/queries";
+import { DropshotView } from "../../shared/dropshot";
+import { dropshotBall } from "./dropshot";
+import { hoopsBall } from "./hoops";
 import { P } from "../config/physics";
 import { SpectatorCamera } from "../camera/spectator";
 import type { Input } from "../input/input";
@@ -52,6 +56,8 @@ export class NetworkMatchView {
   private explosion: GoalExplosion;
   private labels: HTMLDivElement;
   private labelsById = new Map<string, HTMLElement>();
+  private dropshotView = new DropshotView();
+  private dropshotRevision = "";
   private reset = -1;
   private phase = "";
   constructor(
@@ -67,7 +73,10 @@ export class NetworkMatchView {
     );
     this.simulation = new Simulation(false, players);
     this.simulation.configureMutators(initial.mutators);
+    this.simulation.setGameMode(initial.gameMode ?? "soccar");
+    if (initial.gameMode === "dropshot") refreshStaticQueries(this.simulation);
     this.match.mutators = this.simulation.mutators;
+    hoopsBall(this.ball, initial.gameMode === "hoops");
     this.ball.scale.setScalar(
       this.simulation.physics.ball.radius / P.ball.radius,
     );
@@ -146,6 +155,22 @@ export class NetworkMatchView {
     if (!sample || !client.latest) return;
     const { older, newer, alpha } = sample,
       latest = client.latest;
+    if (latest.dropshot && this.simulation.dropshot) {
+      this.dropshotView.apply(latest.dropshot);
+      const key = this.dropshotView.epoch + ":" + this.dropshotView.revision;
+      if (key !== this.dropshotRevision) {
+        this.dropshotRevision = key;
+        this.simulation.dropshot.states = this.dropshotView.tiles
+          .split("")
+          .map((v) => Number(v) as 0 | 1 | 2);
+        this.simulation.dropshot.epoch = this.dropshotView.epoch;
+        this.simulation.dropshot.revision = this.dropshotView.revision;
+        this.simulation.dropshot.arena.tiles.forEach((c, i) =>
+          c.setEnabled(this.dropshotView.tiles[i] !== "2"),
+        );
+        refreshStaticQueries(this.simulation);
+      }
+    }
     this.match.kickoffFormationId = latest.kickoffFormationId;
     if (this.reset !== latest.reset) {
       this.camera.reset();
@@ -311,6 +336,7 @@ export class NetworkMatchView {
     this.simulation.ball.setTranslation(this.ball.position, true);
     animateBall(this.ball, time);
     heatseekerBall(this.ball, latest.heatseeker, dt);
+    dropshotBall(this.ball, latest.dropshot, time);
     const ballSpeed =
       new T.Vector3()
         .copy(newer.ball.position)
@@ -327,6 +353,7 @@ export class NetworkMatchView {
       this.camera.camera.position,
       heatIntensity(latest.heatseeker),
       latest.heatseeker,
+      latest.dropshot,
     );
     this.explosion.update(dt);
     this.ballHeight.update(this.ball, this.simulation);

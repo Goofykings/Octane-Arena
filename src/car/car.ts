@@ -1,3 +1,9 @@
+import { refineContactNormal } from "./contact-frame";
+import { LandingContact } from "./landing";
+import {
+  HOOPS_NET_GROUP,
+  DROPSHOT_TILE_GROUP,
+} from "../physics/collision-groups";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { MathUtils, Quaternion, Vector3 } from "three";
 import { RUMBLE_CONFIG } from "../config/rumble";
@@ -40,6 +46,8 @@ export class Car {
   private sonicGrace = 0;
   lateralSlip = 0;
   skidIntensity = 0;
+  readonly landing = new LandingContact();
+  private landingNormal = new Vector3();
   private roofSteer = 0;
   impactTime = 0;
   body: RAPIER.RigidBody;
@@ -155,6 +163,7 @@ export class Car {
     this.reset(0, 25, 0);
   }
   clearSurfaceHistory() {
+    this.landing.reset();
     this.contacts = 0;
     this.grounded = this.stableContact = this.normalReady = false;
     this.jumpSupported = false;
@@ -171,6 +180,7 @@ export class Car {
     this.supersonic = false;
     this.sonicGrace = 0;
     this.roofSteer = 0;
+    this.landing.reset();
     this.lateralSlip = this.skidIntensity = 0;
     this.handbrake = 0;
     this.recovery = 0;
@@ -274,7 +284,8 @@ export class Car {
     this.angular.set(0, 0, 0);
     this.pitchInput = input.pitch;
     this.flipPitchAcceleration = this.flipCancelAcceleration = 0;
-    const contactNormal = new Vector3();
+    const contactNormal = new Vector3(),
+      normalWeights = [0, 0, 0, 0];
     this.contacts = this.supportContacts = 0;
     for (let i = 0; i < 4; i++) {
       const o = wheelMount(this.bodyId, i, this.wheelOrigins[i])
@@ -288,7 +299,10 @@ export class Car {
         undefined,
         this.collider,
         this.body,
-        (col) => col.parent() === null,
+        (col) =>
+          col.parent() === null &&
+          col.collisionGroups() !== HOOPS_NET_GROUP &&
+          col.collisionGroups() !== DROPSHOT_TILE_GROUP,
       );
       this.wheelContact[i] = false;
       this.wheelNormals[i].set(0, 0, 0);
@@ -311,6 +325,7 @@ export class Car {
                 (c.rayLength - c.contactHeight),
           ),
         );
+        normalWeights[i] = weight;
         contactNormal.addScaledVector(this.wheelNormals[i], weight);
         if (
           hit.timeOfImpact <
@@ -329,9 +344,38 @@ export class Car {
       this.supportContacts >= 3 ? 0 : this.partialDrivingAge + dt;
     if (this.contacts >= 1) {
       contactNormal.normalize();
+      let midpoint: Vector3 | null = null;
+      if (
+        this.wheelNormals.some(
+          (n) => n.lengthSq() > 0 && n.dot(contactNormal) < 0.98,
+        )
+      ) {
+        const hit = this.world.castRayAndGetNormal(
+          new RAPIER.Ray(b.translation(), this.up.clone().negate()),
+          c.rayLength,
+          true,
+          undefined,
+          undefined,
+          this.collider,
+          b,
+          (col) =>
+            col.parent() === null &&
+            col.collisionGroups() !== HOOPS_NET_GROUP &&
+            col.collisionGroups() !== DROPSHOT_TILE_GROUP,
+        );
+        if (hit) midpoint = new Vector3().copy(hit.normal);
+      }
+      const smoothPatch = refineContactNormal(
+        contactNormal,
+        this.wheelNormals,
+        normalWeights,
+        midpoint,
+      );
       // Fit the wheel footprint, rather than selecting a single triangle's normal.
       const active = this.wheelHits.filter(
-        (_, i) => this.wheelNormals[i].lengthSq() > 0,
+        (_, i) =>
+          this.wheelNormals[i].lengthSq() > 0 &&
+          (smoothPatch || this.wheelNormals[i].dot(contactNormal) > 0.98),
       );
       const flatFloor = this.wheelNormals.every(
         (n) => n.lengthSq() === 0 || n.y > 0.9999,
@@ -347,6 +391,7 @@ export class Car {
             plane.add(n);
           }
       if (
+        smoothPatch &&
         !flatFloor &&
         active.length === 4 &&
         plane.lengthSq() > 1e-8 &&
@@ -357,6 +402,7 @@ export class Car {
       const previousNormal = this.normal.clone();
       if (
         flatFloor ||
+        !smoothPatch ||
         !this.normalReady ||
         this.normal.dot(contactNormal) < 0.5
       )
@@ -428,7 +474,10 @@ export class Car {
         undefined,
         this.collider,
         b,
-        (col) => col.parent() === null,
+        (col) =>
+          col.parent() === null &&
+          col.collisionGroups() !== HOOPS_NET_GROUP &&
+          col.collisionGroups() !== DROPSHOT_TILE_GROUP,
       );
       if (support && this.up.dot(this.tmp.copy(support.normal)) < -0.65) {
         // Player-requested roof recovery needs a full half-turn. Previously
@@ -1034,7 +1083,10 @@ export class Car {
         undefined,
         this.collider,
         this.body,
-        (col) => col.parent() === null,
+        (col) =>
+          col.parent() === null &&
+          col.collisionGroups() !== HOOPS_NET_GROUP &&
+          col.collisionGroups() !== DROPSHOT_TILE_GROUP,
       );
       if (!hit) continue;
       const normal = new Vector3().copy(hit.normal);
@@ -1082,6 +1134,20 @@ export class Car {
     const flatFloorFootprint =
       floorCount >= 3 &&
       floorHigh - floorLow < this.physics.car.contactSkin * 2;
+    // A diagonal footprint on cylindrical curvature is not a coplanar four-point
+    // support set. Iterating all four there over-constrains legitimate roll/slip.
+    const chord = new Vector3()
+      .subVectors(this.wheelHits[1], this.wheelHits[0])
+      .cross(new Vector3().subVectors(this.wheelHits[2], this.wheelHits[0]));
+    const curvedWheelSet =
+      this.stableContact &&
+      this.wheelNormals.every((n) => n.lengthSq() > 0) &&
+      chord.lengthSq() > 1e-8 &&
+      Math.abs(
+        new Vector3()
+          .subVectors(this.wheelHits[3], this.wheelHits[0])
+          .dot(chord.normalize()),
+      ) < 0.012;
     const constrainPoint = (
       point: Vector3,
       normal: Vector3,
@@ -1161,7 +1227,10 @@ export class Car {
           undefined,
           this.collider,
           b,
-          (col) => col.parent() === null,
+          (col) =>
+            col.parent() === null &&
+            col.collisionGroups() !== HOOPS_NET_GROUP &&
+            col.collisionGroups() !== DROPSHOT_TILE_GROUP,
         );
         if (!hit) continue;
         const normal = new Vector3().copy(hit.normal),
@@ -1217,7 +1286,15 @@ export class Car {
         );
       }
     }
-    let alignedFloorContacts = 0;
+    let alignedFloorContacts = 0,
+      landingContacts = 0,
+      nearWheelContacts = 0;
+    this.landingNormal.set(0, 0, 0);
+    const wheelConstraints: {
+      point: Vector3;
+      normal: Vector3;
+      minimum: number;
+    }[] = [];
     for (let i = 0; i < 4; i++) {
       if (this.jump.used && this.jump.age < 0.18) break;
       const origin = wheelMount(this.bodyId, i)
@@ -1231,7 +1308,10 @@ export class Car {
         undefined,
         this.collider,
         b,
-        (col) => col.parent() === null,
+        (col) =>
+          col.parent() === null &&
+          col.collisionGroups() !== HOOPS_NET_GROUP &&
+          col.collisionGroups() !== DROPSHOT_TILE_GROUP,
       );
       if (!hit) continue;
       const normal = new Vector3().copy(hit.normal),
@@ -1254,6 +1334,15 @@ export class Car {
           ? Math.min(ordinaryGap, -(rigidHeight - wheelMountY) * alignment)
           : ordinaryGap;
       if (afterStep) {
+        if (gap <= this.physics.car.contactSkin * 2) nearWheelContacts++;
+        if (
+          normal.y > 0.995 &&
+          alignment > 0.985 &&
+          gap <= this.physics.car.contactSkin * 2
+        ) {
+          landingContacts++;
+          this.landingNormal.add(normal);
+        }
         if (
           normal.y > 0.9999 &&
           alignment > 0.9999 &&
@@ -1272,11 +1361,25 @@ export class Car {
         // descent here cancels gravity before the point constraint can produce
         // its physical settling torque on the following step.
         if (
-          (this.stableContact || (flatFloorFootprint && alignment > 0.9999)) &&
+          ((flatFloorFootprint && alignment > 0.9999) ||
+            (this.stableContact && !curvedWheelSet)) &&
           gap < this.physics.car.contactSkin &&
           velocity.dot(normal) < 0
         )
           velocity.addScaledVector(normal, -velocity.dot(normal));
+        else if (
+          curvedWheelSet &&
+          !flatFloorFootprint &&
+          gap < this.physics.car.contactSkin
+        ) {
+          const point = wheelSupportPoint(
+            origin,
+            q,
+            normal,
+            i < 2 ? this.steerAngle : 0,
+          );
+          wheelConstraints.push({ point, normal, minimum: 0 });
+        }
       } else {
         // Permit approach until the clearance plane; account for the next gravity step.
         const minimum =
@@ -1296,26 +1399,58 @@ export class Car {
           normal,
           i < 2 ? this.steerAngle : 0,
         );
-        b.setLinvel(velocity, true);
-        const pointVelocity = new Vector3().copy(b.velocityAtPoint(point));
-        const deficit = minimum - pointVelocity.dot(normal);
-        if (deficit > 0) {
-          const arm = point.clone().sub(b.worldCom());
-          const torque = arm.clone().cross(normal),
-            m = b.effectiveWorldInvInertia();
-          const response = new Vector3(
-            m.m11 * torque.x + m.m12 * torque.y + m.m13 * torque.z,
-            m.m12 * torque.x + m.m22 * torque.y + m.m23 * torque.z,
-            m.m13 * torque.x + m.m23 * torque.y + m.m33 * torque.z,
-          );
-          const inverseMass = b.invMass() + torque.dot(response);
-          b.applyImpulseAtPoint(
-            normal.multiplyScalar(deficit / inverseMass),
-            point,
-            true,
-          );
-          velocity.copy(b.linvel());
-        }
+        wheelConstraints.push({ point, normal, minimum });
+      }
+    }
+    // Solve all loaded wheel points as one support set. A single ordered pass
+    // converted touchdown momentum into a leftover pitch/roll impulse at the last
+    // wheel; alternating iterations distribute support without an upright torque.
+    const supportPasses =
+      wheelConstraints.length >= 3 &&
+      up.y > 0.98 &&
+      wheelConstraints.every((c) => c.normal.y > 0.995)
+        ? 6
+        : curvedWheelSet &&
+            wheelConstraints.length >= 3 &&
+            wheelConstraints.every((c) => c.normal.dot(this.normal) > 0.9)
+          ? 3
+          : 1;
+    for (let pass = 0; pass < supportPasses; pass++)
+      for (let j = 0; j < wheelConstraints.length; j++) {
+        const contact =
+          wheelConstraints[pass % 2 ? wheelConstraints.length - 1 - j : j];
+        constrainPoint(contact.point, contact.normal, contact.minimum);
+      }
+    if (afterStep) {
+      const valid =
+        landingContacts >= 3 &&
+        up.y > 0.985 &&
+        !this.recovering &&
+        !(this.jump.used && this.jump.age < 0.18) &&
+        this.jump.flipLeft === 0 &&
+        this.impactTime === 0;
+      const rate = this.landing.step(
+        nearWheelContacts === 0 && this.chassisContacts === 0,
+        valid,
+        P.dt,
+        this.physics.car.landingDamping,
+        this.physics.car.landingDampingTime,
+      );
+      if (rate > 0) {
+        this.landingNormal.normalize();
+        const angular = b.angvel(),
+          normal = this.landingNormal;
+        const yaw =
+          angular.x * normal.x + angular.y * normal.y + angular.z * normal.z;
+        const retain = Math.exp(-rate * P.dt);
+        b.setAngvel(
+          {
+            x: angular.x * retain + normal.x * yaw * (1 - retain),
+            y: angular.y * retain + normal.y * yaw * (1 - retain),
+            z: angular.z * retain + normal.z * yaw * (1 - retain),
+          },
+          true,
+        );
       }
     }
     // Full, geometrically verified floor support also works when this helper
@@ -1372,7 +1507,10 @@ export class Car {
           undefined,
           this.collider,
           b,
-          (col) => col.parent() === null,
+          (col) =>
+            col.parent() === null &&
+            col.collisionGroups() !== HOOPS_NET_GROUP &&
+            col.collisionGroups() !== DROPSHOT_TILE_GROUP,
         );
         if (!hit) continue;
         const normal = new Vector3().copy(hit.normal),

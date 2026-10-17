@@ -1,3 +1,6 @@
+import { drawDropshotArena } from "./dropshot";
+import type { DropshotSnapshot } from "../../shared/dropshot";
+import { drawHoopsArena } from "./hoops";
 import * as T from "three";
 import { addArenaHex, addTeamCircles } from "./arena-markings";
 import { arenaShell, goalShell } from "../arena/geometry";
@@ -9,7 +12,28 @@ import { polishMaterial } from "./material-polish";
 import { arenaThemes, isArenaId, type ArenaId } from "./arena-themes";
 import { drawEnvironment, disposeEnvironment } from "./arena-environments";
 import { createFieldArt, rampPaint } from "./field-art";
-import { registerCameraVisualOcclusion } from "./camera-occlusion";
+import {
+  registerCameraVisualOcclusion,
+  addCameraVisualOccluders,
+} from "./camera-occlusion";
+function applyArenaLighting(
+  scene: T.Scene,
+  theme: (typeof arenaThemes)[ArenaId],
+) {
+  scene.background = new T.Color(theme.sky);
+  scene.fog = new T.Fog(theme.sky, theme.fogNear, theme.fogFar);
+  scene.children.forEach((o) => {
+    if (o instanceof T.HemisphereLight) {
+      o.color.setHex(theme.skyLight);
+      o.groundColor.setHex(theme.groundLight);
+      o.intensity = theme.ambientIntensity;
+    }
+    if (o instanceof T.DirectionalLight) {
+      o.color.setHex(theme.sunlight);
+      o.intensity = theme.sunIntensity;
+    }
+  });
+}
 function turfTexture(id: ArenaId) {
   const c = document.createElement("canvas");
   c.width = c.height = 512;
@@ -32,7 +56,7 @@ function turfTexture(id: ArenaId) {
   t.colorSpace = T.SRGBColorSpace;
   return t;
 }
-export function drawArena(scene: T.Scene, initial: ArenaId = "city") {
+function drawSoccarArena(scene: T.Scene, initial: ArenaId = "city") {
   const teamMaterials: {
     material:
       | T.MeshBasicMaterial
@@ -447,19 +471,7 @@ export function drawArena(scene: T.Scene, initial: ArenaId = "city") {
     linings.forEach((mat) => mat.color.setHex(theme.lining));
     beacon.color.setHex(theme.canopy);
     gridMat.color.setHex(theme.grid);
-    scene.background = new T.Color(theme.sky);
-    scene.fog = new T.Fog(theme.sky, theme.fogNear, theme.fogFar);
-    scene.children.forEach((o) => {
-      if (o instanceof T.HemisphereLight) {
-        o.color.setHex(theme.skyLight);
-        o.groundColor.setHex(theme.groundLight);
-        o.intensity = theme.ambientIntensity;
-      }
-      if (o instanceof T.DirectionalLight) {
-        o.color.setHex(theme.sunlight);
-        o.intensity = theme.sunIntensity;
-      }
-    });
+    applyArenaLighting(scene, theme);
   };
   setMap(initial);
   registerCameraVisualOcclusion(scene, viewOccluders);
@@ -564,4 +576,66 @@ function drawCity() {
   moon.position.set(-65, 75, -130);
   city.add(moon);
   return city;
+}
+
+export function drawArena(scene: T.Scene, initial: ArenaId = "city") {
+  const soccer = drawSoccarArena(
+      scene,
+      ["hoops", "dropshot"].includes(initial) ? "city" : initial,
+    ),
+    group = new T.Group();
+  scene.add(group);
+  group.add(soccer.group);
+  let dropshot: ReturnType<typeof drawDropshotArena> | null = null;
+  let hoops: ReturnType<typeof drawHoopsArena> | null = null,
+    selected: ArenaId | null = null,
+    neutral = false;
+  const setMap = (id: ArenaId) => {
+    if (id === selected) return;
+    selected = id;
+    if (id === "hoops" && !hoops) {
+      hoops = drawHoopsArena(scene);
+      group.add(hoops.group);
+      hoops.setNeutral(neutral);
+      addCameraVisualOccluders(scene, hoops.occluders);
+    }
+    if (id === "dropshot" && !dropshot) {
+      dropshot = drawDropshotArena(scene);
+      group.add(dropshot.group);
+    }
+    if (dropshot) dropshot.group.visible = id === "dropshot";
+    soccer.group.visible = id !== "hoops" && id !== "dropshot";
+    if (hoops) hoops.group.visible = id === "hoops";
+    if (id !== "hoops" && id !== "dropshot") soccer.setMap(id);
+    applyArenaLighting(scene, arenaThemes[id]);
+    soccer.environment.visible = id !== "hoops" && id !== "dropshot";
+  };
+  setMap(initial);
+  return {
+    ...soccer,
+    group,
+    get mapId() {
+      return selected!;
+    },
+    get environment() {
+      return soccer.environment;
+    },
+    setMap,
+    updateDropshot(
+      state: DropshotSnapshot | null | undefined,
+      dt: number,
+      onImpact?: (open: boolean) => void,
+    ) {
+      if (selected === "dropshot") dropshot?.update(state, dt, onImpact);
+    },
+    get dropshotTiles() {
+      return dropshot?.tiles;
+    },
+
+    setNeutral(value: boolean) {
+      neutral = value;
+      soccer.setNeutral(value);
+      hoops?.setNeutral(value);
+    },
+  };
 }

@@ -1,3 +1,4 @@
+import { UiAudio, type UiCue } from "./ui-audio";
 import { defaults, type AudioSettings } from "../game/settings";
 export class GameAudio {
   settings: AudioSettings = defaults().audio;
@@ -8,6 +9,10 @@ export class GameAudio {
   private skidGain: GainNode | null = null;
   private master: GainNode | null = null;
   private buses: Partial<Record<keyof AudioSettings, GainNode>> = {};
+  private interfaceAudio: UiAudio | null = null;
+  ui(cue: UiCue) {
+    this.interfaceAudio?.play(cue);
+  }
   private nextMusic = 0;
   private musicStep = 0;
   unlock() {
@@ -20,6 +25,7 @@ export class GameAudio {
         bus.connect(this.master);
         this.buses[key] = bus;
       }
+      this.interfaceAudio = new UiAudio(c, this.buses.ui!);
       this.engine = c.createOscillator();
       this.engine.type = "sawtooth";
       this.engineGain = c.createGain();

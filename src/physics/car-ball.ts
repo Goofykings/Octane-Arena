@@ -62,6 +62,21 @@ export class CarBallContact {
     this.dodgeImpulse.set(0, 0, 0);
     this.impactAge += P.dt;
   }
+  private resetSurfaceContact = true;
+  /** Rapier manifold wrappers are borrowed scratch storage: never query another
+   * contactPair from inside the active car-ball manifold callback. */
+  sampleResetSupport(car: Car, ball: RAPIER.RigidBody) {
+    this.resetSurfaceContact =
+      car.grounded || car.jumpSupported || car.chassisContacts > 0;
+    if (!this.resetSurfaceContact)
+      car.world.contactPairsWith(car.collider, (other) => {
+        if (other.parent()?.handle === ball.handle) return;
+        car.world.contactPair(car.collider, other, (m) => {
+          for (let i = 0; i < m.numContacts(); i++)
+            if (m.contactDist(i) < 0.004) this.resetSurfaceContact = true;
+        });
+      });
+  }
   resolve(car: Car, ball: RAPIER.RigidBody, point: Vector3, normal: Vector3) {
     this.point.copy(point);
     this.normal.copy(normal);
@@ -97,6 +112,7 @@ export class CarBallContact {
       .applyQuaternion(new Quaternion().copy(car.body.rotation()).invert());
     if (
       this.aerial &&
+      !this.resetSurfaceContact &&
       !this.resetAwarded &&
       localNormal.y < -0.75 &&
       this.local.y < d.hitboxY - d.halfHeight + 0.07 &&

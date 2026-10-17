@@ -48,7 +48,11 @@ export async function registerParties(
   const endRtc = (party: PartyState, notice = "") => {
     party.stage = "teams";
     delete party.matchId;
-    party.matchArenaId = chooseMatchArena(party.matchArenaId);
+    party.matchArenaId = chooseMatchArena(
+      party.matchArenaId,
+      Math.random,
+      party.gameMode,
+    );
     delete party.matchHostId;
     delete party.matchFinished;
     for (const p of players.values())
@@ -75,7 +79,11 @@ export async function registerParties(
       if (party) {
         party.stage = "teams";
         delete party.matchId;
-        party.matchArenaId = chooseMatchArena(party.matchArenaId);
+        party.matchArenaId = chooseMatchArena(
+          party.matchArenaId,
+          Math.random,
+          party.gameMode,
+        );
       }
       if (reason)
         for (const p of players.values())
@@ -366,21 +374,26 @@ export async function registerParties(
     const party = parties.get(code);
     if (!party) return fail(404, "PARTY NOT FOUND");
     if (p.code === code) return state(p);
-    if (party.stage === "match") return fail(409, "MATCH IN PROGRESS");
+    if (party.stage === "match" && party.gameMode !== "dropshot")
+      return fail(409, "MATCH IN PROGRESS");
     if (party.members.length >= party.maxPlayers)
       return fail(409, "PARTY FULL");
     leave(p);
     p.code = code;
     p.notice = "";
     p.member.team =
-      party.stage === "teams"
-        ? null
-        : (([0, 1] as const).find(
-            (team) =>
-              party.members.filter((m) => m.team === team).length <
-              teamCapacity(party.mode, team),
-          ) ?? null);
+      party.stage === "match"
+        ? "spectator"
+        : party.stage === "teams"
+          ? null
+          : (([0, 1] as const).find(
+              (team) =>
+                party.members.filter((m) => m.team === team).length <
+                teamCapacity(party.mode, team),
+            ) ?? null);
     party.members.push(p.member);
+    if (party.stage === "match")
+      matches.matches.get(party.code)?.addSpectator(p.member);
     return state(p);
   });
   app.post("/api/party/leave", async (req) => {
@@ -485,6 +498,9 @@ export async function registerParties(
     if (!soccerModes.some((m) => m.id === gameMode))
       return fail(400, "INVALID GAMEMODE");
     party.gameMode = gameMode;
+    delete party.matchArenaId;
+    if (gameMode === "hoops") party.mode = "2v2";
+    if (gameMode === "dropshot") party.mode = "3v3";
     party.members.forEach((m) => (m.ready = false));
     return state(p);
   });
@@ -500,7 +516,11 @@ export async function registerParties(
     if (stage === "teams" && party.stage !== "mode")
       return fail(409, "CHOOSE A MODE FIRST");
     if (stage === "teams") {
-      party.matchArenaId = chooseMatchArena(previousPartyArena);
+      party.matchArenaId = chooseMatchArena(
+        previousPartyArena,
+        Math.random,
+        party.gameMode,
+      );
       for (const m of party.members) {
         m.team = null;
         m.ready = false;
@@ -534,7 +554,8 @@ export async function registerParties(
         party.matchId = randomUUID();
         party.matchHostId = party.hostId;
         party.matchArenaId =
-          party.matchArenaId ?? chooseMatchArena(previousPartyArena);
+          party.matchArenaId ??
+          chooseMatchArena(previousPartyArena, Math.random, party.gameMode);
         previousPartyArena = party.matchArenaId;
         party.matchFinished = false;
       } else {

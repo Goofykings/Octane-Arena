@@ -1,3 +1,4 @@
+import { setControlText } from "./motion";
 import {
   botSizes,
   botDifficulties,
@@ -41,6 +42,8 @@ export class BotSetup {
               soccerModes.length) %
               soccerModes.length
           ].id;
+        if (this.gameMode === "hoops") this.size = "2v2";
+        if (this.gameMode === "dropshot") this.size = "3v3";
         this.render();
       });
       on(`bot-size-${side}`, () => {
@@ -73,12 +76,15 @@ export class BotSetup {
     });
   }
   render() {
-    this.root.querySelector("#bot-game-mode")!.textContent = soccerModes.find(
-      (m) => m.id === this.gameMode,
-    )!.label;
-    this.root.querySelector("#bot-size")!.textContent = this.size;
-    this.root.querySelector("#bot-difficulty")!.textContent =
-      this.difficulty.toUpperCase();
+    setControlText(
+      this.root.querySelector("#bot-game-mode")!,
+      soccerModes.find((m) => m.id === this.gameMode)!.label,
+    );
+    setControlText(this.root.querySelector("#bot-size")!, this.size);
+    setControlText(
+      this.root.querySelector("#bot-difficulty")!,
+      this.difficulty.toUpperCase(),
+    );
   }
   show() {
     this.render();

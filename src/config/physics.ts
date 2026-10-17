@@ -57,6 +57,8 @@ export const P = {
     normalResponse: 40,
     align: 100,
     alignDamping: 16,
+    landingDamping: 18, // Floor-only roll/pitch energy absorption after a real 3-wheel touchdown.
+    landingDampingTime: 0.24, // Seconds; no pose target, suspension travel or airborne effect.
     curveAlignmentScale: 6, // Responsive normal support only while the surface frame is turning.
     curveDampingScale: 3,
     steeringResponse: 18,

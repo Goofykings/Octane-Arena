@@ -1,3 +1,4 @@
+import { dropshotBall, replayDropshot } from "../render/dropshot";
 import { MUTATOR_TUNING as M } from "../../shared/mutators";
 import { ReplayNametags } from "../ui/replay-nametags";
 import { heatseekerBall, heatIntensity } from "../effects/heatseeker-ball";
@@ -36,6 +37,7 @@ function visualCar(source: Car, model: Group) {
   const velocity = new Vector3(),
     angular = new Vector3();
   const proxy = {
+    physics: source.physics,
     id: source.id,
     team: source.team,
     bodyId: source.bodyId,
@@ -93,6 +95,7 @@ export class ReplayScenePlayback {
   }
   resetEffects() {
     heatseekerBall(this.ball, null);
+    dropshotBall(this.ball, null, 0);
     const e = this.effects;
     e.vehicles.forEach((v) => v.reset());
     e.ball.reset();
@@ -136,6 +139,8 @@ export class ReplayScenePlayback {
     for (const entry of clip.heatseeker ?? [])
       if (entry.time <= time) heat = entry.state;
     heatseekerBall(this.ball, heat, effectDt);
+    const dropshot = replayDropshot(clip, time);
+    dropshotBall(this.ball, dropshot, time);
     this.sources.forEach((source, i) => {
       const index = clip.carIds.indexOf(source.id);
       if (index < 0) {
@@ -149,6 +154,7 @@ export class ReplayScenePlayback {
       c.id = source.id;
       c.team = source.team;
       c.bodyId = source.bodyId;
+      c.physics = source.physics;
       const wasVisible = model.visible;
       model.position.fromArray(frame, o);
       model.quaternion.fromArray(frame, o + RC.rotation).normalize();
@@ -249,6 +255,7 @@ export class ReplayScenePlayback {
       this.director.camera.position,
       heatIntensity(heat),
       heat,
+      dropshot,
     );
     if (time >= clip.goal.time && !this.goalShown) {
       this.effects.explosion.trigger(

@@ -179,3 +179,7 @@ dodges, held-throttle recovery, landing controls and upper goal corners are corr
 See [gameplay corrections, changed files and verification](docs/GAMEPLAY-CORRECTIONS.md).
 
 See [resume audit](docs/UPDATE-AUDIT.md), [implementation and verification](docs/MAJOR-UPDATE.md), [physics calibration](docs/PHYSICS.md), and [local profile replacement](docs/LOCAL-PROFILE.md).
+
+Hoops is available in Against Bots and party setup, with Hoops Free Play through the arena selector. It includes a dedicated court, solid exposed rims, ball-only translucent nets and neighborhood scenery, jump-ball kickoffs, mode-aware bots and stats. See [Hoops controls, dimensions, integration and verification](docs/HOOPS.md).
+
+Dropshot is available in the same gamemode carousels (default 3v3) and the Free Play arena picker. Hex Reactor has 140 breakable tiles, charged area damage, boost regeneration, floor goals, Damage stats, mode-aware bots, authoritative multiplayer and late spectators. See [Dropshot rules, tuning and verification](docs/DROPSHOT.md).

@@ -1,3 +1,4 @@
+import { ScreenTransitions } from "./motion";
 import type { Match } from "../game/match";
 import type { Profile } from "../game/inventory";
 import { icon } from "./icons";
@@ -8,6 +9,7 @@ import {
   defaultAvatarColor,
 } from "../../shared/local-profile";
 export class UI {
+  private transitions = new ScreenTransitions();
   leaveConfirmation = false;
   root = document.querySelector<HTMLDivElement>("#app")!;
   screen:
@@ -137,7 +139,7 @@ export class UI {
       ["pause", m.phase === "paused" && !this.leaveConfirmation],
       ["result", m.phase === "finished"],
     ] as const)
-      document.getElementById(id)!.hidden = !show;
+      this.transitions.setVisible(document.getElementById(id)!, show);
     this.root.dataset.screen = home ? this.screen : "game";
     set("score-cyan", String(m.score[0]));
     set("score-amber", String(m.score[1]));

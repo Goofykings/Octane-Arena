@@ -115,8 +115,8 @@
   {
     "name": "floor to vertical wall driving",
     "value": {
-      "maxY": 20.084983825683594,
-      "wallContacts": 164
+      "maxY": 20.100542068481445,
+      "wallContacts": 143
     },
     "pass": true
   },
@@ -279,7 +279,7 @@
   },
   {
     "name": "cars move during celebration",
-    "value": 8.69014778819914,
+    "value": 8.790318436344581,
     "pass": true
   },
   {
@@ -324,7 +324,7 @@
   {
     "name": "complete 5-minute live simulation",
     "value": {
-      "seconds": 1140.0583333333334,
+      "seconds": 1139.9,
       "score": [
         0,
         54
@@ -339,7 +339,7 @@
     "value": {
       "collision": true,
       "opponentZ": -4.752902030944824,
-      "playerZ": -2.806851625442505
+      "playerZ": -2.9028563499450684
     },
     "pass": true
   },
@@ -348,7 +348,7 @@
     "value": {
       "collision": true,
       "opponentZ": -4.413257122039795,
-      "playerZ": -3.1016504764556885
+      "playerZ": -3.1656270027160645
     },
     "pass": true
   }

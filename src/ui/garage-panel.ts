@@ -1,3 +1,4 @@
+import { reveal, flashControl } from "./motion";
 import {
   Garage,
   PRESET_NAME_MAX,
@@ -31,10 +32,11 @@ export class GaragePanel {
     document.getElementById("app")!.append(this.presetDialog);
     this.render();
   }
-  render() {
+  render(enter = true) {
     this.host.dispatchEvent(new Event("preview-reset"));
     const p = this.data.current;
     this.host.innerHTML = `<h2>${this.customizing ? "CUSTOMIZE CAR" : "GARAGE"}</h2><div id="preview-drag" aria-label="Drag to orbit car preview"></div><div class="garage-left">${this.customizing ? `<nav class="category-tabs" role="tablist" aria-label="Car customization">${(["body", "paint", "wheels", "boost", "topper", "explosion"] as const).map((k) => `<button role="tab" data-category="${k}" aria-selected="${k === this.category}" aria-label="${k === "explosion" ? "Goal explosions" : k}" title="${k === "explosion" ? "Goal explosions" : k}">${icon(k)}</button>`).join("")}</nav><h3>${this.category === "explosion" ? "GOAL EXPLOSIONS" : this.category.toUpperCase()}</h3><div class="inventory-grid ${this.category === "paint" ? "palette" : ""}">${this.category === "paint" ? palette.map((color) => `<button class="swatch" data-color="${color}" aria-label="Paint ${color}" aria-pressed="${p[this.team] === color}" style="--swatch:${color}"></button>`).join("") : inventory[this.category].map((item) => `<button class="item-card" data-item="${item.id}" aria-pressed="${p[this.category as CosmeticSlot] === item.id}">${icon(this.category)}<span>${item.name}</span></button>`).join("")}</div>` : `<label class="preset-select" for="preset">PRESET<select id="preset">${this.data.presets.map((preset, i) => `<option value="${i}" ${preset.id === p.id ? "selected" : ""}>${escapeText(preset.name)}</option>`).join("")}</select></label><button id="customize-car" class="nav-button">CUSTOMIZE CAR</button><button id="new-preset" class="nav-button" ${this.data.presets.length >= 24 ? "disabled" : ""}>CREATE NEW PRESET</button>`}</div><div class="car-name">${bodies[p.body].name.toUpperCase()}</div><footer class="screen-footer"><button id="garage-back" data-nav-back class="back-button">← BACK</button><button id="team-preview" class="team-toggle ${this.team}" aria-label="Preview ${this.team === "blue" ? "orange" : "blue"} team" title="Switch team color">${icon("body").repeat(3)}<span>${this.team.toUpperCase()} TEAM</span></button></footer>`;
+    if (enter) reveal(this.host.querySelector<HTMLElement>(".garage-left")!, 6);
     this.host.querySelector("#garage-back")!.addEventListener("click", () => {
       if (this.customizing) {
         this.customizing = false;
@@ -61,7 +63,11 @@ export class GaragePanel {
           (b.onclick = () => {
             (p[this.category as CosmeticSlot] as string) = b.dataset.item!;
             this.data.save();
-            this.render();
+            this.render(false);
+            const selected = this.host.querySelector<HTMLElement>(
+              `[data-item="${b.dataset.item}"]`,
+            );
+            if (selected) flashControl(selected);
             this.change();
             if (this.category === "explosion")
               this.host.dispatchEvent(new Event("preview-explosion"));
@@ -72,7 +78,11 @@ export class GaragePanel {
           (b.onclick = () => {
             p[this.team] = b.dataset.color!;
             this.data.save();
-            this.render();
+            this.render(false);
+            const selected = this.host.querySelector<HTMLElement>(
+              `[data-color="${b.dataset.color}"]`,
+            );
+            if (selected) flashControl(selected);
             this.change();
           }),
       );
@@ -93,7 +103,8 @@ export class GaragePanel {
         this.data.selected =
           this.data.presets[Number((e.target as HTMLSelectElement).value)].id;
         this.data.save();
-        this.render();
+        this.render(false);
+        flashControl(this.host.querySelector<HTMLElement>("#preset")!);
         this.change();
       };
     }
@@ -112,7 +123,10 @@ export class GaragePanel {
       equip.onclick = () => {
         this.data.selected = p.id;
         this.data.save();
-        this.render();
+        this.render(false);
+        flashControl(
+          this.host.querySelector<HTMLElement>(`[data-equip="${i}"]`)!,
+        );
         this.change();
       };
       row.append(equip);

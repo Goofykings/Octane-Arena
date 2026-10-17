@@ -1,3 +1,4 @@
+import { HOOPS_CONFIG as H } from "../../shared/hoops";
 import type { Car } from "../car/car";
 import { P } from "../config/physics";
 export interface Pad {
@@ -12,7 +13,18 @@ export const padRecharge = (pad: Pad) =>
   Math.max(0, Math.min(1, 1 - pad.cooldown / padRespawn(pad)));
 export class Pads {
   items: Pad[] = [];
-  constructor() {
+  constructor(mode: string = "soccar") {
+    this.configure(mode);
+  }
+  configure(mode: string) {
+    this.items = [];
+    if (mode === "dropshot") return;
+    if (mode === "hoops") {
+      this.items = H.boostPadPositions
+        .map((p) => ({ ...p, cooldown: 0 }))
+        .sort((a, b) => Number(b.large) - Number(a.large));
+      return;
+    }
     for (const x of [-30, 30])
       for (const z of [-37, 0, 37])
         this.items.push({ x, z, large: true, cooldown: 0 });

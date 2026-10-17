@@ -83,7 +83,17 @@ export class GoalPlanes {
       ),
     );
   }
+  setMode(mode: string) {
+    this.enabled = mode !== "hoops" && mode !== "dropshot";
+    this.planes.forEach((p) => (p.visible = this.enabled));
+    if (!this.enabled) {
+      this.rings.forEach((p) => (p.visible = false));
+      this.uniforms.goalActive.value = 0;
+    }
+  }
+  private enabled = true;
   update(ball: T.Object3D) {
+    if (!this.enabled) return;
     this.uniforms.goalActive.value = 0;
     [-1, 1].forEach((sign, i) => {
       const intersection = goalIntersection(

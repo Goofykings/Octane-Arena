@@ -1,3 +1,7 @@
+import { DROPSHOT_SUPPORT_GROUP } from "../physics/collision-groups";
+import { floorEntry, DROPSHOT_CONFIG as D } from "../../shared/dropshot";
+import { hoopsCrossing, HOOPS_CONFIG as H } from "../../shared/hoops";
+import type { SoccerMode } from "../../shared/soccer";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { Vector3 } from "three";
 import type { MatchPhysics } from "../config/mutators";
@@ -7,6 +11,8 @@ import type { HeatseekerState } from "../../shared/soccer";
 import { STAT_TUNING } from "../../shared/match-stats";
 import { scoringTeam } from "./goals";
 export interface BallSample {
+  mode?: SoccerMode;
+  dropshot?: { tiles: string };
   position: { x: number; y: number; z: number };
   velocity: { x: number; y: number; z: number };
   heat: HeatseekerState | null;
@@ -49,7 +55,10 @@ export function predictGoal(
     velocity = new Vector3().copy(sample.velocity);
   if (![...position.toArray(), ...velocity.toArray()].every(Number.isFinite))
     return null;
-  const scored = scoringTeam(position, physics.ball.radius);
+  const scored =
+    sample.mode === "hoops" || sample.mode === "dropshot"
+      ? null
+      : scoringTeam(position, physics.ball.radius);
   if (scored !== null)
     return {
       team: scored === 0 ? 1 : 0,
@@ -57,7 +66,13 @@ export function predictGoal(
       point: { x: position.x, y: position.y, z: position.z },
     };
   onSample?.(0, position, velocity);
-  if (!onSample && velocity.lengthSq() < 0.01 && !sample.heat?.active)
+  if (
+    !onSample &&
+    velocity.lengthSq() < 0.01 &&
+    !sample.heat?.active &&
+    sample.mode !== "hoops" &&
+    sample.mode !== "dropshot"
+  )
     return null;
   const sphere = new RAPIER.Ball(physics.ball.radius),
     rotation = { x: 0, y: 0, z: 0, w: 1 },
@@ -75,6 +90,7 @@ export function predictGoal(
         1 / physics.ball.mass,
       ),
   } as unknown as RAPIER.RigidBody;
+  let floorTeam: 0 | 1 | null = null;
   for (let time = 0; time < horizon; time += dt) {
     heat?.steer(proxy, dt);
     velocity.y -= physics.gravity * dt;
@@ -95,10 +111,46 @@ export function predictGoal(
         undefined,
         undefined,
         undefined,
-        (col) => col.parent() === null,
+        (col) =>
+          col.parent() === null &&
+          col.collisionGroups() !== DROPSHOT_SUPPORT_GROUP,
       );
       const limit = hit ? Math.max(0, hit.time_of_impact) : remaining;
-      for (const team of [0, 1] as const) {
+      if (sample.mode === "dropshot" && sample.dropshot) {
+        const end = position.clone().addScaledVector(velocity, limit);
+        floorTeam =
+          floorEntry(
+            position,
+            end,
+            physics.ball.radius,
+            sample.dropshot.tiles,
+          ) ?? floorTeam;
+        if (
+          floorTeam !== null &&
+          end.y < -D.tileThickness - physics.ball.radius - D.goalClearance
+        )
+          return {
+            team: floorTeam,
+            time: time + duration - remaining + limit,
+            point: { ...end },
+          };
+      }
+      if (sample.mode === "hoops") {
+        const end = position.clone().addScaledVector(velocity, limit);
+        const scored = hoopsCrossing(position, end, physics.ball.radius);
+        if (scored !== null) {
+          const fraction = (position.y - H.hoopHeight) / (position.y - end.y);
+          const point = position.clone().lerp(end, fraction);
+          return {
+            team: scored === 0 ? 1 : 0,
+            time: time + (duration - remaining) + limit * fraction,
+            point: { ...point },
+          };
+        }
+      }
+      for (const team of (sample.mode === "hoops" || sample.mode === "dropshot"
+        ? []
+        : [0, 1]) as (0 | 1)[]) {
         const plane =
           (team === 0 ? 1 : -1) * (P.arena.halfLength + physics.ball.radius);
         if ((team === 0 && velocity.z <= 0) || (team === 1 && velocity.z >= 0))

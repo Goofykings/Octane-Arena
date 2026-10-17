@@ -6,14 +6,15 @@ interface Scope {
   root: HTMLElement;
   key: string;
 }
-const controls = 'button,a[href],input,select,[tabindex="0"],[data-nav-cycle]';
+const controls =
+  'button,a[href],input,textarea,select,[tabindex="0"],[data-nav-cycle]';
 const textField = (e: Element | null) =>
   !!e?.matches(
     'textarea,[contenteditable="true"],input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="color"])',
   );
 const visible = (e: HTMLElement) => {
   if (
-    e.closest('[hidden],[aria-hidden="true"]') ||
+    e.closest('[hidden],[inert],[aria-hidden="true"],dialog:not([open])') ||
     e.matches(':disabled,[aria-disabled="true"]')
   )
     return false;

@@ -281,7 +281,7 @@ export function animateWheels(
 }
 export function disposeModel(model: T.Object3D) {
   model.traverse((o) => {
-    if (o instanceof T.Mesh) {
+    if (o instanceof T.Mesh || o instanceof T.Points) {
       o.geometry.dispose();
       for (const m of Array.isArray(o.material) ? o.material : [o.material])
         m.dispose();

@@ -49,6 +49,7 @@ export interface MatchSnapshot {
   mutators?: import("./mutators").MatchMutators;
   heatseeker?: HeatseekerState | null;
   rumble?: RumbleSnapshot | null;
+  dropshot?: import("./dropshot").DropshotSnapshot | null;
   stats?: PlayerMatchStats[];
   statEvents?: MatchStatEvent[];
   chat?: ChatMessage[];

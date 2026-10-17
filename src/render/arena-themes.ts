@@ -1,6 +1,6 @@
 import { isArenaId, type ArenaId } from "../../shared/arenas";
 export { arenaIds, isArenaId, type ArenaId } from "../../shared/arenas";
-/** Visual palettes only. Every theme uses the same gameplay geometry. */
+/** Soccar palettes share geometry; the Hoops renderer supplies its own court. */
 const baseArenaThemes = {
   city: {
     name: "Lumen District",
@@ -69,6 +69,8 @@ const baseArenaThemes = {
 export const arenaThemes = {
   ...baseArenaThemes,
   circuit: { ...baseArenaThemes.stadium, name: "Circuit Field" },
+  hoops: { ...baseArenaThemes.stadium, name: "Hoops - Neighborhood Court" },
+  dropshot: { ...baseArenaThemes.city, name: "Dropshot - Hex Reactor", sky:0x080f23, groundLight:0x26365a },
 } as const;
 
 export function loadArenaChoice(): ArenaId {

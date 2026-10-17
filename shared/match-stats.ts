@@ -1,3 +1,4 @@
+import { DROPSHOT_CONFIG } from "./dropshot";
 import { z } from "zod";
 export const MATCH_POINTS = {
   BALL_TOUCH: 2,
@@ -5,6 +6,7 @@ export const MATCH_POINTS = {
   ASSIST: 50,
   SAVE: 50,
   SHOT: 10,
+  DAMAGE: DROPSHOT_CONFIG.damagePoints,
 } as const;
 export const STAT_TUNING = {
   assistWindow: 5,
@@ -25,11 +27,17 @@ export const STAT_FIELD = {
   SAVE: "saves",
   ASSIST: "assists",
   GOAL: "goals",
+  DAMAGE: "damage",
 } as const;
 /** Called only by the stat authority when it awards an already classified event. */
-export function applyStatAward(stats: PlayerMatchStats, type: StatKind) {
-  stats[STAT_FIELD[type]]++;
-  stats.score += MATCH_POINTS[type];
+export function applyStatAward(
+  stats: PlayerMatchStats,
+  type: StatKind,
+  amount = 1,
+) {
+  const field = STAT_FIELD[type];
+  stats[field] = (stats[field] ?? 0) + amount;
+  stats.score += MATCH_POINTS[type] * amount;
 }
 export interface PlayerMatchStats {
   playerId: string;
@@ -39,6 +47,7 @@ export interface PlayerMatchStats {
   saves: number;
   shots: number;
   touches: number;
+  damage?: number;
   ping: number | null;
 }
 export function scoreboardOrder<T extends { id: string; team: 0 | 1 }>(
@@ -73,11 +82,12 @@ export const playerStatsSchema = z.object({
   saves: z.number().int().nonnegative(),
   shots: z.number().int().nonnegative(),
   touches: z.number().int().nonnegative(),
+  damage: z.number().int().nonnegative().optional(),
   ping: z.number().finite().min(0).max(60000).nullable(),
 });
 export const statEventSchema = z.object({
   id: z.number().int().positive(),
-  type: z.enum(["BALL_TOUCH", "GOAL", "ASSIST", "SAVE", "SHOT"]),
+  type: z.enum(["BALL_TOUCH", "GOAL", "ASSIST", "SAVE", "SHOT", "DAMAGE"]),
   playerId: z.string().max(80),
   team: z.union([z.literal(0), z.literal(1)]),
   scoreAward: z.number().int().nonnegative(),

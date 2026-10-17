@@ -1,8 +1,10 @@
+import { HOOPS_NET_GROUP } from "../physics/collision-groups";
 import * as T from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { cameraFloorClearance } from "./space";
 
-const arenaOnly = (collider: RAPIER.Collider) => collider.parent() === null;
+const arenaOnly = (collider: RAPIER.Collider) =>
+  collider.parent() === null && collider.collisionGroups() !== HOOPS_NET_GROUP;
 const axes = [
   new T.Vector3(1, 0, 0),
   new T.Vector3(-1, 0, 0),

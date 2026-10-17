@@ -50,16 +50,21 @@ const { staticGame } = require("./static-game.cjs");
           }),
       );
     const press = async (index) => {
-      await page.evaluate(
-        (i) => (window.pad.buttons[i] = { value: 1, pressed: true }),
-        index,
-      );
-      await frames();
-      await page.evaluate(
-        (i) => (window.pad.buttons[i] = { value: 0, pressed: false }),
-        index,
-      );
-      await frames();
+      // Release inside the renderer so protocol/GPU delays cannot turn a tap
+      // into an unintended repeat hold while other browser sessions render.
+      await page.evaluate(async (i) => {
+        const frames = () =>
+          new Promise((resolve) => {
+            let remaining = 2;
+            const frame = () =>
+              --remaining ? requestAnimationFrame(frame) : resolve();
+            requestAnimationFrame(frame);
+          });
+        window.pad.buttons[i] = { value: 1, pressed: true };
+        await frames();
+        window.pad.buttons[i] = { value: 0, pressed: false };
+        await frames();
+      }, index);
     };
     const dir = { up: 12, down: 13, left: 14, right: 15 };
     const active = (selector) =>
@@ -296,6 +301,13 @@ const { staticGame } = require("./static-game.cjs");
       "INTERMEDIATE",
     );
     await press(13);
+    assert.equal(await focusId(), "bot-mutators");
+    await press(0);
+    await page.waitForFunction(
+      () => !!document.querySelector(".mutators-panel[open]"),
+    );
+    await back();
+    await press(13);
     assert.equal(await focusId(), "bot-launch");
     await press(0);
     await page.waitForFunction(() => window.__arena.match.phase === "playing");
@@ -415,7 +427,10 @@ const { staticGame } = require("./static-game.cjs");
               },
             ],
           };
-        if (action === "stage") p.state.stage = data.stage;
+        if (action === "stage") {
+          p.state.stage = data.stage;
+          if (data.stage === "teams") p.state.matchArenaId = "city";
+        }
         if (action === "mode") p.state.mode = data.mode;
         if (action === "gamemode") p.state.gameMode = data.gameMode;
         if (action === "team") p.state.members[0].team = data.team;
@@ -436,13 +451,22 @@ const { staticGame } = require("./static-game.cjs");
     assert.equal(await page.locator("#setup-gamemode").textContent(), "SOCCAR");
     await press(13);
     assert.equal(await focusId(), "party-size-cycle");
-    await press(15);
-    await press(15);
-    assert.equal(
-      await page.evaluate(() => window.__arena.party.state.mode),
-      "2v2bots",
-    );
+    // Exercise every currently supported format rather than assuming the old
+    // three-item mode list (1v1, 2v2, 2vBots).
+    for (const expected of ["2v2", "3v3", "1v2", "1v3", "2v2bots"]) {
+      await press(15);
+      assert.equal(
+        await page.evaluate(() => window.__arena.party.state.mode),
+        expected,
+      );
+    }
     await select("#party-continue");
+    await page.waitForFunction(
+      () =>
+        document.getElementById("party-flow").open &&
+        __arena.party.state.stage === "teams" &&
+        !__arena.matchLoader.active,
+    );
     await select('.party-team-join[data-team="0"]');
     await select("#party-launch");
     assert.ok(

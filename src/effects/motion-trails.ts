@@ -123,6 +123,7 @@ export class BallTrails extends SoccarTrail {
     camera?: T.Vector3,
     heat = 0,
     state?: HeatseekerState | null,
+    dropshot?: import("../../shared/dropshot").DropshotSnapshot | null,
   ) {
     if (state) {
       this.mesh.visible = false;
@@ -138,7 +139,16 @@ export class BallTrails extends SoccarTrail {
       return;
     }
     if (this.heatseeker.count) this.heatseeker.reset();
-    this.updatePath(ball.position, speed, team, dt, active, camera);
+    this.intensity = dropshot ? [1, 1.7, 3.8][dropshot.chargeLevel] : 1;
+    this.widthScale = dropshot ? [1, 1.4, 2.5][dropshot.chargeLevel] : 1;
+    this.updatePath(
+      ball.position,
+      speed,
+      dropshot?.lastTouchTeam ?? team,
+      dt,
+      active,
+      camera,
+    );
   }
 }
 export class FlipTrails extends MotionTrails {

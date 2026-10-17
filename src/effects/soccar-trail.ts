@@ -11,6 +11,8 @@ export class SoccarTrail {
   readonly mesh: T.Mesh<T.BufferGeometry, T.ShaderMaterial>;
   readonly history = new Float32Array(SoccarTrail.capacity * 3);
   readonly timestamps = new Float64Array(SoccarTrail.capacity);
+  intensity = 1;
+  widthScale = 1;
   count = 0;
   renderedLength = 0;
   private head = -1;
@@ -150,12 +152,12 @@ export class SoccarTrail {
           sign = v === 0 || v === 2 || v === 3 ? -1 : 1;
         const p = old ? this.b : this.a,
           f = old ? fade : previousFade;
-        const shift = sign * P.ball.radius * 0.09 * Math.pow(f, 0.7),
+        const shift = sign * P.ball.radius * 0.09 * this.widthScale * Math.pow(f, 0.7),
           at = vertex * 3;
         this.positions[at] = p.x + this.side.x * shift;
         this.positions[at + 1] = p.y + this.side.y * shift;
         this.positions[at + 2] = p.z + this.side.z * shift;
-        this.alpha[vertex] = strength * f * f;
+        this.alpha[vertex] = Math.min(1,strength*this.intensity) * f * f;
         this.across[vertex++] = sign;
       }
       this.a.copy(this.b);

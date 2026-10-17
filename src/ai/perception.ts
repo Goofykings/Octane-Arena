@@ -73,6 +73,8 @@ export class BotPerception {
         velocity: s.ball.linvel(),
         heat: s.heatseeker?.state ?? null,
         physics: s.physics,
+        mode: s.gameMode,
+        dropshot: s.dropshot ? {tiles:s.dropshot.tiles} : undefined,
       },
       s.world,
       BOT_TUNING[this.difficulty].horizon,

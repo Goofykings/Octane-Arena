@@ -89,7 +89,11 @@ export class TrainingSession implements ExtraSession {
       far: 250,
     });
     this.scene.add(light);
-    drawArena(this.scene, options.arenaId);
+    // Soccer training packs keep their required goals even after Hoops Free Play.
+    drawArena(
+      this.scene,
+      ["hoops","dropshot"].includes(options.arenaId) ? "city" : options.arenaId,
+    );
     this.model = carModel(
       new T.Color(options.preset.blue).getHex(),
       options.preset.body,

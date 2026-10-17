@@ -500,11 +500,11 @@
     "releaseTime": 0.5
   },
   "wallfalse": {
-    "slip": 0.35210759128196695,
+    "slip": 0.3521082805943635,
     "contacts": 4
   },
   "walltrue": {
-    "slip": 5.394120474584135,
+    "slip": 5.39412278975479,
     "contacts": 4
   },
   "ball": {

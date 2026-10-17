@@ -60,11 +60,13 @@ export const peerPartySchema = z
     members: z.array(memberSchema).min(1).max(partyMaxPlayers),
     mode: z.enum(["1v1", "2v2", "3v3", "1v2", "1v3", "2v2bots"]),
     mutators: mutatorsSchema.default(() => DEFAULT_MUTATORS),
-    gameMode: z.enum(["soccar", "heatseeker", "rumble"]),
+    gameMode: z.enum(["soccar", "heatseeker", "rumble", "hoops", "dropshot"]),
     stage: z.enum(["home", "mode", "teams", "match"]),
     transport: z.literal("webrtc"),
     matchId: z.string().uuid().optional(),
-    matchArenaId: z.enum(["city", "beach", "stadium", "circuit"]).optional(),
+    matchArenaId: z
+      .enum(["city", "beach", "stadium", "circuit", "hoops", "dropshot"])
+      .optional(),
     matchHostId: z.string().uuid().optional(),
     matchFinished: z.boolean().optional(),
   })
@@ -104,7 +106,7 @@ export function createPeerParty(
 export function endPeerMatch(s: PartyState) {
   s.stage = "teams";
   delete s.matchId;
-  s.matchArenaId = chooseMatchArena(s.matchArenaId);
+  s.matchArenaId = chooseMatchArena(s.matchArenaId, Math.random, s.gameMode);
   delete s.matchHostId;
   delete s.matchFinished;
   s.members.forEach((m) => (m.ready = false));
@@ -115,18 +117,21 @@ export class PeerPartyAuthority {
   constructor(public state: PartyState) {}
   join(member: PartyMember) {
     const s = this.state;
-    if (s.stage === "match") throw Error("MATCH IN PROGRESS");
+    if (s.stage === "match" && s.gameMode !== "dropshot")
+      throw Error("MATCH IN PROGRESS");
     if (s.members.some((m) => m.id === member.id))
       throw Error("PROFILE ALREADY IN PARTY — USE A SEPARATE PROFILE");
     if (s.members.length >= partyMaxPlayers) throw Error("PARTY FULL");
     member.team =
-      s.stage === "teams"
-        ? null
-        : (([0, 1] as const).find(
-            (t) =>
-              s.members.filter((m) => m.team === t).length <
-              teamCapacity(s.mode, t),
-          ) ?? null);
+      s.stage === "match"
+        ? "spectator"
+        : s.stage === "teams"
+          ? null
+          : (([0, 1] as const).find(
+              (t) =>
+                s.members.filter((m) => m.team === t).length <
+                teamCapacity(s.mode, t),
+            ) ?? null);
     s.members.push(member);
   }
   remove(id: string) {
@@ -172,7 +177,11 @@ export class PeerPartyAuthority {
       if (!s.matchFinished) throw Error("MATCH IS STILL PLAYING");
       s.matchId = newPacketId();
       s.matchHostId = s.hostId;
-      s.matchArenaId = chooseMatchArena(this.previousArena);
+      s.matchArenaId = chooseMatchArena(
+        this.previousArena,
+        Math.random,
+        s.gameMode,
+      );
       this.previousArena = s.matchArenaId;
       s.matchFinished = false;
       s.members.forEach((m) => (m.ready = false));
@@ -231,10 +240,17 @@ export class PeerPartyAuthority {
         s.members.forEach((m) => (m.ready = false));
         break;
       case "gamemode":
-        if (!["soccar", "heatseeker", "rumble"].includes(data.gameMode))
+        if (
+          !["soccar", "heatseeker", "rumble", "hoops", "dropshot"].includes(
+            data.gameMode,
+          )
+        )
           throw Error("INVALID GAMEMODE");
         if (s.stage === "teams") throw Error("RETURN TO MATCH SETUP FIRST");
         s.gameMode = data.gameMode;
+        delete s.matchArenaId;
+        if (data.gameMode === "hoops") s.mode = "2v2";
+        if (data.gameMode === "dropshot") s.mode = "3v3";
         s.members.forEach((m) => (m.ready = false));
         break;
       case "stage":
@@ -242,7 +258,11 @@ export class PeerPartyAuthority {
           throw Error("INVALID LOBBY STAGE");
         if (data.stage === "teams") {
           if (s.stage !== "mode") throw Error("CHOOSE A MODE FIRST");
-          s.matchArenaId = chooseMatchArena(this.previousArena);
+          s.matchArenaId = chooseMatchArena(
+            this.previousArena,
+            Math.random,
+            s.gameMode,
+          );
           s.members.forEach((m) => {
             m.team = null;
             m.ready = false;
@@ -261,7 +281,9 @@ export class PeerPartyAuthority {
         });
         s.matchId = newPacketId();
         s.matchHostId = s.hostId;
-        s.matchArenaId = s.matchArenaId ?? chooseMatchArena(this.previousArena);
+        s.matchArenaId =
+          s.matchArenaId ??
+          chooseMatchArena(this.previousArena, Math.random, s.gameMode);
         this.previousArena = s.matchArenaId;
         s.matchFinished = false;
         s.stage = "match";

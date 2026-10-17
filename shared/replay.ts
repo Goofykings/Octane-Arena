@@ -63,6 +63,7 @@ export interface ReplayClip {
   mutators?: import("./mutators").MatchMutators;
   rumble?: { time: number; state: import("./rumble").RumbleSnapshot }[];
   heatseeker?: { time: number; state: HeatseekerState }[];
+  dropshot?: { time: number; state: import("./dropshot").DropshotSnapshot }[];
   goal: ReplayGoal;
   carIds: string[];
   padCount: number;
@@ -112,12 +113,14 @@ export function decodeReplay(message: ReplayMessage): ReplayClip {
     c.frames.length !== c.count * c.stride
   )
     throw Error("Invalid replay buffer dimensions");
-  return {
+  const clip = {
     ...c,
     mutators: c.mutators ? matchMutators(c.mutators) : undefined,
     times: new Float64Array(c.times),
     frames: new Float32Array(c.frames),
   };
+  if (!playableReplay(clip)) throw Error("Invalid replay snapshots");
+  return clip;
 }
 
 /** Bounded storage reused every authoritative tick. Only a goal creates a clip copy. */
@@ -142,6 +145,15 @@ export class ReplayBuffer {
     this.count = this.head = this.eventHead = this.eventCount = 0;
   }
   write(time: number, reset: number) {
+    // Multiple event paths may capture the same authoritative tick. Replace its
+    // row instead of producing a zero-duration interpolation interval.
+    const latest = (this.head + REPLAY_CAPACITY - 1) % REPLAY_CAPACITY;
+    if (
+      this.count &&
+      this.resets[latest] === reset &&
+      Math.abs(this.times[latest] - time) < 1e-9
+    )
+      return latest * this.stride;
     const index = this.head;
     this.times[index] = time;
     this.resets[index] = reset;
@@ -235,15 +247,46 @@ export function slowIntervals(clip: ReplayClip): SlowInterval[] {
   }
   return merged;
 }
+export function playableReplay(c: ReplayClip): boolean {
+  if (
+    !Number.isInteger(c.count) ||
+    c.count < 2 ||
+    c.count > REPLAY_CAPACITY ||
+    c.carIds.length > 6 ||
+    new Set(c.carIds).size !== c.carIds.length ||
+    !Number.isInteger(c.padCount) ||
+    c.padCount < 0 ||
+    c.stride !== BALL_STRIDE + c.carIds.length * CAR_STRIDE + c.padCount ||
+    c.frames.length !== c.count * c.stride ||
+    c.times.length !== c.count ||
+    !Number.isFinite(c.start) ||
+    !Number.isFinite(c.end) ||
+    c.end < c.start ||
+    !Number.isFinite(c.goal.time)
+  )
+    return false;
+  for (let i = 0; i < c.count; i++)
+    if (!Number.isFinite(c.times[i]) || (i > 0 && c.times[i] <= c.times[i - 1]))
+      return false;
+  for (let i = 0; i < c.frames.length; i++)
+    if (!Number.isFinite(c.frames[i])) return false;
+  return (
+    Math.abs(c.times[0] - c.start) < 1e-6 &&
+    Math.abs(c.times[c.count - 1] - c.end) < 1e-6
+  );
+}
 export class ReplayClock {
   time: number;
   speed = 1;
   readonly intervals: SlowInterval[];
+  readonly valid: boolean;
   constructor(readonly clip: ReplayClip) {
+    this.valid = playableReplay(clip);
     this.time = clip.start;
     this.intervals = slowIntervals(clip);
   }
   advance(dt: number) {
+    if (!Number.isFinite(dt) || dt <= 0 || this.done) return;
     // Integrate in small steps so both authority and tests have consistent timing.
     while (dt > 1e-9 && !this.done) {
       const step = Math.min(dt, 1 / REPLAY_HZ);
@@ -257,7 +300,12 @@ export class ReplayClock {
     }
   }
   get done() {
-    return this.time >= this.clip.end + 0.65 - 1e-8;
+    return (
+      !this.valid ||
+      !Number.isFinite(this.time) ||
+      !Number.isFinite(this.clip.end) ||
+      this.time >= this.clip.end + 0.65 - 1e-8
+    );
   }
 }
 

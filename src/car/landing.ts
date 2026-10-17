@@ -1,0 +1,38 @@
+﻿/** Brief energy absorption after real wheel-side floor touchdown, never a pose target. */
+export class LandingContact {
+  private air = 0;
+  private sinceAir = 1;
+  private armed = false;
+  private remaining = 0;
+  rate = 0;
+  reset() {
+    this.air = 0;
+    this.sinceAir = 1;
+    this.armed = false;
+    this.remaining = this.rate = 0;
+  }
+  step(
+    airborne: boolean,
+    validFloorSupport: boolean,
+    dt: number,
+    rate: number,
+    duration: number,
+  ) {
+    if (airborne) {
+      this.air += dt;
+      this.sinceAir = 0;
+      this.remaining = 0;
+      if (this.air >= 0.025) this.armed = true;
+    } else {
+      this.air = 0;
+      this.sinceAir += dt;
+      this.remaining = Math.max(0, this.remaining - dt);
+      if (validFloorSupport && this.armed && this.sinceAir < 0.5) {
+        this.remaining = duration;
+        this.armed = false;
+      }
+      if (this.sinceAir >= 0.5) this.armed = false;
+    }
+    return (this.rate = validFloorSupport && this.remaining > 0 ? rate : 0);
+  }
+}

@@ -4,6 +4,7 @@ import { drawArena } from "../src/render/arena";
 import { P } from "../src/config/physics";
 import {
   registerCameraVisualOcclusion,
+  addCameraVisualOccluders,
   updateCameraVisualOcclusion,
 } from "../src/render/camera-occlusion";
 // Ray/geometry tests don't need WebGL. Only the base turf bitmap needs a canvas;
@@ -128,6 +129,11 @@ for (let i = 1; i <= 60; i++)
 assert.ok(blocked.material.opacity < 0.1, "Actual occluder fades");
 assert.equal(clear.material, base);
 assert.equal(clear.material.opacity, 1, "Unoccluded mesh is unchanged");
+// Lazy Hoops scenery must preserve the existing controller's original opacity.
+const added = new T.Mesh(new T.BoxGeometry(1, 3, 1), base);
+added.position.set(9, 1, 4);
+fadeScene.add(added);
+addCameraVisualOccluders(fadeScene, [added]);
 camera.position.x = 3; // Replay/home camera no longer matches gameplay framing.
 for (let i = 61; i <= 120; i++)
   updateCameraVisualOcclusion(fadeScene, camera, i / 60);
@@ -136,6 +142,25 @@ assert.equal(
   1,
   "Normal material opacity is restored",
 );
+const citySky = (scene.background as T.Color).getHex();
+arena.setMap("hoops");
+assert.ok(arena.group.getObjectByName("hoops-neighborhood")?.visible);
+const hoopsSky = (scene.background as T.Color).getHex();
+assert.notEqual(hoopsSky, citySky);
+const fog = scene.fog;
+arena.setMap("hoops");
+assert.equal(
+  scene.fog,
+  fog,
+  "Unchanged party arena does not rebuild lighting/fog every frame",
+);
+arena.setMap("city");
+assert.equal(
+  (scene.background as T.Color).getHex(),
+  citySky,
+  "Soccar lighting restored after Hoops",
+);
+assert.equal(arena.group.getObjectByName("hoops-court")?.visible, false);
 console.log(
   "PASS inward walls/goal sides/fascia/backing, outside boundary visibility, unchanged opaque ramp material, local smooth decorative fade/restoration and shared-material isolation",
 );
