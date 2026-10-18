@@ -124,6 +124,7 @@ export class PartyPanel {
         s?.members.map((m) => [
           m.id,
           m.name,
+          m.level,
           m.avatarId,
           m.avatarColor,
           m.team,
@@ -142,13 +143,14 @@ export class PartyPanel {
         b.dataset.player = m.id;
         b.dataset.team = String(m.team);
         b.style.color = m.avatarColor ?? defaultAvatarColor;
-        b.title = `${displayIdentity(m)} · ${m.team === null ? "Unassigned" : m.team === "spectator" ? "Spectator" : m.team === 0 ? "Blue" : "Orange"}`;
+        b.title = `${displayIdentity(m)} (LVL ${m.level ?? 1}) · ${m.team === null ? "Unassigned" : m.team === "spectator" ? "Spectator" : m.team === 0 ? "Blue" : "Orange"}`;
         b.setAttribute(
           "aria-label",
           b.title + (m.id === s.hostId ? " — Party leader" : ""),
         );
         b.setAttribute("aria-pressed", String(this.selected === m.id));
         b.innerHTML =
+          `<small class="party-level">${m.level ?? 1}</small>` +
           icon(m.avatarId) +
           (m.id === s.hostId
             ? '<span class="leader" aria-hidden="true">♛</span>'
@@ -165,7 +167,7 @@ export class PartyPanel {
     if (!member) this.selected = null;
     get("party-actions").hidden = !member;
     get("party-actions").querySelector("b")!.textContent = member
-      ? displayIdentity(member)
+      ? displayIdentity(member) + " / LVL " + (member.level ?? 1)
       : "";
     get("party-kick").hidden =
       !member || s?.hostId !== p.playerId || member.id === p.playerId;

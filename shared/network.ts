@@ -18,6 +18,8 @@ export interface MatchParticipant {
 export type NetPlayer = PlayerEntity & { preset: Preset };
 export interface CarSnapshot {
   id: string;
+  inputSequence?: number;
+  prediction?: import("./prediction").CarPredictionState;
   position: Vec;
   rotation: Rotation;
   velocity: Vec;
@@ -50,6 +52,7 @@ export interface MatchSnapshot {
   heatseeker?: HeatseekerState | null;
   rumble?: RumbleSnapshot | null;
   dropshot?: import("./dropshot").DropshotSnapshot | null;
+  completion?: import("./progression").MatchCompletion | null;
   stats?: PlayerMatchStats[];
   statEvents?: MatchStatEvent[];
   chat?: ChatMessage[];

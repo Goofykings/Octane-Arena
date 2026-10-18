@@ -1,3 +1,5 @@
+import { snapshotBucket } from "../../shared/network-tuning.js";
+import { SnapshotPublisher } from "../../shared/network-stream.js";
 import type { FastifyInstance } from "fastify";
 import { WebSocket, WebSocketServer } from "ws";
 import type { ServerConfig } from "./config.js";
@@ -28,6 +30,7 @@ export class NetworkMatches {
   private loops = new Map<string, FixedLoop>();
   private broadcastTick = new Map<string, number>();
   private previousArena?: ArenaId;
+  private publishers = new Map<string, SnapshotPublisher>();
   constructor(
     app: FastifyInstance,
     config: ServerConfig,
@@ -95,9 +98,9 @@ export class NetworkMatches {
           continue;
         }
         this.loops.get(code)!.advance(dt, () => game.step(now));
-        if (game.tick - (this.broadcastTick.get(code) ?? -4) >= 4) {
-          this.broadcastTick.set(code, game.tick);
-          const message = JSON.stringify(game.snapshot());
+        if (snapshotBucket(game.tick) !== this.broadcastTick.get(code)) {
+          this.broadcastTick.set(code, snapshotBucket(game.tick));
+          const snapshot = game.snapshot();
           for (const p of game.sessionMembers.filter((m) =>
             game.sessionActive(m.id),
           )) {
@@ -123,8 +126,17 @@ export class NetworkMatches {
             if (
               connection?.socket.readyState === WebSocket.OPEN &&
               connection.socket.bufferedAmount < 128000
-            )
-              connection.socket.send(message);
+            ) {
+              const key = game.id + ":" + p.id;
+              let publisher = this.publishers.get(key);
+              if (!publisher) {
+                publisher = new SnapshotPublisher();
+                this.publishers.set(key, publisher);
+              }
+              connection.socket.send(
+                JSON.stringify(publisher.packet(snapshot, p.id)),
+              );
+            }
           }
         }
       }
@@ -137,6 +149,7 @@ export class NetworkMatches {
       wss.close();
       for (const game of this.matches.values()) game.dispose();
       this.matches.clear();
+      this.publishers.clear();
     });
   }
   private connect(socket: WebSocket) {
@@ -279,6 +292,8 @@ export class NetworkMatches {
     const game = this.matches.get(code);
     if (!game) return;
     this.matches.delete(code);
+    for (const key of this.publishers.keys())
+      if (key.startsWith(game.id + ":")) this.publishers.delete(key);
     this.loops.delete(code);
     this.broadcastTick.delete(code);
     this.replayPayloads.delete(code);

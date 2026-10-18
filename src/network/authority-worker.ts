@@ -1,3 +1,4 @@
+import { snapshotBucket } from "../../shared/network-tuning";
 import {
   NetworkMatch,
   initializeMatchPhysics,
@@ -50,7 +51,7 @@ scope.onmessage = (event) => {
       );
       const loop = new FixedLoop();
       let previous = performance.now(),
-        lastTick = -4,
+        lastBucket = -1,
         replayId = "";
       startTimer = () => {
         if (timer) return;
@@ -60,8 +61,9 @@ scope.onmessage = (event) => {
             const now = performance.now();
             loop.advance((now - previous) / 1000, () => game!.step(now));
             previous = now;
-            if (game!.tick - lastTick < 4) return;
-            lastTick = game!.tick;
+            const bucket = snapshotBucket(game!.tick);
+            if (bucket === lastBucket) return;
+            lastBucket = bucket;
             const clip = game!.match.replay?.clip;
             if (clip && clip.goal.id !== replayId) {
               replayId = clip.goal.id;

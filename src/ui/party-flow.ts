@@ -249,7 +249,7 @@ export class PartyFlow {
             ? "CIRCUIT"
             : "RELAY"
           : m
-            ? displayIdentity(m)
+            ? displayIdentity(m) + " / LVL " + (m.level ?? 1)
             : "OPEN SLOT";
         tag.textContent = bots
           ? "BOT"

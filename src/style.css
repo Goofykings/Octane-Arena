@@ -27,6 +27,19 @@ body {
   margin: 0;
   overflow: hidden;
 }
+/* Hide native scrollbar chrome throughout game UI; overflow and input stay intact.
+   Dialogs in the top layer remain descendants of #app and share this rule. */
+#app,
+#app * {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+#app::-webkit-scrollbar,
+#app *::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
 button,
 input,
 select {
@@ -583,8 +596,6 @@ dialog::backdrop {
   height: calc(100% - 116px);
   overflow-y: auto;
   padding: 12px 8px 12px 0;
-  scrollbar-width: thin;
-  scrollbar-color: #5b8da1 #142c40;
   animation: screen-in 0.18s ease-out;
 }
 .setting-row {
@@ -1846,3 +1857,198 @@ output {
 #match-board.dropshot-board .stat-row {grid-template-columns:minmax(75px,2fr) repeat(7,minmax(24px,.6fr));}
 
 .arena-option.dropshot .arena-swatch {background:repeating-linear-gradient(60deg,transparent 0 12px,#729bc355 12px 14px),linear-gradient(90deg,#174e85 0 49%,#1b263b 49% 51%,#82522c 51%);}
+
+/* Persistent match progression, below the existing final leaderboard. */
+.results-detail { width:100%; min-width:0; display:flex; flex-direction:column; gap:12px; max-height:calc(100dvh - 220px); }
+#result .results-detail #match-board.results-board { max-height:none; min-height:0; flex:1 1 auto; }
+#results-board { min-height:0; overflow:auto; }
+:is(#results-progression,#challenge-xp-progression) { flex:none; padding:14px 18px; border:1px solid #83dfff38; border-radius:10px; background:#081522ba; font-size:clamp(11px,1vw,14px); }
+:is(#results-progression,#challenge-xp-progression)[hidden] { display:none; }
+.xp-heading,.xp-summary { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.xp-heading { min-height:28px; }
+:is(#xp-level,#claim-xp-level) { font-size:clamp(15px,1.4vw,20px); }
+:is(#xp-level-up,#claim-xp-level-up) { color:#ffdf7e; text-shadow:0 0 14px #f9bd4866; }
+:is(#xp-skip,#claim-xp-skip) { font-size:10px; padding:4px 10px; min-height:26px; }
+:is(#xp-bar,#claim-xp-bar) { height:10px; border-radius:5px; background:#ffffff14; overflow:hidden; margin:10px 0 8px; }
+:is(#xp-bar,#claim-xp-bar) span { display:block; height:100%; background:linear-gradient(90deg,#397fae,#a3f1ff); box-shadow:0 0 12px #69dfff66; }
+:is(#xp-earned,#claim-xp-earned) { color:#a3f1ff; margin-left:8px; }
+.xp-breakdown { display:flex; flex-wrap:wrap; gap:6px 24px; margin:12px 0 0; color:#bad0df; }
+.xp-breakdown div { display:flex; gap:8px; }
+.xp-breakdown dd { margin:0; color:#e6faff; }
+.xp-storage { color:#ffd498; margin:8px 0 0; }
+.party-level { position:absolute; bottom:-5px; right:-4px; font-size:9px; padding:1px 3px; color:#dff6ff; background:#122936; border-radius:3px; }
+@media(max-width:740px){.results-detail{max-height:calc(100dvh - 270px)}:is(#results-progression,#challenge-xp-progression){padding:10px 12px}.xp-breakdown{gap:6px 14px}.xp-summary{flex-wrap:wrap;gap:4px}}
+@media(max-height:620px){#result.results-screen{padding-top:8px;padding-bottom:10px;gap:8px}#result.results-screen>header{padding-top:20px}#result-score{margin:4px}.results-detail{max-height:calc(100dvh - 140px)}:is(#results-progression,#challenge-xp-progression){padding:8px 12px}.xp-breakdown{margin-top:6px}}
+
+/* Season 1 and shared Challenge cards. Overflow uses the app-wide hidden scrollbar rule. */
+#home-challenges {position:fixed;right:clamp(14px,4vw,84px);top:clamp(110px,19vh,220px);width:clamp(245px,23vw,330px);padding:16px;text-align:left;color:#eaf8ff;background:linear-gradient(135deg,#102839e8,#0a1725dd);border:1px solid #7ccee447;border-radius:10px;z-index:var(--layer-menu);transition:border-color .16s,box-shadow .16s;}
+#home-challenges:is(.gamepad-focus,:focus-visible,:where(:root:not([data-ui-input="controller"])) :hover){border-color:#a6efff;box-shadow:0 0 24px #6ad8ee27;}
+.challenge-season{display:grid;grid-template-columns:1fr auto;gap:4px 8px;padding-bottom:12px;border-bottom:1px solid #8db4c52a;}
+.challenge-season>b{font-size:21px;color:#a1efff;letter-spacing:.08em;}.challenge-season>span{font-size:11px;color:#a6bfce;align-self:center;}.challenge-season>small{font-size:10px;grid-column:1/-1;}.challenge-season>strong{font-size:11px;grid-column:1/-1;color:#e1f3ff;}
+.challenge-home-heading{display:flex;align-items:center;justify-content:space-between;font-size:17px;margin:12px 0 6px;}.challenge-home-heading small{font-size:10px;letter-spacing:.1em;}.daily-challenges{display:grid;gap:7px;}.challenge-home-footer{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.06em;color:#9cdced;margin-top:12px;}
+.challenge-card{display:flex;flex-direction:column;min-width:0;padding:clamp(14px,1.8vw,24px);border:1px solid #82b9d139;border-radius:8px;background:#102333b3;text-align:left;transition:border-color .16s,background .16s,box-shadow .16s;}
+.challenge-card:is(.gamepad-focus,:focus-visible,:where(:root:not([data-ui-input="controller"])) :hover){border-color:#b0ecff;background:#183549d9;outline:none;box-shadow:inset 0 0 0 1px #8fe3fc33;}.challenge-card.complete{border-color:#77e0b376;box-shadow:inset 0 0 20px #75d8ae0a;}
+.challenge-card-name{font-size:clamp(16px,1.6vw,23px);letter-spacing:.04em;}.challenge-description{font-size:clamp(12px,1vw,15px);color:#b8cddc;min-height:2.6em;margin:6px 0 16px;line-height:1.3;}.challenge-progress-row{display:flex;align-items:center;gap:12px;margin-top:auto;}.challenge-progress{display:block;height:6px;flex:1;background:#b5e3f11c;border-radius:3px;overflow:hidden;}.challenge-progress>span{display:block;height:100%;background:linear-gradient(90deg,#408ab5,#9aefff);transition:width .24s ease-out;}.complete .challenge-progress>span{background:linear-gradient(90deg,#4ca78e,#a2efd1);}.challenge-fraction{font-size:12px;white-space:nowrap;color:#d3e4ed;}.challenge-card-footer{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:14px;}.challenge-reward{font-size:15px;color:#ace6f9;}.challenge-completed{font-size:11px;color:#a2efd1;white-space:nowrap;}
+.challenge-card.compact{padding:9px 10px;background:#07152255;}.compact .challenge-card-name{font-size:13px;}.compact .challenge-description{min-height:0;margin:2px 0 5px;font-size:11px;}.compact .challenge-progress-row{gap:8px;}.compact .challenge-progress{height:4px;}.compact .challenge-fraction{font-size:10px;}.compact .challenge-card-footer{margin-top:5px;}.compact .challenge-reward,.compact .challenge-completed{font-size:10px;}
+#challenges-screen{position:fixed;inset:0;margin:0;width:100vw;height:100dvh;max-width:none;max-height:none;padding:clamp(18px,4vh,54px) clamp(18px,6vw,120px);color:#effaff;background:linear-gradient(130deg,#071321f5,#112c40ed);display:flex;flex-direction:column;gap:clamp(12px,2vh,22px);border:0;overflow:auto;}
+#challenges-screen:not([open]){display:none;}.challenges-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;}.challenges-heading h2{font-size:clamp(28px,3.5vw,46px);margin-top:4px;}.challenges-heading small{font-size:11px;letter-spacing:.12em;color:#9cd9eb;}.challenges-tabs{display:flex;gap:8px;}.challenges-tabs button{padding:10px clamp(18px,3vw,44px);font-size:clamp(14px,1.4vw,18px);border:1px solid #82b9d139;background:#183047;color:#cee5f2;border-radius:4px;transition:background .16s,border-color .16s;}.challenges-tabs button[aria-selected=true]{color:#0a1b29;background:#a5edfa;}.challenges-tabs button:is(.gamepad-focus,:focus-visible,:where(:root:not([data-ui-input="controller"])) :hover){border-color:#daf9ff;box-shadow:0 0 14px #72dff326;}.challenge-period{display:flex;justify-content:space-between;align-items:center;gap:16px;}.challenge-period>div{display:flex;flex-direction:column;gap:4px;}.challenge-period strong{font-size:clamp(15px,1.6vw,22px);}.challenge-period small,.challenge-period>.season-countdown{font-size:11px;color:#a8c8db;}
+#challenge-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,minmax(170px,1fr));gap:clamp(10px,1.6vw,22px);flex:1;min-height:0;overflow:auto;padding:3px;}#challenges-screen>footer{display:flex;align-items:center;justify-content:space-between;gap:12px;}#challenges-screen>footer>small{font-size:11px;}
+#challenge-complete{position:fixed;top:clamp(18px,3vh,36px);right:clamp(14px,2vw,36px);z-index:calc(var(--layer-menu) + 30);display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 28px;border:1px solid #a2efd17a;border-radius:8px;background:linear-gradient(120deg,#102c30f5,#0b1929f5);box-shadow:0 0 28px #7be7c91c;pointer-events:none;min-width:0;width:min(320px,calc(100vw - 28px));text-align:center;}#challenge-complete small{font-size:11px;letter-spacing:.13em;color:#a2efd1;}#challenge-complete strong{font-size:22px;}#challenge-complete b{font-size:16px;color:#bcf1ff;}
+@media(max-width:850px){#challenge-cards{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(3,minmax(150px,1fr));}#home-challenges{width:clamp(190px,34vw,270px);padding:12px;}#challenges-screen{padding:20px;}.challenge-period{align-items:flex-start;}.challenge-card-name{font-size:17px;}}
+@media(max-width:480px){#home-challenges{right:10px;width:47vw;top:130px;padding:10px;}.challenge-season{grid-template-columns:1fr;}.challenge-season>span{display:none;}.challenge-season>b{font-size:17px;}.compact .challenge-card-name{font-size:11px;}.compact .challenge-description{font-size:10px;}.challenge-card.compact{padding:7px;}.challenge-home-heading{font-size:14px;}.challenge-home-footer{font-size:9px;}#challenge-cards{grid-template-columns:minmax(0,1fr);grid-template-rows:none;grid-auto-rows:minmax(160px,auto);}.challenge-period{flex-wrap:wrap;}.challenge-home-heading>small{font-size:9px;}.challenge-card-footer{gap:4px;}}
+@media(max-height:620px){#home-challenges{top:100px;padding:10px;}.challenge-season{padding-bottom:7px;}.challenge-home-heading{margin:7px 0 4px;}.daily-challenges{gap:4px;}.challenge-card.compact{padding:6px 9px;}.compact .challenge-description{margin:1px 0 3px;}.compact .challenge-card-footer{margin-top:3px;}.challenge-home-footer{margin-top:6px;}#challenges-screen{gap:10px;padding-top:14px;padding-bottom:14px;}}
+@media(prefers-reduced-motion:reduce){.challenge-card,.challenge-progress>span,.challenges-tabs button,#home-challenges{transition:none;}}
+
+.challenge-card.complete:is(.gamepad-focus,:focus-visible,:where(:root:not([data-ui-input="controller"])) :hover){border-color:#c5ffe8;box-shadow:inset 0 0 20px #75d8ae1f,0 0 12px #75d8ae25;}
+
+/* Home Daily summary reuses the same cards. The right anchor makes the left
+   edge slide as the width changes; the arrow is a separate accessible button. */
+#home-challenges-panel {
+  --daily-top: clamp(110px, 19vh, 220px);
+  position: fixed;
+  right: clamp(14px, 4vw, 84px);
+  top: var(--daily-top);
+  width: clamp(132px, 12vw, 158px);
+  z-index: var(--layer-menu);
+  transition: width .28s cubic-bezier(.22,.7,.25,1);
+}
+#home-challenges-panel[data-expanded="true"] { width: clamp(260px, 25vw, 330px); }
+#home-challenges-panel #home-challenges {
+  position: relative; inset: auto; width: 100%; margin: 0; padding: 10px;
+  max-height: calc(100dvh - var(--daily-top) - 155px);
+  overflow: auto; overscroll-behavior: contain;
+  transition: padding .28s, border-color .16s, box-shadow .16s;
+}
+#home-challenges-toggle {
+  position: absolute; right: calc(100% - 1px); top: 50%; transform: translateY(-50%);
+  width: 30px; height: 40px; padding: 0; display: grid; place-items: center;
+  color: #c4f4ff; background: #112b3df5; border: 1px solid #7ccee46b;
+  border-radius: 7px 0 0 7px; font-size: 27px; line-height: 1;
+  transition: background .16s, border-color .16s, box-shadow .16s;
+}
+#home-challenges-toggle:is(.gamepad-focus,:focus-visible,:where(:root:not([data-ui-input="controller"])) :hover) {
+  background: #24546a; border-color: #c4f4ff; box-shadow: 0 0 14px #6ad8ee40; outline: none;
+}
+#home-challenges-panel .challenge-season,
+#home-challenges-panel .challenge-home-footer,
+#home-challenges-panel .challenge-card-footer {
+  overflow: hidden; max-height: 100px; opacity: 1; visibility: visible;
+  transition: max-height .28s, opacity .2s, margin .28s, padding .28s, visibility .28s;
+}
+#home-challenges-panel .challenge-home-heading { font-size: 13px; margin: 2px 0 7px; }
+#home-challenges-panel .challenge-home-heading small { font-size: 9px; }
+#home-challenges-panel .daily-challenges { gap: 5px; }
+#home-challenges-panel .challenge-card.compact { padding: 8px; }
+#home-challenges-panel .compact .challenge-card-name { font-size: 12px; }
+#home-challenges-panel .compact .challenge-description { font-size: 11px; line-height: 1.3; }
+#home-challenges-panel .challenge-progress { transition: max-width .28s, opacity .2s; max-width: 330px; }
+#home-challenges-panel[data-expanded="false"] .challenge-season,
+#home-challenges-panel[data-expanded="false"] .challenge-home-footer,
+#home-challenges-panel[data-expanded="false"] .challenge-card-footer {
+  max-height: 0; opacity: 0; visibility: hidden; margin: 0; padding: 0; border-width: 0;
+}
+#home-challenges-panel[data-expanded="false"] .challenge-progress { max-width: 0; opacity: 0; }
+#home-challenges-panel[data-expanded="false"] .challenge-progress-row { gap: 0; }
+#home-challenges-panel[data-expanded="false"] .challenge-card.compact {
+  border: 0; border-top: 1px solid #82b9d12b; border-radius: 0; background: transparent;
+  min-height: 84px; padding: 12px 0 8px;
+  box-shadow: none;
+}
+#home-challenges-panel[data-expanded="false"] #home-challenges { --ui-hover-scale: 1; }
+:where(:root:not([data-ui-input="controller"])) #home-challenges-panel[data-expanded="false"] #home-challenges:hover {
+  filter: none; box-shadow: none; border-color: #7ccee447;
+}
+/* Compact summaries use a soft fill, not the full card's inset outline. */
+:where(:root:not([data-ui-input="controller"])) #home-challenges-panel[data-expanded="false"] .challenge-card.compact:hover {
+  background: #8fe3fc0d;
+}
+#home-challenges-panel[data-expanded="true"] #home-challenges { padding: 16px; }
+#home-challenges-panel[data-expanded="true"] .challenge-home-heading { font-size: 17px; margin: 12px 0 6px; }
+#home-challenges-panel[data-expanded="true"] .compact .challenge-card-name { font-size: 13px; }
+/* The preview camera reads this rectangle each frame. Animate its center,
+   leaving the car models, orbit behavior and gameplay camera unchanged. */
+#home-car-area { right: 16%; transition: right .28s cubic-bezier(.22,.7,.25,1); }
+#app:has(#home-challenges-panel[data-expanded="true"]:not([hidden])) #home-car-area {
+  right: calc(16% + clamp(50px, 7vw, 110px));
+}
+@media(max-width:759px) {
+  #home-car-area { right: 15%; }
+  #home-challenges-panel { --daily-top: max(130px, 30vh); right: 10px; width: clamp(130px, 22vw, 146px); }
+  #home-challenges-panel[data-expanded="true"] { width: min(270px, 58vw); }
+  #home-challenges-panel #home-challenges { max-height: calc(100dvh - var(--daily-top) - 190px); }
+  #home-challenges-panel[data-expanded="true"] #home-challenges { padding: 12px; }
+  #app:has(#home-challenges-panel[data-expanded="true"]:not([hidden])) #home-car-area { right: calc(min(270px, 58vw) + 40px); }
+}
+@media(max-height:560px) {
+  #home-challenges-panel { --daily-top: 90px; }
+  #home-challenges-panel #home-challenges { max-height: calc(100dvh - var(--daily-top) - 95px); }
+}
+@media(prefers-reduced-motion:reduce) {
+  #home-challenges-panel, #home-car-area,
+  #home-challenges-panel #home-challenges,
+  #home-challenges-panel .challenge-season, #home-challenges-panel .challenge-home-footer,
+  #home-challenges-panel .challenge-card-footer, #home-challenges-panel .challenge-progress { transition: none; }
+}
+
+/* Keep expanded details fitted on normal windows. In cramped windows the
+   shared max-height and overflow:auto allow scrolling, just like compact mode. */
+@media(max-height:900px), (max-width:759px) {
+  #home-challenges-panel[data-expanded="true"] #home-challenges { padding: 10px; }
+  #home-challenges-panel[data-expanded="true"] .challenge-season { gap: 2px 6px; padding-bottom: 6px; }
+  #home-challenges-panel[data-expanded="true"] .challenge-season>b { font-size: 18px; line-height: 1.1; }
+  #home-challenges-panel[data-expanded="true"] .challenge-home-heading { font-size: 15px; margin: 6px 0 5px; }
+  #home-challenges-panel[data-expanded="true"] .challenge-card.compact { padding: 6px; }
+  #home-challenges-panel[data-expanded="true"] .compact .challenge-card-name { line-height: 1.2; }
+  #home-challenges-panel[data-expanded="true"] .compact .challenge-description { margin: 1px 0 3px; line-height: 1.2; }
+  #home-challenges-panel[data-expanded="true"] .challenge-card-footer { margin-top: 3px; }
+  #home-challenges-panel[data-expanded="true"] .challenge-home-footer { margin-top: 6px; }
+}
+@media(max-height:800px) {
+  #home-challenges-panel[data-expanded="true"] .challenge-season { grid-template-columns: 1fr auto; padding-bottom: 5px; }
+  #home-challenges-panel[data-expanded="true"] .challenge-season>b { font-size: 16px; }
+  #home-challenges-panel[data-expanded="true"] .challenge-season>span { display: none; }
+  #home-challenges-panel[data-expanded="true"] .challenge-season>strong { grid-column: 2; grid-row: 1; font-size: 9px; align-self: center; }
+  #home-challenges-panel[data-expanded="true"] .challenge-season>small { font-size: 9px; }
+  #home-challenges-panel[data-expanded="true"] .challenge-card.compact { padding: 5px 6px; }
+  #home-challenges-panel[data-expanded="true"] .daily-challenges { gap: 4px; }
+}
+
+/* Challenge rewards: ready is bright, claimed remains distinct but quieter. */
+#challenges-screen .challenge-card.ready,
+#home-challenges-panel .challenge-card.ready {
+  background: linear-gradient(130deg,#247a49e6,#144f37e6); border-color: #83f4a3;
+  box-shadow: inset 0 0 20px #8cffb51a;
+}
+#challenges-screen .challenge-card.claimed,
+#home-challenges-panel .challenge-card.claimed {
+  background: #15372cbb; border-color: #548f6e88; box-shadow: none;
+}
+#home-challenges-panel[data-expanded="false"] .challenge-card.ready { background: #247a49a8; box-shadow: none; }
+#home-challenges-panel[data-expanded="false"] .challenge-card.claimed { background: #214d365c; box-shadow: none; }
+#home-challenges-panel[data-expanded="false"] .challenge-card:is(.ready,.claimed) .challenge-card-footer {
+  max-height: 30px; opacity: 1; visibility: visible; margin-top: 4px;
+}
+#home-challenges-panel[data-expanded="false"] .challenge-card:is(.ready,.claimed) .challenge-reward { display: none; }
+.challenge-card.ready .challenge-completed { color: #cbffb5; }
+.challenge-card.claimed .challenge-completed,.challenge-tab-check { color: #82efa4; }
+.challenge-tab-check { margin-left: 4px; text-shadow: 0 0 8px #6bee8f44; }
+.challenges-tabs button[aria-selected=true] .challenge-tab-check { color: #126938; text-shadow: none; }
+.challenge-claim { margin-top: 10px; min-height: 34px; background: #b0fa92; color: #11351d; }
+#challenge-cards { grid-template-rows: repeat(2,minmax(230px,1fr)); }
+#challenge-cards[data-category=DAILY] { grid-template-rows: none; grid-auto-rows: minmax(230px,1fr); }
+#challenge-xp-dialog { width: min(560px,92vw); max-height: 90dvh; padding: clamp(16px,3vw,30px); border: 1px solid #7ddeae88; border-radius: 10px; color: #effaff; background: #0b1e2cf5; overflow: auto; }
+#challenge-xp-dialog:not([open]) { display: none; }
+#challenge-xp-dialog::backdrop { background: #020a16ad; }
+#challenge-xp-heading { font-size: clamp(22px,3vw,30px); }
+#challenge-xp-name { color: #a4edb8; margin: 8px 0 18px; }
+#challenge-xp-done { display: block; margin: 18px 0 0 auto; }
+@media(max-width:850px) { #challenge-cards { grid-template-rows: repeat(3,minmax(230px,1fr)); } }
+@media(max-width:480px) { #challenge-cards { grid-template-rows: none; grid-auto-rows: minmax(230px,auto); } .challenges-tabs { gap: 5px; } .challenges-tabs button { flex: 1; min-width: 0; padding: 10px 6px; font-size: 13px; } }
+
+:where(:root:not([data-ui-input="controller"])) #home-challenges-panel[data-expanded="false"] .challenge-card.ready:hover { background: #2b8b52cc; }
+:where(:root:not([data-ui-input="controller"])) #home-challenges-panel[data-expanded="false"] .challenge-card.claimed:hover { background: #2d694680; }
+
+#challenges-screen .challenge-card:is(.ready,.claimed):is(.gamepad-focus,:focus-visible) {
+  outline: 2px solid #b2ffd0; outline-offset: -3px;
+  box-shadow: inset 0 0 0 1px #b2ffd033, 0 0 14px #7cf3a32b;
+}

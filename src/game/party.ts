@@ -86,6 +86,7 @@ export class PartyClient {
     const p = this.garage.profile;
     const profile = localIdentitySchema.parse({
       localPlayerId: p.localPlayerId,
+      level: p.level,
       name: p.name,
       avatarId: p.avatarId ?? "helmet",
       avatarColor: p.avatarColor ?? defaultAvatarColor,

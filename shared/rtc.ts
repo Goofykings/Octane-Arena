@@ -1,3 +1,5 @@
+import { completionSchema } from "./progression";
+import { predictionStateSchema } from "./prediction";
 import { dropshotSchema } from "./dropshot";
 import { mutatorsSchema } from "./mutators";
 import { z } from "zod";
@@ -49,6 +51,8 @@ const rotation = vec.extend({ w: finite });
 const car = z
   .object({
     id: z.string().min(1).max(80),
+    inputSequence: z.number().int().nonnegative().optional(),
+    prediction: predictionStateSchema.optional(),
     position: vec,
     rotation,
     velocity: vec,
@@ -97,6 +101,7 @@ const snapshot = z
       .optional(),
     rumble: rumbleSnapshotSchema.nullable().optional(),
     dropshot: dropshotSchema.nullable().optional(),
+    completion: completionSchema.nullable().optional(),
     stats: z.array(playerStatsSchema).max(6).optional(),
     statEvents: z.array(statEventSchema).max(24).optional(),
     chat: z.array(chatMessageSchema).max(8).optional(),
@@ -167,6 +172,15 @@ export function peerSnapshot(
   if (
     !result.success ||
     result.data.matchId !== matchId ||
+    (result.data.completion != null &&
+      (result.data.phase !== "finished" ||
+        result.data.completion.id !== matchId ||
+        result.data.completion.players.length !== playerIds.length ||
+        new Set(result.data.completion.players.map((p) => p.id)).size !==
+          playerIds.length ||
+        result.data.completion.players.some((p) => !playerIds.includes(p.id)) ||
+        (result.data.completion.mvpId !== null &&
+          !playerIds.includes(result.data.completion.mvpId)))) ||
     result.data.cars.length !== playerIds.length ||
     new Set(result.data.cars.map((c) => c.id)).size !== playerIds.length ||
     result.data.cars.some((c) => !playerIds.includes(c.id)) ||

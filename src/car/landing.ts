@@ -1,10 +1,29 @@
-﻿/** Brief energy absorption after real wheel-side floor touchdown, never a pose target. */
+import {
+  captureValues,
+  restoreValues,
+  type CarPredictionState,
+} from "../../shared/prediction";
+const predictionKeys = [
+  "air",
+  "sinceAir",
+  "armed",
+  "remaining",
+  "rate",
+] as const;
+
+/** Brief energy absorption after real wheel-side floor touchdown, never a pose target. */
 export class LandingContact {
   private air = 0;
   private sinceAir = 1;
   private armed = false;
   private remaining = 0;
   rate = 0;
+  predictionValues() {
+    return captureValues(this, predictionKeys);
+  }
+  restorePrediction(values: CarPredictionState["landing"]) {
+    restoreValues(this, predictionKeys, values);
+  }
   reset() {
     this.air = 0;
     this.sinceAir = 1;

@@ -7,6 +7,23 @@ import {
   defaultAvatarColor,
 } from "../../shared/local-profile";
 import type { PlayerMatchStats } from "../../shared/match-stats";
+import {
+  progressionAt,
+  matchXP,
+  xpAwardSchema,
+  type MatchCompletion,
+  type Progression,
+  type XPAward,
+  type XPSource,
+  type XPBreakdown,
+} from "../../shared/progression";
+import {
+  blankChallengeSave,
+  readChallengeSave,
+  mergeChallengeSaves,
+  acknowledgeChallengeReward,
+  type ChallengeSave,
+} from "../../shared/challenges";
 export const localProfileKey = "octane-arena-profile";
 const blankStats = () => ({
   matchesPlayed: 0,
@@ -20,6 +37,9 @@ const blankStats = () => ({
 });
 export interface LocalProfileData {
   profileVersion: 1;
+  progression: Progression;
+  xpBaseTotal: number;
+  xpAwards: Record<string, XPAward>;
   localPlayerId: string;
   name: string;
   avatarId: string;
@@ -27,10 +47,14 @@ export interface LocalProfileData {
   stats: ReturnType<typeof blankStats>;
   recentEvents: string[];
   challenges: Record<string, number>;
+  challengeProgress: ChallengeSave;
 }
 export class LocalProfile {
   value: LocalProfileData = {
     profileVersion: 1,
+    progression: progressionAt(0),
+    xpBaseTotal: 0,
+    xpAwards: {},
     localPlayerId: newLocalPlayerId(),
     name: "Guest",
     avatarId: "helmet",
@@ -38,9 +62,166 @@ export class LocalProfile {
     stats: blankStats(),
     recentEvents: [],
     challenges: {},
+    challengeProgress: blankChallengeSave(),
   };
   persistent = true;
   private pendingTime = 0;
+  private cachedProfile = "";
+  private xpListeners = new Set<(award: XPAward) => void>();
+  /** Future passes/challenges can observe XP without coupling to a results screen. */
+  onXPAward(listener: (award: XPAward) => void) {
+    this.xpListeners.add(listener);
+    return () => {
+      this.xpListeners.delete(listener);
+    };
+  }
+  private mergeXP(raw: any) {
+    if (!raw || raw.localPlayerId !== this.value.localPlayerId) return;
+    if (raw.xpAwards && typeof raw.xpAwards === "object") {
+      for (const [key, candidate] of Object.entries(raw.xpAwards)) {
+        let receipt = candidate;
+        // Compact persistent receipts retain full breakdown/overflow data without
+        // repeating source IDs and three progression objects for every old match.
+        if (Array.isArray(candidate)) {
+          if (
+            ![2, 6].includes(candidate.length) ||
+            !candidate.every((n) => Number.isSafeInteger(n) && n >= 0) ||
+            !Number.isSafeInteger(candidate[0] + candidate[1])
+          )
+            continue;
+          const [type, id] = key.split(":");
+          receipt = {
+            source: { type, id },
+            amount: candidate[1],
+            before: progressionAt(candidate[0]),
+            after: progressionAt(candidate[0] + candidate[1]),
+            breakdown:
+              candidate.length === 6
+                ? {
+                    playtime: candidate[2],
+                    performance: candidate[3],
+                    win: candidate[4],
+                    mvp: candidate[5],
+                    total: candidate[1],
+                  }
+                : undefined,
+          };
+        }
+        const parsed = xpAwardSchema.safeParse(receipt);
+        if (
+          parsed.success &&
+          key === parsed.data.source.type + ":" + parsed.data.source.id
+        )
+          this.value.xpAwards[key] = parsed.data;
+      }
+    }
+    const awarded = Object.values(this.value.xpAwards).reduce(
+      (n, a) => n + a.amount,
+      0,
+    );
+    const base =
+      raw.xpBaseTotal ?? Math.max(0, (raw.progression?.totalXP ?? 0) - awarded);
+    if (Number.isSafeInteger(base) && base >= 0)
+      this.value.xpBaseTotal = Math.max(this.value.xpBaseTotal, base);
+    const total = this.value.xpBaseTotal + awarded;
+    if (Number.isSafeInteger(total))
+      this.value.progression = progressionAt(total);
+    this.value.challengeProgress = mergeChallengeSaves(
+      this.value.challengeProgress,
+      readChallengeSave(raw.challengeProgress),
+    );
+    for (const id of Object.keys(this.value.challengeProgress.pending))
+      if (this.value.xpAwards["CHALLENGE:" + id])
+        acknowledgeChallengeReward(this.value.challengeProgress, id);
+  }
+  private refreshXP() {
+    try {
+      const encoded = this.storage?.getItem(localProfileKey) ?? "";
+      if (encoded && encoded !== this.cachedProfile) {
+        this.mergeXP(JSON.parse(encoded));
+        this.cachedProfile = encoded;
+      }
+    } catch {
+      /* Storage fallback remains usable. */
+    }
+  }
+  async completeMatch(completion: MatchCompletion, playerId: string) {
+    const breakdown = matchXP(completion, playerId);
+    if (!breakdown) return null;
+    return this.awardXP(
+      breakdown.total,
+      { type: "MATCH", id: completion.id },
+      breakdown,
+    );
+  }
+  /** Serializes same-origin tabs; the durable ledger is never truncated with recent stat notices. */
+  async awardXP(
+    amount: number,
+    source: XPSource,
+    breakdown?: XPBreakdown,
+  ): Promise<XPAward | null> {
+    if (
+      !["MATCH", "CHALLENGE"].includes(source.type) ||
+      !Number.isSafeInteger(amount) ||
+      amount < 0
+    )
+      return null;
+    const transaction = () => {
+      this.refreshXP();
+      const key = source.type + ":" + source.id;
+      const previous = this.value.xpAwards[key];
+      if (previous) return structuredClone(previous);
+      const before = { ...this.value.progression },
+        total = before.totalXP + amount;
+      if (!Number.isSafeInteger(total)) return null;
+      const award: XPAward = {
+        source: { ...source },
+        amount,
+        before,
+        after: progressionAt(total),
+        breakdown,
+      };
+      if (!xpAwardSchema.safeParse(award).success) return null;
+      this.value.xpAwards[key] = award;
+      this.value.progression = award.after;
+      this.save(); // Persist the receipt and total together before notifying subscribers.
+      for (const listener of this.xpListeners) {
+        try {
+          listener(structuredClone(award));
+        } catch {
+          /* An observer cannot roll back a committed award. */
+        }
+      }
+      return structuredClone(award);
+    };
+    return this.withProfileLock(transaction);
+  }
+  private async withProfileLock<T>(transaction: () => T): Promise<T> {
+    if (typeof navigator !== "undefined" && navigator.locks) {
+      let entered = false;
+      try {
+        return await navigator.locks.request(
+          "octane-arena-xp:" + this.value.localPlayerId,
+          () => {
+            entered = true;
+            return transaction();
+          },
+        );
+      } catch (error) {
+        if (entered) throw error;
+        /* Embedded browsers may expose Web Locks but disallow requests. */
+      }
+    }
+    return transaction();
+  }
+  async updateChallenges(work: (state: ChallengeSave) => boolean) {
+    return this.withProfileLock(() => {
+      this.refreshXP();
+      const changed = work(this.value.challengeProgress);
+      if (changed) this.save();
+      return changed;
+    });
+  }
   constructor(private storage?: Pick<Storage, "getItem" | "setItem">) {
     try {
       const raw = JSON.parse(storage?.getItem(localProfileKey) ?? "{}");
@@ -67,6 +248,7 @@ export class LocalProfile {
         this.value.recentEvents = raw.recentEvents
           .filter((v: unknown) => typeof v === "string" && v.length < 160)
           .slice(-256);
+      this.mergeXP(raw);
       const dribble = raw?.challenges?.dribble;
       if (Number.isInteger(dribble) && dribble >= 0 && dribble <= 1000)
         this.value.challenges.dribble = dribble;
@@ -91,7 +273,25 @@ export class LocalProfile {
   save() {
     try {
       if (!this.storage) throw Error();
-      this.storage.setItem(localProfileKey, JSON.stringify(this.value));
+      this.refreshXP();
+      const xpAwards = Object.fromEntries(
+        Object.entries(this.value.xpAwards).map(([key, a]) => [
+          key,
+          a.breakdown
+            ? [
+                a.before.totalXP,
+                a.amount,
+                a.breakdown.playtime,
+                a.breakdown.performance,
+                a.breakdown.win,
+                a.breakdown.mvp,
+              ]
+            : [a.before.totalXP, a.amount],
+        ]),
+      );
+      const encoded = JSON.stringify({ ...this.value, xpAwards });
+      this.storage.setItem(localProfileKey, encoded);
+      this.cachedProfile = encoded;
       this.persistent = true;
     } catch {
       this.persistent = false;

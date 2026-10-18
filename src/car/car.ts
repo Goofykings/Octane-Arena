@@ -1,3 +1,8 @@
+import {
+  captureValues,
+  restoreValues,
+  type CarPredictionState,
+} from "../../shared/prediction";
 import { refineContactNormal } from "./contact-frame";
 import { LandingContact } from "./landing";
 import {
@@ -25,6 +30,57 @@ import {
   wheelMountY,
   wheelSupportPoint,
 } from "./wheels";
+const predictionKeys = [
+  "sonicGrace",
+  "lateralSlip",
+  "skidIntensity",
+  "roofSteer",
+  "impactTime",
+  "boost",
+  "supersonic",
+  "boosting",
+  "lastJump",
+  "grounded",
+  "jumpSupported",
+  "contacts",
+  "stableContact",
+  "supportContacts",
+  "partialDrivingAge",
+  "wheelSupport",
+  "supportKind",
+  "chassisContacts",
+  "edgeContacts",
+  "forwardSpeed",
+  "steerAngle",
+  "handbrake",
+  "driftSign",
+  "recovery",
+  "recoverySide",
+  "recoveryHeld",
+  "recoveryCooldown",
+  "contactGap",
+  "contactState",
+  "aerialControl",
+  "normalReady",
+  "normalJumpSequence",
+  "normalJumpAge",
+  "flipResetSequence",
+  "flipResetAge",
+  "grapplePulling",
+] as const;
+const predictionVectors = [
+  "normal",
+  "surfaceForward",
+  "surfaceRight",
+  "surfaceTurn",
+  "recoveryAxis",
+  "recoveryNormal",
+  "normalJumpOrigin",
+  "normalJumpNormal",
+  "flipResetOrigin",
+  "flipResetNormal",
+] as const;
+
 export class Car {
   physics: MatchPhysics = P;
   mutators: MatchMutators = DEFAULT_MUTATORS;
@@ -225,6 +281,24 @@ export class Car {
     this.jump.wasDown = false;
     this.boost = 100;
     this.pose.snap();
+  }
+  /** Network checkpoint only; the same forces and contact solver run on host and predictor. */
+  capturePrediction(): CarPredictionState {
+    return {
+      values: captureValues(this, predictionKeys),
+      vectors: predictionVectors.map((k) => ({ ...this[k] })),
+      jump: this.jump.predictionValues(),
+      direction: { ...this.jump.direction },
+      landing: this.landing.predictionValues(),
+    };
+  }
+  restorePrediction(state: CarPredictionState) {
+    restoreValues(this, predictionKeys, state.values);
+    if (state.vectors.length === predictionVectors.length)
+      predictionVectors.forEach((k, i) => this[k].copy(state.vectors[i]));
+    this.jump.restorePrediction(state.jump);
+    this.jump.direction.copy(state.direction);
+    this.landing.restorePrediction(state.landing);
   }
   setBody(id: BodyId) {
     this.bodyId = id;

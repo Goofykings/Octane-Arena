@@ -43,6 +43,7 @@ export interface PartyMember {
   title: string;
   avatarId: string;
   avatarColor?: string;
+  level?: number;
   preset: Preset;
   team: PartyTeam;
   ready: boolean;

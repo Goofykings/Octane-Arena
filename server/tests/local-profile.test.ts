@@ -16,6 +16,8 @@ test("local profiles are validated metadata, with independent server session IDs
     const profile = {
       localPlayerId: newLocalPlayerId(),
       name: "LocalDriver",
+      level: 23,
+      totalXP: 999999,
       avatarId: "fox",
       avatarColor: "#FF727C",
     };
@@ -44,6 +46,8 @@ test("local profiles are validated metadata, with independent server session IDs
     let state = (await request("/create", {})).json();
     assert.equal(state.party.members[0].localPlayerId, profile.localPlayerId);
     assert.equal(state.party.members[0].name, "LocalDriver");
+    assert.equal(state.party.members[0].level, 23);
+    assert.equal(state.party.members[0].totalXP, undefined);
     assert.equal(state.party.members[0].avatarId, "fox");
     assert.equal(state.party.members[0].avatarColor, "#FF727C");
     assert.equal("tag" in state.party.members[0], false);
@@ -54,6 +58,7 @@ test("local profiles are validated metadata, with independent server session IDs
         profile: {
           ...profile,
           name: "Renamed",
+          level: 24,
           avatarId: "prism",
           avatarColor: "#75dba6",
         },
@@ -65,11 +70,14 @@ test("local profiles are validated metadata, with independent server session IDs
     state = updated.json();
     assert.equal(state.playerId, first.playerId);
     assert.equal(state.party.members[0].name, "Renamed");
+    assert.equal(state.party.members[0].level, 24);
     assert.equal(state.party.members[0].avatarId, "prism");
     assert.equal(state.party.members[0].avatarColor, "#75DBA6");
     assert.equal(state.party.members[0].stats, undefined);
     for (const invalid of [
       { avatarId: "script" },
+      { level: 0 },
+      { level: 1.5 },
       { avatarColor: "red;display:none" },
     ])
       assert.equal(

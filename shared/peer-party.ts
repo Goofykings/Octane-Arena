@@ -142,6 +142,7 @@ export class PeerPartyAuthority {
   }
   appearance(id: string, hello: z.infer<typeof helloSchema>) {
     const m = this.state.members.find((m) => m.id === id);
+    if (m && this.state.stage === "match") m.level = hello.profile.level;
     if (m && this.state.stage !== "match")
       Object.assign(m, peerMember(hello), { team: m.team, ready: m.ready });
   }

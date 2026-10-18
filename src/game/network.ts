@@ -1,3 +1,12 @@
+import { PacketImpairment } from "../network/impairment";
+import { SnapshotBuffer } from "../network/snapshot-buffer";
+import {
+  SnapshotPublisher,
+  readMotionFrame,
+  type MotionFrame,
+} from "../../shared/network-stream";
+import { NETWORK } from "../../shared/network-tuning";
+import { NetworkMetrics } from "../network/metrics";
 import { sameMutators, DEFAULT_MUTATORS } from "../../shared/mutators";
 import type { PartyClient } from "./party";
 import { neutralInput, type PlayerInput } from "../../shared/player";
@@ -75,7 +84,39 @@ export class NetworkClient {
       this.chatLog.splice(0, this.chatLog.length - CHAT.history);
   }
   private sessionMembers: MatchParticipant[] = [];
-  snapshots: MatchSnapshot[] = [];
+  readonly buffer = new SnapshotBuffer();
+  readonly testNetwork = new PacketImpairment();
+  readonly metrics = new NetworkMetrics();
+  get snapshots() {
+    return this.buffer.snapshots;
+  }
+  readonly publishers = new Map<string, SnapshotPublisher>();
+  get inputSequence() {
+    return this.sequence;
+  }
+  get playerInput() {
+    return this.lastInput;
+  }
+  get roundTripMs() {
+    const p = this.party.state;
+    return p ? this.rtc.latency(p.matchHostId ?? p.hostId) : null;
+  }
+  diagnostics() {
+    return {
+      ...this.rtc.diagnostics(),
+      ...this.metrics.report(),
+      physicsTickHz: NETWORK.physicsHz,
+      snapshotTargetHz: NETWORK.snapshotHz,
+      roundTripMs: this.roundTripMs,
+      artificialDrops: this.testNetwork.dropped,
+      interpolationDelayMs: NETWORK.interpolationSeconds * 1000,
+      extrapolationLimitMs: NETWORK.extrapolationSeconds * 1000,
+      bufferLength: this.snapshots.length,
+      droppedPackets: this.buffer.dropped,
+      duplicatePackets: this.buffer.duplicates,
+      outOfOrderPackets: this.buffer.outOfOrder,
+    };
+  }
   latest: MatchSnapshot | null = null;
   replayClip: ReplayClip | null = null;
   arrived = 0;
@@ -103,11 +144,13 @@ export class NetworkClient {
   private reportedFinished = false;
   constructor(private party: PartyClient) {
     this.rtc = new RtcPeers(party);
-    this.rtc.onData = (id, data) => this.peerData(id, data);
+    this.rtc.onData = (id, data) =>
+      this.testNetwork.receive(data, () => this.peerData(id, data));
     this.rtc.onClose = (id) => {
       this.readyPeers.delete(id);
       this.sceneReadyPeers.delete(id);
       this.replaySent.delete(id);
+      this.publishers.delete(id);
       this.command({ type: "disconnected", id });
     };
     window.setInterval(() => this.pump(), 33);
@@ -124,11 +167,13 @@ export class NetworkClient {
     const edge =
       value.jump !== this.lastInput.jump ||
       !!value.usePowerup !== !!this.lastInput.usePowerup;
+    this.sequence++;
     this.lastInput = { ...value };
     this.inputTime = performance.now();
     if (edge) this.sendInput();
   }
   clearInput() {
+    this.sequence++;
     this.lastInput = neutralInput();
     this.inputTime = 0;
     this.sendInput();
@@ -169,7 +214,7 @@ export class NetworkClient {
     this.send({
       type: "input",
       matchId: this.latest.matchId,
-      sequence: ++this.sequence,
+      sequence: this.sequence,
       input:
         performance.now() - this.inputTime < 150
           ? this.lastInput
@@ -197,7 +242,13 @@ export class NetworkClient {
     this.pumpRtc();
   }
   private invalidReplayId = "";
-  private receive(message: ServerMessage) {
+  private receive(message: ServerMessage | MotionFrame) {
+    const raw = message;
+    if (message.type === "frame") {
+      const decoded = readMotionFrame(message, this.latest);
+      if (!decoded) return;
+      message = decoded;
+    }
     if (message.type === "latency-probe") {
       this.send({ type: "latency-reply", nonce: message.nonce });
       return;
@@ -228,9 +279,10 @@ export class NetworkClient {
       message.type === "snapshot" &&
       message.matchId === this.desired
     ) {
-      if (this.latest && message.tick <= this.latest.tick) return;
-      if (this.latest && message.reset !== this.latest.reset)
-        this.snapshots = [];
+      const now = performance.now();
+      if (!this.buffer.push(message, now)) return;
+      this.metrics.record("receive", raw, message.tick, now);
+      if (this.latest && message.tick < this.latest.tick) return;
       this.latest = message;
       for (const m of message.chat ?? []) this.addChat(m);
       if (!message.replay) {
@@ -241,8 +293,6 @@ export class NetworkClient {
       if (message.replay?.id === this.invalidReplayId) this.skipReplay();
       this.arrived = performance.now();
       this.status = "";
-      this.snapshots.push(message);
-      if (this.snapshots.length > 8) this.snapshots.shift();
     } else if (message.type === "error") this.status = message.message;
   }
   private command(message: AuthorityCommand) {
@@ -294,6 +344,10 @@ export class NetworkClient {
     } else if (id === host) {
       try {
         const incoming = value as ServerMessage;
+        if ((incoming as { type: string }).type === "frame") {
+          this.receive(incoming as unknown as MotionFrame);
+          return;
+        }
         if (incoming.type === "snapshot") {
           const roster = partyRoster(party);
           const parsed = peerSnapshot(
@@ -406,8 +460,17 @@ export class NetworkClient {
           }
           if (message.type === "snapshot")
             for (const guest of this.party.state?.members ?? [])
-              if (guest.id !== host && this.readyPeers.has(guest.id))
-                this.rtc.send(guest.id, message, true);
+              if (guest.id !== host && this.readyPeers.has(guest.id)) {
+                let publisher = this.publishers.get(guest.id);
+                if (!publisher) {
+                  publisher = new SnapshotPublisher();
+                  this.publishers.set(guest.id, publisher);
+                }
+                const packet = publisher.packet(message, guest.id);
+                if (this.rtc.send(guest.id, packet, true))
+                  this.metrics.record("send", packet, message.tick);
+                else publisher.invalidate();
+              }
           if (message.type === "chat-message")
             for (const guest of this.party.state?.members ?? [])
               if (guest.id !== host) this.rtc.send(guest.id, message);
@@ -457,6 +520,7 @@ export class NetworkClient {
     } else this.retryAt = 0;
   }
   close() {
+    this.testNetwork.clear();
     this.authority?.terminate();
     this.authority = null;
     this.readyPeers.clear();
@@ -475,26 +539,13 @@ export class NetworkClient {
     this.pingAt = 0;
     this.replayClip = null;
     this.skipSent = "";
-    this.snapshots = [];
+    this.buffer.clear();
+    this.metrics.reset();
+    this.publishers.clear();
     this.sequence = 0;
     this.clearInput();
   }
   sample() {
-    if (!this.latest) return null;
-    const target =
-      this.latest.time +
-      Math.min((performance.now() - this.arrived) / 1000, 0.1) -
-      0.05;
-    const newer = this.snapshots.find((s) => s.time >= target) ?? this.latest;
-    const index = this.snapshots.indexOf(newer),
-      older = this.snapshots[Math.max(0, index - 1)] ?? newer;
-    const alpha =
-      older === newer
-        ? 1
-        : Math.max(
-            0,
-            Math.min(1, (target - older.time) / (newer.time - older.time)),
-          );
-    return { older, newer, alpha };
+    return this.buffer.sample();
   }
 }

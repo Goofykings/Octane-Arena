@@ -1,3 +1,7 @@
+import {
+  readMotionFrame,
+  recipientSnapshot,
+} from "../../shared/network-stream";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { WebSocket } from "ws";
@@ -230,6 +234,7 @@ test("authenticated sockets share a match, isolate inputs, and return on party l
     await send(1, "team", { team: 1 });
     assert.equal((await send(1, "launch")).statusCode, 403);
     const replies: MatchSnapshot[][] = [[], []];
+    const frames = [0, 0];
     for (let i = 0; i < 2; i++)
       await new Promise<void>((resolve, reject) => {
         const socket = new WebSocket(
@@ -245,6 +250,12 @@ test("authenticated sockets share a match, isolate inputs, and return on party l
           const m = JSON.parse(data.toString());
           if (m.type === "connected") resolve();
           if (m.type === "snapshot") replies[i].push(m);
+          if (m.type === "frame") {
+            const decoded = readMotionFrame(m, replies[i].at(-1) ?? null);
+            assert.ok(decoded);
+            replies[i].push(decoded);
+            frames[i]++;
+          }
         });
       });
     assert.equal((await send(0, "launch")).statusCode, 200);
@@ -257,7 +268,17 @@ test("authenticated sockets share a match, isolate inputs, and return on party l
     const tick = replies[0][0].tick,
       other = replies[1].find((s) => s.tick === tick);
     assert.ok(other);
-    assert.deepEqual(replies[0][0], other);
+    // Shared simulation state must match; only each recipient's private prediction checkpoint differs.
+    assert.deepEqual(
+      recipientSnapshot(replies[0][0]),
+      recipientSnapshot(other),
+    );
+    assert.ok(replies[0][0].cars.filter((c) => c.prediction).length === 1);
+    assert.ok(other.cars.filter((c) => c.prediction).length === 1);
+    assert.ok(
+      frames.every((count) => count > 0),
+      "Both authenticated sockets decode motion frames",
+    );
     assert.ok(other.kickoffFormationId);
     assert.equal((await send(0, "team", { team: 1 })).statusCode, 409);
     assert.equal((await send(0, "return")).statusCode, 409);

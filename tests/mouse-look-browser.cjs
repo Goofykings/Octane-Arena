@@ -45,7 +45,7 @@ const { pathToFileURL } = require("node:url");
     ]) {
       await page.setViewportSize({ width, height });
       const version = page.locator("#game-version");
-      assert.equal(await version.textContent(), "V0.1.5");
+      assert.equal(await version.textContent(), "V0.2.2");
       const bounds = await version.boundingBox();
       assert.ok(
         bounds.x > width / 2 &&
@@ -61,10 +61,10 @@ const { pathToFileURL } = require("node:url");
         await page.evaluate(() => window.__arena.mouseLook.dragging),
         false,
       );
-      assert.equal(await page.locator("#version-updates li").count(), 2);
+      assert.equal(await page.locator("#version-updates li").count(), 1);
       assert.match(
         await page.locator("#version-updates").textContent(),
-        /Multiplayer through LAN.*Coming Soon.*New Car Models.*Coming Soon/s,
+        /Training pack creator.*Coming Soon/s,
       );
       const panel = await page.locator("#version-updates").boundingBox();
       assert.ok(

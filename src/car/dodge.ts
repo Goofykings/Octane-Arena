@@ -1,7 +1,31 @@
+import {
+  captureValues,
+  restoreValues,
+  type CarPredictionState,
+} from "../../shared/prediction";
 import { Vector3 } from "three";
 import { MUTATOR_TUNING as M, type MatchMutators } from "../../shared/mutators";
 import { P } from "../config/physics";
 import type { Controls } from "../input/types";
+const predictionKeys = [
+  "availableAirJumps",
+  "age",
+  "held",
+  "used",
+  "second",
+  "wasDown",
+  "flipLeft",
+  "flipAge",
+  "resetAvailable",
+  "stall",
+  "stallChordHeld",
+  "stallYawSign",
+  "yawAge",
+  "rollAge",
+  "yawSign",
+  "rollSign",
+] as const;
+
 /** Tick-level jump ownership, independent of input devices and mesh animation. */
 export class JumpState {
   private airJumps: MatchMutators["airJumps"] = "DEFAULT";
@@ -9,6 +33,12 @@ export class JumpState {
   configureAirJumps(value: MatchMutators["airJumps"]) {
     this.airJumps = value;
     this.reset();
+  }
+  predictionValues() {
+    return captureValues(this, predictionKeys);
+  }
+  restorePrediction(values: CarPredictionState["jump"]) {
+    restoreValues(this, predictionKeys, values);
   }
   age = 0;
   held = 0;

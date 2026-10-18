@@ -1,3 +1,7 @@
+import { Challenges } from "./game/challenges";
+import { ChallengesPanel } from "./ui/challenges-panel";
+import { ProgressionPanel } from "./ui/progression-panel";
+import type { MatchCompletion } from "../shared/progression";
 import { dropshotBall, replayDropshot } from "./render/dropshot";
 import { LandingPulse } from "./effects/landing-pulse";
 import { InterfaceFeedback } from "./ui/interface-feedback";
@@ -326,12 +330,15 @@ async function boot() {
     ballTrails.quality = settings.value.quality;
   };
   const settingsPanel = new SettingsPanel(settings, input, applySettings);
-  const accounts = new Accounts(garage, settings, () => {
-    applySettings();
-    updatePreset();
-    garagePanel.render();
+  const accounts = new Accounts(garage, settings, (progressionOnly = false) => {
+    // Earning XP updates metadata without rebuilding models or touching colliders.
+    if (!progressionOnly) {
+      applySettings();
+      updatePreset();
+      garagePanel.render();
+      simulation.cars[0].displayName = displayIdentity(garage.profile);
+    }
     ui.setProfile(garage.profile);
-    simulation.cars[0].displayName = displayIdentity(garage.profile);
   });
   // Physics, stat authority, replay and UI must share the same roster identity.
   // Updating only Car.id silently drops events against the old "player" key.
@@ -511,7 +518,8 @@ async function boot() {
           mode === "bot" ? botSetup.mutators : DEFAULT_MUTATORS,
         );
         ball.scale.setScalar(simulation.physics.ball.radius / P.ball.radius);
-        match.start(simulation, mode);
+        localMatchId = newLocalPlayerId();
+        match.start(simulation, mode, localMatchId);
         pads.configure(match.gameMode);
         hoopsBall(ball, match.gameMode === "hoops");
         goalPlanes.setMode(match.gameMode);
@@ -546,7 +554,6 @@ async function boot() {
           },
         );
         match.recorder.prepare(simulation);
-        localMatchId = newLocalPlayerId();
         if (match.stats) {
           matchOverlay.update(
             localMatchId,
@@ -875,6 +882,46 @@ async function boot() {
     },
     () => audio.tone(740, 0.09, 0.035, "sine", "sfx"),
   );
+  const challenges = new Challenges(accounts.profile);
+  const challengesPanel = new ChallengesPanel(
+    challenges,
+    ui.root,
+    () => audio.ui("confirm"),
+    () => audio.tone(980, 0.18, 0.04, "sine", "sfx"),
+    () => {
+      cameraDrag.stop();
+      input.clear();
+    },
+  );
+  const progressionPanel = new ProgressionPanel(() =>
+    audio.tone(880, 0.16, 0.04, "sine", "sfx"),
+  );
+  let progressionKey = "";
+  const updateProgression = (
+    completion: MatchCompletion | null | undefined,
+    playerId: string,
+    finished: boolean,
+  ) => {
+    const key =
+      finished &&
+      completion &&
+      completion.players.some(
+        (p) => p.id === playerId && p.controller !== "bot",
+      )
+        ? completion.id + ":" + playerId
+        : "";
+    if (key === progressionKey) return;
+    progressionKey = key;
+    progressionPanel.hide();
+    if (!key || !completion) return;
+    void challenges
+      .settled()
+      .then(() => accounts.profile.completeMatch(completion, playerId))
+      .then((award) => {
+        if (progressionKey === key)
+          progressionPanel.show(award, accounts.profile.persistent);
+      });
+  };
   const versionPanel = new VersionPanel(ui.root, () => {
     cameraDrag.stop();
     input.clear();
@@ -1034,6 +1081,7 @@ async function boot() {
       (!party.state || party.state.stage === "home");
     versionPanel.show(homeControlsVisible);
     feedbackPanel.show(homeControlsVisible);
+    challengesPanel.showHome(homeControlsVisible);
     const controls = input.sample(false);
     input.scoreboardActive =
       party.state?.stage === "match"
@@ -1229,6 +1277,25 @@ async function boot() {
       const netMatch = networkView?.match ?? loadingMatch,
         car = networkView?.simulation.cars.find((c) => c.id === party.playerId);
       const snapshot = network.latest;
+      if (snapshot) {
+        const local = snapshot.players.find((p) => p.id === party.playerId);
+        if (local)
+          challenges.observe({
+            matchId: snapshot.matchId,
+            playerId: local.id,
+            mode: "network",
+            gameMode: snapshot.gameMode ?? "soccar",
+            controller: local.controller,
+            phase: snapshot.phase,
+            stats: snapshot.stats?.find((s) => s.playerId === local.id),
+            completion: snapshot.completion,
+          });
+      }
+      updateProgression(
+        snapshot?.completion,
+        party.playerId,
+        snapshot?.phase === "finished",
+      );
       const localPlayer = snapshot?.players.find(
         (p) => p.id === party.playerId,
       );
@@ -1371,8 +1438,13 @@ async function boot() {
           network.latest.replay
             ? replayDropshot(network.replayClip, network.latest.replay.time)
             : network.latest?.dropshot;
-        arena.updateDropshot(ds, dt*(network.latest?.phase === "replay" ? network.latest.replay?.speed??1 : 1), (open) =>
-          audio.tone(open ? 145 : 380, 0.12, 0.055, "triangle"),
+        arena.updateDropshot(
+          ds,
+          dt *
+            (network.latest?.phase === "replay"
+              ? (network.latest.replay?.speed ?? 1)
+              : 1),
+          (open) => audio.tone(open ? 145 : 380, 0.12, 0.055, "triangle"),
         );
         goalPlanes.update(networkView.ball);
       }
@@ -1564,6 +1636,7 @@ async function boot() {
         const countdownNumber = Math.ceil(match.countdown);
         if (phase === "countdown") simulation.cars[0].steerAtKickoff(controls);
         if (phase === "playing") {
+          match.recordInput(simulation.cars[0].id, controls);
           const wasDemolished = simulation.cars[0].demolitionState !== "active";
           const botInputs = match.rules.bot
             ? botTeam.inputs(simulation, pads)
@@ -1684,6 +1757,22 @@ async function boot() {
       tickCount += result.steps;
     } else loop.accumulator = 0;
     if (match.mode === "bot" && localMatchId)
+      challenges.observe({
+        matchId: localMatchId,
+        playerId: simulation.cars[0].id,
+        mode: match.mode,
+        gameMode: match.gameMode,
+        controller: "local",
+        phase: match.phase,
+        stats: match.stats?.players.get(simulation.cars[0].id),
+        completion: match.completion,
+      });
+    updateProgression(
+      match.completion,
+      simulation.cars[0].id,
+      match.mode === "bot" && match.phase === "finished",
+    );
+    if (match.mode === "bot" && localMatchId)
       accounts.profile.observeMatch(
         localMatchId,
         simulation.cars[0].id,
@@ -1736,7 +1825,10 @@ async function boot() {
         state.speed,
         match.phase === "paused" ? 0 : dt,
       );
-      arena.updateDropshot(replayDropshot(match.replay.clip, state.time), match.phase === "paused" ? 0 : dt*state.speed);
+      arena.updateDropshot(
+        replayDropshot(match.replay.clip, state.time),
+        match.phase === "paused" ? 0 : dt * state.speed,
+      );
       updatePadVisuals(dt, cooldowns);
       ballHeight.group.visible = false;
       document.getElementById("bot-tag")!.hidden = true;
@@ -2014,7 +2106,7 @@ async function boot() {
   Object.defineProperty(window, "octaneArenaNetwork", {
     configurable: true,
     value: Object.freeze({
-      diagnostics: () => network.rtc.diagnostics(),
+      diagnostics: () => network.diagnostics(),
       setDebug: (enabled: boolean) => {
         party.transport.debug = !!enabled;
       },
@@ -2035,6 +2127,8 @@ async function boot() {
         cameraDrag,
         versionPanel,
         feedbackPanel,
+        challenges,
+        challengesPanel,
         get replayView() {
           return replayView;
         },

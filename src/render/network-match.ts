@@ -1,3 +1,8 @@
+import { LocalCarPrediction } from "../network/local-prediction";
+import {
+  interpolateCar,
+  interpolateTransform,
+} from "../network/snapshot-buffer";
 import { refreshStaticQueries } from "../physics/queries";
 import { DropshotView } from "../../shared/dropshot";
 import { dropshotBall } from "./dropshot";
@@ -48,6 +53,9 @@ export class NetworkMatchView {
   readonly replayView: ReplayScenePlayback;
   replayPads: Float32Array | null = null;
   private effects: VehicleEffects[];
+  readonly prediction: LocalCarPrediction | null;
+  private networkDebug: HTMLPreElement | null = null;
+  private debugAt = 0;
   private ballTrails: BallTrails;
   private flips: FlipTrails[];
   private jumps: JumpBurst[];
@@ -68,6 +76,24 @@ export class NetworkMatchView {
     onPowerSound?: (item: RumbleItem) => void,
   ) {
     this.matchId = initial.matchId;
+    const local = initial.players.find((p) => p.id === localId);
+    this.prediction = local ? new LocalCarPrediction(local, initial) : null;
+    if (new URLSearchParams(location.search).has("netdebug")) {
+      this.networkDebug = document.createElement("pre");
+      this.networkDebug.id = "network-debug";
+      Object.assign(this.networkDebug.style, {
+        position: "fixed",
+        right: "12px",
+        top: "12px",
+        zIndex: "1000",
+        background: "#081321dd",
+        color: "#bcecff",
+        font: "12px monospace",
+        padding: "10px",
+        pointerEvents: "none",
+      });
+      document.getElementById("app")!.append(this.networkDebug);
+    }
     const players = [...initial.players].sort((a, b) =>
       a.id === localId ? -1 : b.id === localId ? 1 : 0,
     );
@@ -151,10 +177,30 @@ export class NetworkMatchView {
     input?: Input,
   ) {
     this.ballTrails.quality = quality;
+    client.metrics.frame();
     const sample = client.sample();
     if (!sample || !client.latest) return;
     const { older, newer, alpha } = sample,
       latest = client.latest;
+    const predicted = this.prediction?.update(
+      latest,
+      client.playerInput,
+      client.inputSequence,
+      dt,
+      Math.max(0, (performance.now() - client.arrived) / 1000),
+    );
+    if (this.prediction) {
+      client.metrics.correctionDistance = this.prediction.correctionDistance;
+      client.metrics.hardCorrections = this.prediction.hardCorrections;
+    }
+    if (this.networkDebug && performance.now() > this.debugAt) {
+      this.debugAt = performance.now() + 250;
+      this.networkDebug.textContent = JSON.stringify(
+        client.diagnostics(),
+        null,
+        2,
+      );
+    }
     if (latest.dropshot && this.simulation.dropshot) {
       this.dropshotView.apply(latest.dropshot);
       const key = this.dropshotView.epoch + ":" + this.dropshotView.revision;
@@ -234,32 +280,27 @@ export class NetworkMatchView {
       );
     this.phase = latest.phase;
     this.simulation.cars.forEach((car, i) => {
-      const b = newer.cars.find((c) => c.id === car.id)!,
-        a = older.cars.find((c) => c.id === car.id) ?? b,
+      let b = newer.cars.find((c) => c.id === car.id)!;
+      const a = older.cars.find((c) => c.id === car.id) ?? b,
         model = this.cars[i];
-      const blend =
-        a.teleportSequence !== b.teleportSequence ||
-        a.enabled !== b.enabled ||
-        new T.Vector3().copy(a.position).distanceToSquared(b.position) > 64
-          ? 1
-          : alpha;
+      const authoritative = latest.cars.find((c) => c.id === car.id)!;
+      b =
+        predicted && car.id === this.localId
+          ? predicted
+          : authoritative.teleportSequence !== b.teleportSequence ||
+              authoritative.enabled !== b.enabled
+            ? authoritative
+            : interpolateCar(a, b, sample);
       if (model.visible && !b.enabled)
         this.demos[i].trigger(new T.Vector3().copy(b.position));
       if (!model.visible && b.enabled && i === 0) this.camera.reset();
-      model.position.lerpVectors(
-        new T.Vector3().copy(a.position),
-        new T.Vector3().copy(b.position),
-        blend,
-      );
-      model.quaternion.slerpQuaternions(
-        new T.Quaternion().copy(a.rotation),
-        new T.Quaternion().copy(b.rotation),
-        blend,
-      );
+      model.position.copy(b.position);
+      model.quaternion.copy(b.rotation).normalize();
       model.visible = b.enabled;
       car.body.setTranslation(model.position, true);
       car.body.setRotation(model.quaternion, true);
       car.body.setLinvel(b.velocity, true);
+      car.body.setAngvel(b.angularVelocity ?? { x: 0, y: 0, z: 0 }, true);
       car.body.setEnabled(b.enabled);
       car.boost = b.boost;
       car.boosting = b.boosting;
@@ -286,13 +327,7 @@ export class NetworkMatchView {
       car.forward.set(0, 0, -1).applyQuaternion(model.quaternion);
       car.right.set(1, 0, 0).applyQuaternion(model.quaternion);
       car.up.set(0, 1, 0).applyQuaternion(model.quaternion);
-      car.wheelHits.forEach((point, j) =>
-        point.lerpVectors(
-          new T.Vector3().copy(a.wheelHits[j]),
-          new T.Vector3().copy(b.wheelHits[j]),
-          blend,
-        ),
-      );
+      car.wheelHits.forEach((point, j) => point.copy(b.wheelHits[j]));
       animateWheels(
         model,
         b.speed,
@@ -321,18 +356,18 @@ export class NetworkMatchView {
       this.jumps[i].update(car, dt, b.enabled, this.camera.camera.position);
       this.demos[i].update(dt);
     });
-    this.ball.position.lerpVectors(
-      new T.Vector3().copy(older.ball.position),
-      new T.Vector3().copy(newer.ball.position),
+    const ballPose = interpolateTransform(
+      older.ball,
+      newer.ball,
       alpha,
+      sample.extrapolation,
     );
-    this.ball.quaternion.slerpQuaternions(
-      new T.Quaternion().copy(older.ball.rotation),
-      new T.Quaternion().copy(newer.ball.rotation),
-      alpha,
-    );
-    this.ball.visible = newer.ball.enabled;
-    this.simulation.ball.setEnabled(newer.ball.enabled);
+    this.ball.position.copy(ballPose.position);
+    this.ball.quaternion.copy(ballPose.rotation).normalize();
+    this.ball.visible = latest.ball.enabled;
+    this.simulation.ball.setEnabled(latest.ball.enabled);
+    this.simulation.ball.setLinvel(ballPose.velocity, true);
+    this.simulation.ball.setAngvel(ballPose.angularVelocity, true);
     this.simulation.ball.setTranslation(this.ball.position, true);
     animateBall(this.ball, time);
     heatseekerBall(this.ball, latest.heatseeker, dt);
@@ -430,6 +465,8 @@ export class NetworkMatchView {
   }
   dispose() {
     this.replayView.stop();
+    this.prediction?.dispose();
+    this.networkDebug?.remove();
     this.spectator?.dispose();
     this.rumbleEffects.dispose();
     this.effects.forEach((e) => e.dispose());

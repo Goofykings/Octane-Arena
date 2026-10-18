@@ -38,6 +38,7 @@ export const profileIdentitySchema = z.object({
 });
 export const localIdentitySchema = profileIdentitySchema.extend({
   localPlayerId: z.string().uuid(),
+  level: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
 });
 export const displayIdentity = (identity: { name: string }) => identity.name;
 export function newLocalPlayerId() {

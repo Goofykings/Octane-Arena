@@ -60,6 +60,7 @@ export class NetworkMatch {
     this.match.stats?.setPing(id, value);
   }
   tick = 0;
+  private appliedInputs = new Map<string, number>();
   private bots = new Map<string, Opponent>();
   private botTeam = new BotTeam("intermediate");
   private disconnected = new Set<string>();
@@ -111,7 +112,7 @@ export class NetworkMatch {
     this.match.explosionFor = (id) =>
       players.find((p) => p.id === id)?.preset.explosion ?? "pulse";
     this.match.gameMode = gameMode;
-    this.match.start(this.simulation, "network");
+    this.match.start(this.simulation, "network", this.id);
     this.pads.configure(gameMode);
     this.botTeam.prepare(this.simulation, this.pads);
     this.match.recorder.prepare(this.simulation);
@@ -157,6 +158,7 @@ export class NetworkMatch {
     const reset = this.match.resetSequence;
     this.inputs.delete(id);
     this.disconnected.add(id);
+    this.match.setParticipantConnected(id, false);
     this.simulation.rumble?.suspend(id);
     this.ping(id, null);
     this.match.replayDisconnected(id, this.simulation);
@@ -178,6 +180,7 @@ export class NetworkMatch {
     this.simulation.dropshot?.forceFull();
     this.inputs.delete(id);
     this.disconnected.delete(id);
+    this.match.setParticipantConnected(id, true);
     this.simulation.rumble?.suspend(id, false);
     if (
       this.match.replay &&
@@ -224,7 +227,9 @@ export class NetworkMatch {
         incoming.jump = false;
         incoming.powerup = false;
       }
+      if (incoming) this.appliedInputs.set(p.id, incoming.sequence);
       inputs.set(p.id, input);
+      m.recordInput(p.id, input);
       if (m.phase === "countdown") car.steerAtKickoff(input);
     }
     if (m.phase === "playing" || m.phase === "goal") s.step(inputs);
@@ -248,6 +253,7 @@ export class NetworkMatch {
       rumble: s.rumble?.snapshot() ?? null,
       dropshot: s.dropshot?.snapshot(s.clock) ?? null,
       stats: m.stats?.snapshot(),
+      completion: m.completion,
       statEvents: m.stats?.events.map((e) => ({ ...e })),
       chat: this.chat.messages.slice(-8),
       lastGoal: m.lastGoal,
@@ -260,6 +266,8 @@ export class NetworkMatch {
       sessionMembers: this.sessionMembers,
       cars: s.cars.map((c, i) => ({
         id: c.id,
+        inputSequence: this.appliedInputs.get(c.id) ?? 0,
+        prediction: c.capturePrediction(),
         position: { ...c.body.translation() },
         rotation: { ...c.body.rotation() },
         velocity: { ...c.body.linvel() },

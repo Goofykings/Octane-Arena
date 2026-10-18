@@ -28,6 +28,13 @@ import {
   advanceKickoffCountdown,
   KICKOFF_GO_TIME,
 } from "../../shared/kickoff-countdown";
+import { newLocalPlayerId } from "../../shared/local-profile";
+import { matchMvp } from "../../shared/match-stats";
+import {
+  meaningfulInput,
+  type MatchCompletion,
+} from "../../shared/progression";
+import type { PlayerInput } from "../../shared/player";
 export type Phase =
   | "home"
   | "countdown"
@@ -37,6 +44,29 @@ export type Phase =
   | "paused"
   | "finished";
 export class Match {
+  completion: MatchCompletion | null = null;
+  private progressionId = "";
+  private activeTicks = 0;
+  private progressionAbsent = new Set<string>();
+  setParticipantConnected(id: string, connected: boolean) {
+    if (connected) this.progressionAbsent.delete(id);
+    else this.progressionAbsent.add(id);
+  }
+  private participation = new Map<
+    string,
+    { ticks: number; activityTicks: number }
+  >();
+  recordInput(id: string, input: PlayerInput) {
+    if (
+      this.phase !== "playing" ||
+      this.rules.training ||
+      this.progressionAbsent.has(id) ||
+      !meaningfulInput(input)
+    )
+      return;
+    const activity = this.participation.get(id);
+    if (activity) activity.activityTicks++;
+  }
   /** Cosmetics are resolved by stable scorer ID, outside the physics simulation. */
   explosionFor: (playerId: string) => string = () => "pulse";
   mutators: MatchMutators = DEFAULT_MUTATORS;
@@ -101,7 +131,16 @@ export class Match {
   get active() {
     return ["countdown", "playing", "goal", "replay"].includes(this.phase);
   }
-  start(s: Simulation, mode: Mode = this.mode) {
+  start(s: Simulation, mode: Mode = this.mode, id = newLocalPlayerId()) {
+    this.progressionId = id;
+    this.activeTicks = 0;
+    this.progressionAbsent.clear();
+    this.completion = null;
+    this.participation = new Map(
+      s.players
+        .filter((p) => p.controller !== "bot")
+        .map((p) => [p.id, { ticks: 0, activityTicks: 0 }]),
+    );
     this.simulation = s;
     this.mode = mode;
     if (mode === "freeplay") s.configureMutators();
@@ -229,6 +268,11 @@ export class Match {
       return;
     }
     if (this.phase !== "playing") return;
+    if (!this.rules.training) {
+      this.activeTicks++;
+      for (const [id, activity] of this.participation)
+        if (!this.progressionAbsent.has(id)) activity.ticks++;
+    }
     this.stats?.observe(s);
     this.recorder.capture(s, this.resetSequence, pads);
     this.goTime = Math.max(0, this.goTime - P.dt);
@@ -334,6 +378,31 @@ export class Match {
     }
   }
   finish() {
+    if (
+      !this.completion &&
+      this.simulation &&
+      !this.rules.training &&
+      this.progressionId
+    ) {
+      const players = this.simulation.players;
+      this.completion = {
+        id: this.progressionId,
+        mode: this.mode === "network" ? "network" : "bot",
+        activeSeconds: this.activeTicks * P.dt,
+        score: [this.score[0], this.score[1]],
+        mvpId: matchMvp(players, this.stats?.snapshot() ?? [])?.id ?? null,
+        players: players.map((p) => ({
+          id: p.id,
+          team: p.team,
+          controller: p.controller,
+          completed: !this.progressionAbsent.has(p.id),
+          score: this.stats?.players.get(p.id)?.score ?? 0,
+          activeSeconds: (this.participation.get(p.id)?.ticks ?? 0) * P.dt,
+          activitySeconds:
+            (this.participation.get(p.id)?.activityTicks ?? 0) * P.dt,
+        })),
+      };
+    }
     this.simulation?.rumble?.reset();
     this.simulation?.rumble?.setPhase(false, false);
     this.phase = "finished";

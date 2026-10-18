@@ -29,6 +29,8 @@ existing match setup and starts 1v1, 2v2 or two humans versus two bots. See the
 [PeerJS guide and two-device procedure](docs/PEERJS-MULTIPLAYER.md).
 `npm run lan` remains an optional way to serve built files, not a PeerJS requirement.
 
+Multiplayer keeps 120 Hz host physics, 30 Hz motion updates, buffered remote rendering and local-car prediction. See [network smoothing, measurements and diagnostics](docs/NETWORK-SMOOTHING.md); add `?netdebug` to show the optional network overlay.
+
 The home screen has Play, Garage and Settings on the left, plus a compact clickable Guest/account
 profile. Garage includes five original bodies, curated team paint, ten wheel designs,
 ten boosts, ten toppers, ten goal explosions and local presets.
