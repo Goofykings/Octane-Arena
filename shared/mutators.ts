@@ -79,6 +79,7 @@ export const MUTATOR_TUNING = {
   },
   ballSize: { SMALL: 0.7, DEFAULT: 1, LARGE: 1.3, GIGANTIC: 1.65 },
   ballBounciness: { LOW: 0.5, DEFAULT: 1, HIGH: 1.25, "SUPER HIGH": 1.5 },
+  rechargeDelay: 2,
   recharge: { "RECHARGE SLOW": 5, "RECHARGE FAST": 15 },
   restitutionCap: 0.92,
 } as const;

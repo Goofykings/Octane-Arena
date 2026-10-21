@@ -1,3 +1,4 @@
+import { firebaseWebApp } from "./firebase-app";
 import type { FirebaseOptions } from "firebase/app";
 import { firebaseConfig, firebaseConfigured } from "../config/firebase";
 import {
@@ -14,16 +15,11 @@ export function firestoreFeedbackWriter(
       throw Error(
         "Feedback is not configured yet. Please try again later. Your text has been kept.",
       );
-    const [
-      { getApps, initializeApp },
-      { getFirestore, collection, addDoc, serverTimestamp },
-    ] = await Promise.all([
-      import("firebase/app"),
-      import("firebase/firestore/lite"),
-    ]);
-    const name = "octane-feedback-" + config.projectId;
-    const app =
-      getApps().find((a) => a.name === name) ?? initializeApp(config, name);
+    const { getFirestore, collection, addDoc, serverTimestamp } = await import(
+      "firebase/firestore/lite"
+    );
+    const name = "octane-web-" + config.projectId;
+    const app = await firebaseWebApp(config, name);
     await addDoc(collection(getFirestore(app), FEEDBACK_COLLECTION), {
       ...report,
       createdAt: serverTimestamp(),

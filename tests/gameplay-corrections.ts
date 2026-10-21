@@ -76,8 +76,12 @@ function surface(kind: "floor" | "wall" | "ceiling", long = false) {
   }
   const collider = s.world.createCollider(shape);
   s.world.step();
-  tick(s);
-  assert.ok(c.contacts >= 3, kind + " initial surface contact");
+  // Full driving support now requires three coherent physics samples.
+  tick(s, {}, Math.ceil(P.car.stableContactTime / P.dt));
+  assert.ok(
+    c.contacts >= 3 && c.grounded,
+    kind + " initial stable surface contact",
+  );
   return { s, c, collider };
 }
 
@@ -212,13 +216,18 @@ for (const kind of ["floor", "wall", "ceiling"] as const)
       maxPitch = 0;
     for (let i = 0; i < 90; i++) {
       tick(s, { throttle: 1, pitch: 1 });
-      if (c.contacts >= 3) {
+      if (c.grounded) {
         supported++;
         maxPitch = Math.max(
           maxPitch,
           Math.abs(new Vector3().copy(c.body.angvel()).dot(c.right)),
         );
+        assert.ok(c.contacts >= 3);
         assert.equal(c.aerialControl, 0);
+      } else if (c.contacts > 0) {
+        // Proximity while peeling off the ceiling is partial, not full driving.
+        assert.equal(c.aerialControl, 1);
+        assert.equal(c.adhesionAcceleration.length(), 0);
       }
     }
     assert.ok(supported >= 4);

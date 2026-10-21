@@ -1,3 +1,11 @@
+import { CustomTrainingSession } from "./extra/training/custom-session";
+import { TrainingEditorPanel } from "./ui/training-editor-panel";
+import { FirebaseTrainingPacks } from "./network/firebase-training";
+import {
+  CustomTrainingLibrary,
+  LocalTrainingPackStorage,
+} from "./game/custom-training";
+import { CustomTrainingPanel } from "./ui/custom-training-panel";
 import { Challenges } from "./game/challenges";
 import { ChallengesPanel } from "./ui/challenges-panel";
 import { ProgressionPanel } from "./ui/progression-panel";
@@ -409,7 +417,7 @@ async function boot() {
   let extraSession: ExtraSession | null = null;
   let localMatchId = "";
   let dismissedResultsMatch = "";
-  let extraPanel: ExtraModePanel | null = null;
+  let extraPanel: ExtraModePanel | TrainingEditorPanel | null = null;
   const stopExtra = () => {
     replayPanel.hide();
     extraPanel?.dispose();
@@ -695,6 +703,8 @@ async function boot() {
       arenaId: arena.mapId,
       profile: accounts.profile,
       mouseLook,
+      domElement: renderer.domElement,
+      clearInput: () => input.clear(),
     });
     extraSession.vehicle.displayName = accounts.displayName;
     const restart = () => {
@@ -706,25 +716,39 @@ async function boot() {
       extraSession?.pause(performance.now());
       input.clear();
     };
-    extraPanel = new ExtraModePanel(ui.root, extraSession, {
-      outcome: (success) =>
-        audio.tone(
-          success ? 740 : 220,
-          success ? 0.12 : 0.08,
-          0.04,
-          "sine",
-          "sfx",
-        ),
-      restart,
-      exit: home,
-      resume,
-      settings: () => {
-        if (extraSession && !extraSession.paused)
-          extraSession.pause(performance.now());
-        input.clear();
-        settingsPanel.open();
-      },
-    });
+    extraPanel =
+      extraSession instanceof CustomTrainingSession
+        ? new TrainingEditorPanel(
+            ui.root,
+            extraSession,
+            customTraining,
+            trainingCloud,
+            () => accounts.displayName,
+            () => {
+              stopExtra();
+              ui.screen = "training";
+              customTrainingPanel.open();
+            },
+          )
+        : new ExtraModePanel(ui.root, extraSession, {
+            outcome: (success) =>
+              audio.tone(
+                success ? 740 : 220,
+                success ? 0.12 : 0.08,
+                0.04,
+                "sine",
+                "sfx",
+              ),
+            restart,
+            exit: home,
+            resume,
+            settings: () => {
+              if (extraSession && !extraSession.paused)
+                extraSession.pause(performance.now());
+              input.clear();
+              settingsPanel.open();
+            },
+          });
     homeLobby.update([], camera, 0, performance.now() / 1000, false);
     partyPanel.host.hidden = true;
     partyPanel.flow.updateVisibility(false);
@@ -852,6 +876,7 @@ async function boot() {
         ["countdown", "playing", "goal"].includes(network.latest?.phase ?? "")
         ? "network"
         : null;
+    if (extraSession?.editing) return null;
     if (extraSession)
       return !extraSession.paused && !extraSession.complete
         ? extraSession.supportsBallCam
@@ -882,6 +907,47 @@ async function boot() {
     },
     () => audio.tone(740, 0.09, 0.035, "sine", "sfx"),
   );
+  const customTraining = new CustomTrainingLibrary(
+    new LocalTrainingPackStorage(
+      localStorage,
+      accounts.profile.value.localPlayerId,
+    ),
+  );
+  const trainingCloud = new FirebaseTrainingPacks();
+  const customTrainingPanel = new CustomTrainingPanel(
+    customTraining,
+    ui.root,
+    () => {
+      cameraDrag.stop();
+      input.clear();
+    },
+    {
+      cloud: trainingCloud,
+      username: () => accounts.displayName,
+      edit: (id) => {
+        const pack = customTraining.get(id);
+        if (pack)
+          launchExtra(
+            (options) => new CustomTrainingSession(options, pack, true),
+          );
+      },
+      play: (pack) =>
+        launchExtra(
+          (options) => new CustomTrainingSession(options, pack, false),
+        ),
+    },
+  );
+  let trainingPromoDismissed = false;
+  ui.on("training-promo-open", () => {
+    ui.screen = "training";
+    customTrainingPanel.open();
+  });
+  ui.on("training-promo-close", () => {
+    trainingPromoDismissed = true;
+    document.getElementById("training-promo")!.hidden = true;
+  });
+  ui.on("training-create", () => customTrainingPanel.open());
+  ui.on("training-community", () => customTrainingPanel.open(true));
   const challenges = new Challenges(accounts.profile);
   const challengesPanel = new ChallengesPanel(
     challenges,
@@ -1043,7 +1109,9 @@ async function boot() {
       (party.state?.stage === "match"
         ? networkPaused || network.latest?.phase === "finished"
         : extraSession
-          ? extraSession.paused || extraSession.complete
+          ? extraSession.paused ||
+            extraSession.complete ||
+            !!extraSession.editing
           : ["home", "paused", "finished"].includes(match.phase));
     input.gameplayEnabled = !menuActive;
     input.poll();
@@ -1081,6 +1149,8 @@ async function boot() {
       (!party.state || party.state.stage === "home");
     versionPanel.show(homeControlsVisible);
     feedbackPanel.show(homeControlsVisible);
+    document.getElementById("training-promo")!.hidden =
+      !homeControlsVisible || trainingPromoDismissed;
     challengesPanel.showHome(homeControlsVisible);
     const controls = input.sample(false);
     input.scoreboardActive =
@@ -1368,10 +1438,12 @@ async function boot() {
       (document.getElementById("again") as HTMLButtonElement).disabled =
         !party.state.matchFinished || party.busy;
       document.getElementById("results-leave")!.hidden = false;
-      document.getElementById("results-error")!.textContent =
+      ui.resultMessage(
         /FAILED|STILL PLAYING|COULD NOT|ONLY THE/.test(party.message)
           ? party.message
-          : "";
+          : "",
+        party.busy,
+      );
       document.getElementById("network-menu-title")!.textContent = finished
         ? netMatch.message
         : "MATCH MENU";
@@ -1484,10 +1556,14 @@ async function boot() {
     if (extraSession) {
       let extraMenuInput = false;
       if (
-        extraSession.replayActive &&
+        (extraSession.replayActive ||
+          (extraSession instanceof CustomTrainingSession &&
+            extraSession.goalCelebrating)) &&
         (input.take("Space") || input.takeControllerAction("jump"))
       ) {
-        extraSession.skipReplay?.();
+        if (extraSession instanceof CustomTrainingSession)
+          extraSession.skipGoal();
+        else extraSession.skipReplay?.();
         input.clear();
         extraMenuInput = true;
       }
@@ -1504,7 +1580,9 @@ async function boot() {
         input.takeAction("pause") &&
         !document.querySelector("dialog[open]")
       ) {
-        extraSession.pause(now);
+        if (extraSession instanceof CustomTrainingSession)
+          extraSession.requestExit?.();
+        else extraSession.pause(now);
         input.clear();
         extraMenuInput = true;
       }
@@ -1530,6 +1608,7 @@ async function boot() {
       if (
         !extraSession.paused &&
         !extraSession.complete &&
+        !extraSession.blocksProgression &&
         extraSession.readout(now).phase === "running" &&
         !document.hidden
       )
@@ -1541,6 +1620,7 @@ async function boot() {
         extraSession.vehicle.supersonic,
         extraSession.supportsBallCam && !!extraSession.cameraControl?.ballMode,
       );
+      if (extraSession.editing) document.getElementById("hud")!.hidden = true;
       extraPanel!.update(now);
       if (extraSession.replayActive)
         replayPanel.update(
@@ -1564,7 +1644,7 @@ async function boot() {
       audio.update(
         Math.abs(c.forwardSpeed),
         c.boosting,
-        !extraSession.paused && !extraSession.complete,
+        !extraSession.paused && !extraSession.complete && !extraSession.editing,
         controls.throttle,
         false,
         c.skidIntensity,
@@ -2128,6 +2208,9 @@ async function boot() {
         versionPanel,
         feedbackPanel,
         challenges,
+        trainingCloud,
+        customTraining,
+        customTrainingPanel,
         challengesPanel,
         get replayView() {
           return replayView;

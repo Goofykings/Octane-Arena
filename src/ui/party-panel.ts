@@ -1,3 +1,4 @@
+import { TransientStatus } from "./transient-status";
 import {
   displayIdentity,
   defaultAvatarColor,
@@ -11,12 +12,16 @@ export class PartyPanel {
   host = document.createElement("section");
   flow: PartyFlow;
   private joining = false;
+  private status: TransientStatus;
   private selected: string | null = null;
   constructor(public party: PartyClient) {
     this.host.id = "party-panel";
     this.host.setAttribute("aria-label", "Party");
     this.host.innerHTML = `<div class="party-top"><button id="party-code" title="Copy party code" hidden></button><div id="party-members" role="group" aria-label="Party members"></div><div id="party-actions" data-nav-scope="party-actions" data-nav-priority="20" data-nav-back-target="#party-dismiss" hidden><b></b><button id="party-kick">KICK</button><button id="party-dismiss" aria-label="Close player actions">×</button></div></div><div class="party-controls"><button id="party-create" class="party-button">CREATE PARTY</button><button id="party-join-open" class="party-button">JOIN PARTY</button><form id="party-join" data-nav-scope="party-join" data-nav-priority="20" data-nav-back-target="#party-cancel" hidden><input id="party-input" aria-label="Party code" placeholder="ENTER CODE" maxlength="6" autocomplete="off" spellcheck="false"><button class="party-button" type="submit">JOIN</button><button class="party-button" type="button" id="party-cancel">CANCEL</button></form><button id="party-leave" class="party-button" hidden>LEAVE PARTY</button></div><div id="party-message" role="status" aria-live="polite"></div>`;
     document.getElementById("app")!.append(this.host);
+    this.status = new TransientStatus(
+      this.host.querySelector<HTMLElement>("#party-message")!,
+    );
     const retry = document.createElement("button");
     retry.id = "party-retry";
     retry.className = "party-button";
@@ -58,6 +63,7 @@ export class PartyPanel {
       } catch {
         party.message = "COPY CODE: " + party.state!.code;
       }
+      this.status.repeat(party.message);
       this.render();
     };
     this.host.querySelector<HTMLInputElement>("input")!.oninput = (e) => {
@@ -71,6 +77,7 @@ export class PartyPanel {
       );
       if (!validPeerCode(code)) {
         party.message = "INVALID CODE";
+        this.status.repeat(party.message);
         this.render();
         return;
       }
@@ -109,7 +116,7 @@ export class PartyPanel {
     get("party-leave").hidden = !s;
     get("party-code").hidden = !s;
     get("party-code").textContent = s ? `PARTY  ${s.code}` : "";
-    get("party-message").textContent = p.message;
+    this.status.update(p.message, p.busy);
     get("party-retry").hidden = p.connection !== "offline" || !p.message;
     const start = get("party-start") as HTMLButtonElement;
     start.hidden = !s;

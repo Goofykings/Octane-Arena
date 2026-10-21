@@ -61,9 +61,12 @@ export class Dropshot {
       )[0];
     return { ...spawn, x: safe?.x ?? 0, z: safe?.z ?? 0 };
   }
-  reset() {
-    this.states.fill(0);
-    this.arena.tiles.forEach((c) => c.setEnabled(true));
+  reset(team?: 0 | 1) {
+    this.states.forEach((_, i) => {
+      if (team === undefined || dropshotTiles[i].team === team)
+        this.states[i] = 0;
+      this.arena.tiles[i].setEnabled(this.states[i] !== 2);
+    });
     this.epoch++;
     this.revision = 0;
     this.energy = this.recentAbsorbedForce = 0;

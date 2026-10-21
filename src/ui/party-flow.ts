@@ -1,3 +1,4 @@
+import { TransientStatus } from "./transient-status";
 import { arenaThemes } from "../render/arena-themes";
 import { soccerModes } from "../../shared/soccer";
 import { displayIdentity } from "../../shared/local-profile";
@@ -15,6 +16,7 @@ import { MutatorsPanel } from "./mutators-panel";
 export class PartyFlow {
   readonly mutatorsPanel: MutatorsPanel;
   dialog = document.createElement("dialog");
+  private status: TransientStatus;
   private visible = false;
   private localSetup = false;
   private arenaReady = "";
@@ -32,6 +34,9 @@ export class PartyFlow {
     this.dialog.setAttribute("aria-label", "Party game setup");
     this.dialog.innerHTML = `<section id="party-mode-screen"><header><h2>MATCH SETUP</h2><span class="party-flow-host"></span></header><div class="match-setup-grid"><section class="setup-gamemode"><h3>GAMEMODE</h3><div id="gamemode-cycle" class="setup-selector" data-selector="gamemode" tabindex="0" role="group" aria-label="Gamemode" data-nav-cycle data-nav-prev='[data-direction="-1"]' data-nav-next='[data-direction="1"]'><button data-cycle="gamemode" data-direction="-1" aria-label="Previous gamemode">&lsaquo;</button><div class="setup-selection"><strong id="setup-gamemode" aria-live="polite"></strong></div><button data-cycle="gamemode" data-direction="1" aria-label="Next gamemode">&rsaquo;</button></div></section><section class="setup-players"><h3>PLAYERS</h3><div id="party-size-cycle" class="setup-selector" data-selector="mode" tabindex="0" role="group" aria-label="Player format" data-nav-cycle data-nav-prev='[data-direction="-1"]' data-nav-next='[data-direction="1"]'><button data-cycle="mode" data-direction="-1" aria-label="Previous player format">&lsaquo;</button><div class="setup-selection"><strong id="setup-players" aria-live="polite"></strong></div><button data-cycle="mode" data-direction="1" aria-label="Next player format">&rsaquo;</button></div></section></div><footer><button class="back-button" data-nav-back data-stage="home">BACK</button><button id="party-continue" class="party-button" data-stage="teams">CONTINUE</button></footer></section><section id="party-team-screen" hidden><header><div><span class="arena-caption">LUMEN DISTRICT</span><h2>CHOOSE YOUR SIDE</h2></div><span id="party-match-mode"></span></header><div class="party-team-board">${[0, 1].map((t) => `<section class="party-team-column" data-team="${t}"><header><h3>${t === 0 ? "BLUE" : "ORANGE"}</h3><span class="team-count"></span></header><div class="team-rows"></div><button class="party-button party-team-join" data-team="${t}">JOIN ${t === 0 ? "BLUE" : "ORANGE"}</button></section>`).join("")}</div><button id="party-spectate" class="party-button">SPECTATE</button><div id="party-unassigned"></div><footer><button class="back-button" data-stage="mode">CHANGE MODE</button><button id="party-team-leave" class="back-button">LEAVE PARTY</button><span class="party-network-note">NETWORK MATCHES COMING NEXT</span></footer></section><p id="party-flow-message" role="status" aria-live="polite"></p>`;
     document.getElementById("app")!.append(this.dialog);
+    this.status = new TransientStatus(
+      this.dialog.querySelector<HTMLElement>("#party-flow-message")!,
+    );
     const launch = document.createElement("button");
     launch.id = "party-launch";
     launch.className = "party-button";
@@ -60,6 +65,7 @@ export class PartyFlow {
         party.state.hostId === party.playerId &&
         !party.busy &&
         ["home", "mode"].includes(party.state.stage),
+      () => party.state?.gameMode ?? "soccar",
     );
     const mutatorsButton = document.createElement("button");
     mutatorsButton.id = "party-mutators";
@@ -288,8 +294,7 @@ export class PartyFlow {
         ? "WATCHING / UNASSIGNED · " +
           waiting.map((m) => displayIdentity(m)).join(" · ")
         : "";
-    this.dialog.querySelector<HTMLElement>("#party-flow-message")!.textContent =
-      p.message;
+    this.status.update(p.message, p.busy);
     this.dialog.querySelector<HTMLButtonElement>(
       "#party-team-leave",
     )!.disabled = p.busy;

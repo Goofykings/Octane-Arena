@@ -1,4 +1,12 @@
 const paths: Record<string, string> = {
+  "chevron-left": "m15 5-7 7 7 7",
+  "chevron-right": "m9 5 7 7-7 7",
+  undo: "M8 4 3 9l5 5 M3 9h10a7 7 0 0 1 0 14",
+  redo: "m16 4 5 5-5 5 M21 9H11a7 7 0 0 0 0 14",
+  duplicate: "M8 8h13v13H8z M3 16V3h13",
+  menu: "M3 6h18 M3 12h18 M3 18h18",
+  "chevron-up": "m5 15 7-7 7 7",
+  "chevron-down": "m5 9 7 7 7-7",
   hoops:
     "M3 3h18v10H3z M6 11h12 M7 13l2 8h6l2-8 M9 14l6 7m0-7-6 7 M10 5a2 2 0 1 0 4 0",
   pencil: "M4 16 16 4l4 4-12 12H4z M14 6l4 4",

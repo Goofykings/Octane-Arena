@@ -45,6 +45,7 @@ export class DebugView {
       .join(
         ", ",
       )}\nGreen: rays/normal · white: colliders\nYellow: relative velocity · magenta: extra hit impulse`;
+    this.element.textContent += `\nCONTACT ${c.supportState} / ${c.surfaceType}\nFL ${Number(c.wheelContact[0])} FR ${Number(c.wheelContact[1])} RL ${Number(c.wheelContact[2])} RR ${Number(c.wheelContact[3])}\nLoaded wheel support ${c.supportContacts}/4\nLanding assist ${c.landing.rate > 0 ? "ON" : "OFF"} / COM Y ${c.body.localCom().y.toFixed(3)}`;
     const data = s.world.debugRender();
     const contact = s.ballContacts[0],
       tuple = (v: T.Vector3) =>
@@ -110,6 +111,13 @@ export class DebugView {
           c.wheelHits[i].clone().add(c.wheelNormals[i]),
           c.wheelContact[i] ? 0x44ddff : 0xff9933,
         );
+    const com = new T.Vector3().copy(c.body.worldCom());
+    for (const axis of [
+      new T.Vector3(0.12, 0, 0),
+      new T.Vector3(0, 0.12, 0),
+      new T.Vector3(0, 0, 0.12),
+    ])
+      segment(com.clone().sub(axis), com.clone().add(axis), 0xffdd22);
     const p = new T.Vector3().copy(c.body.translation());
     segment(p, p.clone().addScaledVector(c.normal, 2), 0x00ff66);
     segment(

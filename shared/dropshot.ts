@@ -1,4 +1,5 @@
-﻿import { z } from "zod";
+import { MUTATOR_TUNING } from "./mutators";
+import { z } from "zod";
 /** SI metres/Y-up; original court and energy-to-impact conversion. */
 export const DROPSHOT_CONFIG = {
   arenaRadius: 45.55 / Math.cos(Math.PI / 6),
@@ -25,7 +26,7 @@ export const DROPSHOT_CONFIG = {
   superChargedDamageRadius: 2,
   kickoffVerticalVelocity: 10,
   boostRegenRate: 10,
-  boostRegenDelay: 0.5,
+  boostRegenDelay: MUTATOR_TUNING.rechargeDelay,
   damagePoints: 10,
   carFallDepth: -6,
   ballRecoveryDepth: -14,

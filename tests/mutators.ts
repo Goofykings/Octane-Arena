@@ -172,6 +172,27 @@ for (const mode of mutatorOptions.boostAmount) {
       c.boost < before + 1,
       "boost is consumed normally including recharge",
     );
+  if (mode === "RECHARGE SLOW" || mode === "RECHARGE FAST") {
+    const stopped = c.boost;
+    step(s, 240);
+    close(c.boost, stopped, 1e-6);
+    step(s, 120);
+    close(c.boost, stopped + M.recharge[mode], 1e-5);
+    step(s, 1, { ...n, boost: true });
+    const checkpoint = c.capturePrediction();
+    const used = c.boost;
+    step(s, 120);
+    close(c.boost, used, 1e-6);
+    c.restorePrediction(checkpoint);
+    close(c.boostRechargeDelay, 2, 1e-6);
+    step(s, 240);
+    close(c.boost, used, 1e-6);
+    step(s, 120);
+    close(c.boost, used + M.recharge[mode], 1e-5);
+    c.boost = 0;
+    step(s, 240, { ...n, boost: true });
+    close(c.boost, 0, 1e-6);
+  }
   const pad = pads.items.find((p) => !p.large)!;
   c.reset(pad.x, pad.z, 0);
   c.boost = 0;

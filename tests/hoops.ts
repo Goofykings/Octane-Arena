@@ -7,7 +7,7 @@ import { Pads } from "../src/game/pads";
 import { P } from "../src/config/physics";
 import { DEFAULT_MUTATORS as D } from "../shared/mutators";
 import { neutralInput as n } from "../shared/player";
-import { hoopsShell, hoopsNet } from "../src/arena/hoops";
+import { hoopsShell, hoopsNet, hoopsNetCollision } from "../src/arena/hoops";
 import { meshEdges } from "../src/arena/shell";
 import { predictGoal } from "../src/game/ball-prediction";
 import { NetworkMatch } from "../src/game/authoritative-match";
@@ -19,6 +19,7 @@ import { captureGoalReplay } from "./replay-capture";
 import { GameCamera } from "../src/camera/camera";
 import {
   HOOPS_NET_GROUP,
+  HOOPS_RIM_GROUP,
   HOOPS_CAR_GROUP,
   HOOPS_BALL_GROUP,
 } from "../src/physics/collision-groups";
@@ -143,6 +144,12 @@ for (const config of [
 for (const sign of [-1, 1]) {
   const mesh = hoopsNet(sign);
   assert.ok(
+    [...meshEdges(hoopsNetCollision(sign).indices).values()].every(
+      (e) => e.faces.length === 2,
+    ),
+    "Net collision volume is watertight",
+  );
+  assert.ok(
     Math.max(
       ...Array.from(mesh.vertices)
         .filter((_, i) => i % 3 === 0)
@@ -199,26 +206,70 @@ for (const sign of [-1, 1]) {
         ),
       );
     }
-  for (const height of [0.97, 1.9])
+  // The bank now redirects the ball smoothly instead of bouncing it straight back.
+  for (const height of [1.9, 2.6])
     for (const direction of [-1, 1]) {
-      const { s } = setup();
-      s.world.gravity = { x: 0, y: 0, z: 0 };
-      const front = sign * (H.hoopZ - H.hoopRadius),
-        vz = sign * direction * 12;
-      s.ball.setTranslation(
-        { x: 0, y: height, z: front - sign * direction * 3 },
-        true,
+      const run = (removeNet: boolean) => {
+        const { s } = setup();
+        if (removeNet) {
+          const nets: import("@dimforge/rapier3d-compat").Collider[] = [];
+          s.world.forEachCollider((c) => {
+            if (c.collisionGroups() === HOOPS_NET_GROUP) nets.push(c);
+          });
+          nets.forEach((c) => s.world.removeCollider(c, true));
+        }
+        s.world.gravity = { x: 0, y: 0, z: 0 };
+        const flare = H.netFlare * (1 - Math.sqrt(height / H.netCurveHeight));
+        const front = sign * (H.hoopZ - H.hoopRadius - flare);
+        s.ball.setTranslation(
+          { x: 0, y: height, z: front - sign * direction * 3 },
+          true,
+        );
+        s.ball.setLinvel({ x: 0, y: 0, z: sign * direction * 12 }, true);
+        for (let i = 0; i < 65; i++) s.step([n(), n()]);
+        assert.equal(s.containmentRecoveries, 0);
+        const p = new Vector3().copy(s.ball.translation());
+        s.dispose();
+        return p;
+      };
+      const withNet = run(false),
+        withoutNet = run(true);
+      assert.ok(
+        withNet.distanceTo(withoutNet) > 0.5,
+        `Net remains physical from both sides, with an angled response (${sign}, ${height}, ${direction}): ${withNet.toArray()} vs ${withoutNet.toArray()}`,
       );
-      s.ball.setLinvel({ x: 0, y: 0, z: vz }, true);
-      let bounced = false;
-      for (let i = 0; i < 65; i++) {
-        s.step([n(), n()]);
-        bounced ||= s.ball.linvel().z * sign * direction < -1;
-      }
-      assert.ok(bounced, "Ball rebounds from both sides of the front net");
-      assert.equal(s.containmentRecoveries, 0);
-      s.dispose();
     }
+  for (const speed of [12, 14, 20]) {
+    const { s, m } = setup();
+    m.phase = "playing";
+    s.ball.setTranslation(
+      {
+        x: 0,
+        y: P.ball.radius + 0.02,
+        z: sign * (H.hoopZ - H.hoopRadius - H.netFlare - 2),
+      },
+      true,
+    );
+    s.ball.setLinvel({ x: 0, y: 0, z: sign * speed }, true);
+    s.ball.setAngvel({ x: (sign * speed) / P.ball.radius, y: 0, z: 0 }, true);
+    let top = 0;
+    for (let i = 0; i < 480 && m.phase === "playing"; i++) {
+      s.step([n(), n()]);
+      top = Math.max(top, s.ball.translation().y);
+      m.tick(s);
+    }
+    assert.ok(
+      top > H.hoopHeight + P.ball.radius,
+      "Unassisted rolling ball climbs above the rim",
+    );
+    assert.equal(
+      m.phase,
+      "goal",
+      "Rolling bank trajectory can score without aerial impulses",
+    );
+    assert.equal(s.containmentRecoveries, 0);
+    s.dispose();
+  }
   const { s } = setup();
   s.world.gravity = { x: 0, y: 0, z: 0 };
   s.ball.setTranslation({ x: 0, y: 6, z: sign * 33.3 }, true);
@@ -280,15 +331,32 @@ for (const sign of [-1, 1]) {
 // Real rounded-rim impacts reject edge hits and preserve finite rebound/spin.
 {
   const { s, m } = setup();
+  // Isolate the solid rim: the new over-rim bank intentionally intercepts some descending approaches.
+  const bankColliders: import("@dimforge/rapier3d-compat").Collider[] = [];
+  s.world.forEachCollider((c) => {
+    if (c.collisionGroups() === HOOPS_NET_GROUP) bankColliders.push(c);
+  });
+  bankColliders.forEach((c) => s.world.removeCollider(c, true));
   m.phase = "playing";
   s.ball.setTranslation({ x: H.hoopRadius, y: 7, z: H.hoopZ }, true);
   s.ball.setLinvel({ x: 0, y: -9, z: 0 }, true);
   s.ball.setAngvel({ x: 0, y: 2, z: 1 }, true);
   let bounced = false;
   for (let i = 0; i < 160; i++) {
+    const before = { ...s.ball.translation() };
     s.step([n(), n()]);
-    m.tick(s, pads);
+    const after = { ...s.ball.translation() };
     bounced ||= s.ball.linvel().y > 1;
+    m.tick(s, pads);
+    if (m.lastGoal) {
+      assert.ok(bounced, "A rim impact rebounds before any later valid goal");
+      assert.notEqual(
+        hoopsCrossing(before, after, s.physics.ball.radius),
+        null,
+        "Only a later valid downward crossing can score",
+      );
+      break;
+    }
     assert.equal(m.phase, "playing");
   }
   assert.ok(bounced);
@@ -310,6 +378,19 @@ for (const sign of [-1, 1]) {
   assert.ok(bounced);
   assert.equal(m.phase, "goal");
   assert.equal(s.containmentRecoveries, 0);
+  s.dispose();
+}
+// Rims must be entirely absent from camera queries, while still physically solid.
+{
+  const { s } = setup();
+  let count = 0;
+  s.world.forEachCollider((c) => {
+    if (c.collisionGroups() === HOOPS_RIM_GROUP) {
+      count++;
+      assert.equal(cameraCollisionCategory(s, c), "IGNORE");
+    }
+  });
+  assert.ok(count > 80);
   s.dispose();
 }
 // Cars also collide with the rim; the open net volume adds no hidden wall.
@@ -341,6 +422,11 @@ for (const sign of [-1, 1]) {
 // The front arc itself is solid, not just the straight wall rails.
 for (const sign of [-1, 1]) {
   const { s } = setup();
+  const bankColliders: import("@dimforge/rapier3d-compat").Collider[] = [];
+  s.world.forEachCollider((c) => {
+    if (c.collisionGroups() === HOOPS_NET_GROUP) bankColliders.push(c);
+  });
+  bankColliders.forEach((c) => s.world.removeCollider(c, true));
   const front = sign * (H.hoopZ - H.hoopRadius);
   s.ball.setTranslation({ x: 0, y: 7, z: front }, true);
   s.ball.setLinvel({ x: 0, y: -9, z: 0 }, true);
@@ -457,10 +543,56 @@ for (const difficulty of ["beginner", "intermediate", "advanced"] as const) {
   }
   assert.ok(
     s.touchSequence > 0,
-    "Ordinary Hoops bot controls reach and contact the ball without a bank",
+    "Ordinary Hoops bot controls still reach and contact the ball",
   );
   assert.equal(s.containmentRecoveries, 0);
   s.dispose();
+}
+// Crossing or sitting behind a rim cannot move the camera at all.
+for (const sign of [-1, 1]) {
+  const frames = (removeRim: boolean) => {
+    const { s } = setup();
+    if (removeRim) {
+      const rims: import("@dimforge/rapier3d-compat").Collider[] = [];
+      s.world.forEachCollider((c) => {
+        if (c.collisionGroups() === HOOPS_RIM_GROUP) rims.push(c);
+      });
+      rims.forEach((c) => s.world.removeCollider(c, true));
+    }
+    s.world.step();
+    const camera = new PerspectiveCamera(85, 16 / 9, 0.05, 340),
+      rig = new GameCamera(camera),
+      car = new Group(),
+      ball = new Group();
+    rig.ballMode = true;
+    const samples: number[][] = [];
+    for (let i = 0; i < 180; i++) {
+      const t = i / 60;
+      car.position.set(
+        H.hoopRadius + Math.sin(t * 2),
+        H.hoopHeight + Math.sin(t) * 0.6,
+        sign * (H.hoopZ - 1),
+      );
+      ball.position.set(0, H.hoopHeight + 2, sign * (H.hoopZ + 3));
+      rig.update(car, ball, s, 1 / 60, false, t);
+      samples.push([
+        ...camera.position.toArray(),
+        ...camera.quaternion.toArray(),
+      ]);
+    }
+    s.dispose();
+    return samples;
+  };
+  const present = frames(false),
+    removed = frames(true);
+  present.forEach((sample, i) =>
+    sample.forEach((v, k) =>
+      assert.ok(
+        Math.abs(v - removed[i][k]) < 1e-7,
+        "Rim-independent camera path",
+      ),
+    ),
+  );
 }
 // Shared camera remains finite for overhead/steep motion in the actual court.
 {

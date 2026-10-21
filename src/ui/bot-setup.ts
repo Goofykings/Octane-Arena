@@ -12,6 +12,8 @@ export class BotSetup {
   readonly mutatorsPanel = new MutatorsPanel(
     () => localMutators.value,
     (value) => localMutators.save(value),
+    () => true,
+    () => this.gameMode,
   );
   get mutators() {
     return localMutators.value;

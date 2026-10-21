@@ -153,9 +153,14 @@ export class Simulation {
   private arenaColliders: RAPIER.Collider[] = [];
   private hoopLaunchPending = false;
   private hoopRims = new Set<number>();
+  private hoopNets: RAPIER.Collider[] = [];
+  private netVelocity = new Vector3();
+  private netBefore = new Vector3();
+  private netNormal = new Vector3();
   private switchArena(mode: SoccerMode) {
     this.dropshot = null;
     this.hoopRims.clear();
+    this.hoopNets = [];
     for (const c of this.arenaColliders) this.world.removeCollider(c, true);
     if (mode === "dropshot") {
       const a = createDropshotArena(this.world);
@@ -167,6 +172,7 @@ export class Simulation {
       this.arenaCollider = a.shell;
       this.arenaColliders = a.colliders;
       this.hoopRims = new Set(a.rims.map((c) => c.handle));
+      this.hoopNets = a.nets;
     } else {
       const c = createArena(this.world, this.flatArena);
       this.arenaCollider = this.flatArena ? undefined : c;
@@ -256,8 +262,8 @@ export class Simulation {
     this.cars.forEach((c) => c.pose.snap());
     this.ballPose.snap();
   }
-  reset(formation?: KickoffFormation) {
-    this.dropshot?.reset();
+  reset(formation?: KickoffFormation, dropshotResetTeam?: 0 | 1) {
+    this.dropshot?.reset(dropshotResetTeam);
     this.rumble?.reset();
     this.ballGround.reset();
     this.statContacts.clear();
@@ -492,6 +498,36 @@ export class Simulation {
     this.cars.forEach((c, i) => this.ballContacts[i].sample(c, this.ball));
     const statBefore = this.ballSample();
     this.world.step(this.events);
+    // The ball's global MAX restitution rule otherwise overrides the soft net material.
+    // Cap only the generated normal rebound on actual net contacts; retain tangential
+    // velocity, spin, and the ordinary rim/car/arena material responses.
+    if (this.ball.isEnabled() && this.hoopNets.length) {
+      const before = this.netBefore.copy(statBefore.velocity);
+      const velocity = this.netVelocity.copy(this.ball.linvel());
+      let adjusted = false,
+        rimContact = false;
+      this.world.contactPairsWith(this.ballCollider, (col) => {
+        if (this.hoopRims.has(col.handle))
+          this.world.contactPair(col, this.ballCollider, (m) => {
+            rimContact ||= m.numSolverContacts() > 0;
+          });
+      });
+      for (const net of this.hoopNets)
+        this.world.contactPair(net, this.ballCollider, (m, flipped) => {
+          if (rimContact || !m.numSolverContacts()) return;
+          const normal = this.netNormal
+            .copy(m.normal())
+            .multiplyScalar(flipped ? -1 : 1);
+          const closing = -before.dot(normal);
+          if (closing < 0) return;
+          const bounce = velocity.dot(normal) - HOOPS.netRestitution * closing;
+          if (bounce > 0) {
+            velocity.addScaledVector(normal, -bounce);
+            adjusted = true;
+          }
+        });
+      if (adjusted) this.ball.setLinvel(velocity, true);
+    }
     this.ballGround.update();
     this.events.drainCollisionEvents((a, b, started) => {
       if (

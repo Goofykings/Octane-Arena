@@ -167,7 +167,7 @@ export class Match {
         s.cars[i].body.setEnabled(this.rules.bot);
       }
   }
-  kickoff(s: Simulation) {
+  kickoff(s: Simulation, dropshotResetTeam?: 0 | 1) {
     this.stats?.kickoff();
     const formation =
       this.gameMode === "heatseeker" ||
@@ -184,7 +184,7 @@ export class Match {
               ),
             );
     this.kickoffFormationId = formation?.id ?? null;
-    s.reset(formation);
+    s.reset(formation, dropshotResetTeam);
     this.previousBall = { ...s.ball.translation() };
     if (!this.rules.training)
       s.cars.forEach((c) => {
@@ -447,7 +447,11 @@ export class Match {
       this.finish();
     } else {
       if (this.timed && this.remaining <= 0) this.overtime = true;
-      this.kickoff(s);
+      const scoringTeam = s.dropshot?.goal;
+      this.kickoff(
+        s,
+        scoringTeam === 0 ? 1 : scoringTeam === 1 ? 0 : undefined,
+      );
     }
   }
 }

@@ -157,7 +157,12 @@ assert.equal(m.score[0], 1);
 assert.equal(m.lastGoal?.scorerId, "player");
 assert.ok(m.goalFocus!.y < -s.physics.ball.radius);
 assert.equal(m.stats!.players.get("player")!.damage, 2);
-// Full existing replay flow, then every collider/charge restored on kickoff.
+// The scoring side retains its old cracks/holes across the replay/kickoff.
+const keep = tiles.filter((t) => t.team === 0).slice(0, 2);
+ds.states[keep[0].id] = 1;
+ds.states[keep[1].id] = 2;
+ds.arena.tiles[keep[1].id].setEnabled(false);
+// Full existing replay flow; only the conceded side repairs its floor.
 for (let i = 0; i < 400 && m.phase !== "replay"; i++) {
   s.step([n, n]);
   m.tick(s);
@@ -167,9 +172,57 @@ const clip = m.replay!.clip;
 assert.ok(clip.dropshot?.some((e) => e.state.tiles?.[center.id] === "2"));
 assert.ok(decodeReplay(replayMessage("test", clip)).dropshot?.length);
 assert.ok(m.skipReplay("player", clip.goal.id, s));
-assert.equal(ds.tiles, "0".repeat(140));
-assert.ok(ds.arena.tiles.every((c) => c.isEnabled()));
+assert.ok(
+  tiles.filter((t) => t.team === 1).every((t) => ds.states[t.id] === 0),
+);
+assert.equal(ds.states[keep[0].id], 1);
+assert.equal(ds.states[keep[1].id], 2);
+ds.arena.tiles.forEach((c, i) =>
+  assert.equal(c.isEnabled(), ds.states[i] !== 2),
+);
+view.apply(ds.snapshot(s.clock, true));
+assert.equal(view.tiles, ds.tiles);
+m.start(s);
+assert.equal(ds.tiles, "0".repeat(140), "A new match repairs both halves");
 assert.equal(ds.energy, 0);
+// Mirror the physical goal: Blue concedes and repairs, Orange retains cracks/holes.
+{
+  m.start(s);
+  m.phase = "playing";
+  const blue = tiles
+    .filter((t) => t.team === 0)
+    .sort((a, b) => Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z))[0];
+  const orange = tiles.filter((t) => t.team === 1).slice(0, 2);
+  ds.states[blue.id] = 2;
+  ds.arena.tiles[blue.id].setEnabled(false);
+  ds.states[orange[0].id] = 1;
+  ds.states[orange[1].id] = 2;
+  ds.arena.tiles[orange[1].id].setEnabled(false);
+  s.ball.setTranslation({ x: blue.x, y: 4, z: blue.z }, true);
+  s.ball.setLinvel({ x: 0, y: -8, z: 0 }, true);
+  for (let i = 0; i < 180 && m.phase === "playing"; i++) {
+    s.step([n, n]);
+    m.tick(s);
+  }
+  assert.equal(m.phase, "goal");
+  assert.equal(ds.goal, 1);
+  for (let i = 0; i < 400 && m.phase !== "replay"; i++) {
+    s.step([n, n]);
+    m.tick(s);
+  }
+  assert.equal(m.phase, "replay");
+  m.skipReplay("player", m.replay!.clip.goal.id, s);
+  assert.ok(
+    tiles.filter((t) => t.team === 0).every((t) => ds.states[t.id] === 0),
+  );
+  assert.equal(ds.states[orange[0].id], 1);
+  assert.equal(ds.states[orange[1].id], 2);
+  assert.equal(ds.arena.tiles[orange[1].id].isEnabled(), false);
+  view.apply(ds.snapshot(s.clock, true));
+  assert.equal(view.tiles, ds.tiles);
+  m.start(s);
+  assert.equal(ds.tiles, "0".repeat(140));
+}
 // Closed geometry, gentle rolls, high speeds and varied ball radii never score.
 for (const size of ["DEFAULT", "SMALL", "LARGE", "GIGANTIC"] as const) {
   s.configureMutators({ ...DEFAULT_MUTATORS, ballSize: size });
@@ -194,7 +247,7 @@ c.boost = 0;
 c.mutators = DEFAULT_MUTATORS;
 for (let i = 0; i < 120; i++) ds.regenBoost(c, true, P.dt);
 assert.equal(c.boost, 0);
-for (let i = 0; i < 60; i++) ds.regenBoost(c, false, P.dt);
+for (let i = 0; i < 240; i++) ds.regenBoost(c, false, P.dt);
 assert.ok(c.boost < 1e-8);
 for (let i = 0; i < 120; i++) ds.regenBoost(c, false, P.dt);
 assert.ok(Math.abs(c.boost - 10) < 0.01);

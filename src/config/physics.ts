@@ -16,7 +16,13 @@ export const P = {
     halfHeight: 18 * UU,
     halfLength: 59 * UU,
     hitboxY: 0.04,
-    comY: -0.04,
+    comY: -0.04, // Collider-local baseline; hitbox offset is added by Rapier.
+    comLowerHeightFraction: 0.02, // Conservative 2%; larger shifts stabilize the tall chassis bumper bevel.
+    inertiaPitch: 27, // +8% contact-impact resistance; controls use angular acceleration.
+    inertiaYaw: 35,
+    inertiaRoll: 21.6,
+    chassisRestitution: 0.02,
+    stableContactTime: 3 / 120, // Enter after three coherent support samples; exit immediately.
     maxSpeed: 2320 * UU, // Small +0.9% top-speed increase.
     throttleMaxSpeed: 1445 * UU,
     sonic: 2200 * UU,
@@ -37,7 +43,6 @@ export const P = {
     contactHeight: 0.31,
     contactReach: 0.5,
     supportReach: 0.38, // Near enough to carry driving load, not just detect a surface.
-    curveContactGrace: 0.1, // Established fast ramp support through brief wheel unloading.
     contactSkin: 0.008,
     maxContactCorrection: 0.04,
     rayLength: 0.65,
@@ -57,7 +62,11 @@ export const P = {
     normalResponse: 40,
     align: 100,
     alignDamping: 16,
-    landingDamping: 18, // Floor-only roll/pitch energy absorption after a real 3-wheel touchdown.
+    landingDamping: 18, // Surface-relative roll/pitch absorption after a real 3-wheel touchdown.
+    landingAlign: 18, // Small landing-only angular acceleration per radian of error.
+    landingMaxAcceleration: 45,
+    landingMaxAngular: 3.5,
+    landingInputThreshold: 0.5,
     landingDampingTime: 0.24, // Seconds; no pose target, suspension travel or airborne effect.
     curveAlignmentScale: 6, // Responsive normal support only while the surface frame is turning.
     curveDampingScale: 3,

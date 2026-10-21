@@ -58,3 +58,57 @@ Rumble power ranges, impulses, timers, bot use and effects live in **src/config/
 Normal lateral tire acceleration starts at `car.lateralMaxAcceleration` (34 m/s^2), with response `car.grip` (24/s). For stable, low-slip contact, `highSpeedGripStart` (14 m/s) through `highSpeedGripEnd` (23 m/s) smoothly adds up to `highSpeedGripGain` (18%) response and `highSpeedForceGain` (15%) force limit. The extra grip fades out for large sideways slip and is disabled on partial support. Fully engaged powerslide keeps its previous friction curve; released tires return progressively to finite ordinary grip.
 
 Partial overhead contact uses `car.overheadPartialNormal` (-0.05) and `overheadPartialSupport` (0.12). The tolerance avoids misclassifying vertical walls from float noise. Inferred nearby ray hits cannot promote two-wheel overhead contact to stable support. Wheel/chassis normal constraints remain unilateral, with no suspension or automatic side/nose alignment.
+
+## Landing/contact tuning
+
+Mass properties are centralized in `src/config/physics.ts`. Mass remains 150 kg.
+Rapier adds the collider's hitbox offset to its collider-local COM:
+
+| Body                          | Previous body-local COM Y | New body-local COM Y |    Shift |
+| ----------------------------- | ------------------------: | -------------------: | -------: |
+| Ion                           |                       0 m |            -0.0072 m | -0.72 cm |
+| Vector, Cargo, Slicer, Wraith |                    0.09 m |               0.08 m |    -1 cm |
+
+`comLowerHeightFraction` is 0.02 (2% of chassis height). An initial 8% shift made
+the taller chassis rest on its bumper bevel in the nose-tipping regression, so
+the smaller tested shift preserves recovery without changing collider geometry. Changing body shape
+reapplies its mass properties. Hitbox, visual model and rigid wheel mounts do not move.
+Pitch/roll inertia increased from 25/20 to 27/21.6 kg m^2; yaw stays 35.
+Aerial and flip controls already specify angular acceleration directly, so they
+retain their response without multiplying their control constants.
+
+Chassis restitution decreased from 0.05 to 0.02. Wheel support remains a
+unilateral, zero-restitution contact constraint, with alternating support-point
+iterations and bounded positional correction. There is no spring suspension or
+independent wheel displacement in this game; none was introduced by this pass.
+Global body angular damping stays zero; air damping (1.7/s), driving alignment
+(100, damping 16/s), finite tire grip and powerslide curves are unchanged.
+
+Full grounding requires at least three coherent wheel contacts, a near-aligned
+chassis and three consecutive support samples (25 ms at 120 Hz). Loss of the
+required contacts exits full grounding immediately. Nearby unloaded rays may fit
+a continuous curve but cannot prolong grounded state on a wheel pair. Ceiling
+support additionally needs at least three loaded rays inside supportReach. The
+existing ceiling adhesion fade stays in place: a four-wheel car can traverse the
+upper curve and briefly steer on the ceiling, but cannot hang there indefinitely.
+Partial contacts retain aerial controls and only reduced tire forces, with no
+adhesion or grounded alignment. An aligned real tread pair may still jump.
+
+The short landing window is 0.24 s. It requires a recent descending impact,
+at least three near-contact coherent wheels, alignment above 0.985, angular speed
+below 3.5 rad/s, no active dodge torque, no recent jump detachment, no recovery or
+impact stun, and no pitch/yaw/roll input over 0.5. It works relative to floor,
+wall or ceiling normals. Contact loss removes the assist immediately. The assist
+uses a bounded torque impulse: alignment strength 18 plus pitch/roll energy
+absorption at 18/s, capped at 45 rad/s^2; yaw is preserved. Rotation is never set.
+One/two-wheel, roof, nose, side, violent and commanded aerial contacts receive no
+landing assist. Existing partial-contact physical settling remains responsible
+for bringing the other wheels down.
+
+F3 toggles the existing optional diagnostics. It now includes explicit
+AIRBORNE / PARTIAL_CONTACT / GROUNDED, FL/FR/RL/RR, FLOOR/WALL/CEILING,
+landing-assist ON/OFF, COM Y and a yellow world-space COM cross. It is off by default.
+
+Regression coverage: `tests/landing-contact-quality.ts`, `tilted-landings.ts`,
+`contact-control.ts`, `game-feel.ts`, `rigid-contact.ts`,
+`ramp-quality.ts` and the mechanics/network suites.

@@ -1,4 +1,4 @@
-import { HOOPS_NET_GROUP } from "../physics/collision-groups";
+import { HOOPS_NET_GROUP, HOOPS_RIM_GROUP } from "../physics/collision-groups";
 import type RAPIER from "@dimforge/rapier3d-compat";
 import { Vector3 } from "three";
 
@@ -7,19 +7,22 @@ export interface CameraCollisionSpace {
   arenaCollider?: RAPIER.Collider;
   cameraObstacles?: (collider: RAPIER.Collider) => boolean;
 }
+export const cameraIgnores = (col: RAPIER.Collider) =>
+  col.collisionGroups() === HOOPS_NET_GROUP ||
+  col.collisionGroups() === HOOPS_RIM_GROUP;
 export type CameraCollisionCategory = "ARENA_BOUNDARY" | "BLOCKING" | "IGNORE";
 export function cameraCollisionCategory(
   space: CameraCollisionSpace,
   col: RAPIER.Collider,
 ): CameraCollisionCategory {
-  if (col.collisionGroups() === HOOPS_NET_GROUP) return "IGNORE";
+  if (cameraIgnores(col)) return "IGNORE";
   if (space.cameraObstacles)
     return space.cameraObstacles(col) ? "BLOCKING" : "IGNORE";
   if (col.handle === space.arenaCollider?.handle) return "ARENA_BOUNDARY";
   return col.parent() === null ? "BLOCKING" : "IGNORE";
 }
 const staticSurface = (col: RAPIER.Collider) =>
-  col.parent() === null && col.collisionGroups() !== HOOPS_NET_GROUP;
+  col.parent() === null && !cameraIgnores(col);
 const policies = new WeakMap<
   CameraCollisionSpace,
   ReturnType<typeof createPolicy>
@@ -27,7 +30,8 @@ const policies = new WeakMap<
 function createPolicy(space: CameraCollisionSpace) {
   return {
     // Context queries help ground heading; they never constrain a boundary boom.
-    surfaces: space.cameraObstacles ?? staticSurface,
+    surfaces: (col: RAPIER.Collider) =>
+      !cameraIgnores(col) && (space.cameraObstacles ?? staticSurface)(col),
     blockers: (col: RAPIER.Collider) =>
       cameraCollisionCategory(space, col) === "BLOCKING",
     outsideArena: !!space.arenaCollider && !space.cameraObstacles,

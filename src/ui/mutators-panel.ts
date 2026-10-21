@@ -18,6 +18,7 @@ export class MutatorsPanel {
     private get: () => MatchMutators,
     private change: (value: MatchMutators) => void | Promise<void>,
     private editable: () => boolean = () => true,
+    private gameMode: () => string = () => "soccar",
   ) {
     this.dialog.className = "mutators-panel";
     this.dialog.setAttribute("aria-label", "Mutators");
@@ -82,6 +83,7 @@ export class MutatorsPanel {
     this.dialog.querySelectorAll<HTMLButtonElement>("[data-step]").forEach(
       (b) =>
         (b.onclick = () => {
+          if (this.locked(b.dataset.key as MutatorKey)) return;
           const key = b.dataset.key as MutatorKey,
             options: readonly string[] = mutatorOptions[key],
             current = this.get();
@@ -96,6 +98,9 @@ export class MutatorsPanel {
         }),
     );
   }
+  private locked(key: MutatorKey) {
+    return key === "boostAmount" && this.gameMode() === "heatseeker";
+  }
   private async commit(value: MatchMutators) {
     if (this.pending || !this.editable()) return;
     this.pending = true;
@@ -103,7 +108,12 @@ export class MutatorsPanel {
     const error = this.dialog.querySelector(".mutators-error")!;
     error.textContent = "";
     try {
-      await this.change(value);
+      // Forced mode settings are displayed, not written over the normal-match preference.
+      await this.change(
+        this.locked("boostAmount")
+          ? { ...value, boostAmount: this.get().boostAmount }
+          : value,
+      );
     } catch (e) {
       error.textContent =
         e instanceof Error ? e.message : "SETTING COULD NOT BE UPDATED";
@@ -120,16 +130,19 @@ export class MutatorsPanel {
     for (const key of mutatorKeys) {
       setControlText(
         this.dialog.querySelector('[data-value="' + key + '"]')!,
-        config[key],
+        this.locked(key) ? "UNLIMITED" : config[key],
       );
       const row = this.dialog.querySelector<HTMLElement>(
         '[data-mutator="' + key + '"]',
       )!;
       // Read-only rows remain focusable so guests can navigate all nine values with a controller.
-      row.setAttribute("aria-disabled", String(this.pending));
+      const locked = this.locked(key);
+      row.setAttribute("aria-disabled", String(this.pending || locked));
+      row.closest<HTMLElement>(".mutator-row")!.dataset.locked = String(locked);
+      row.title = locked ? "Heatseeker always has infinite boost" : "";
       row
         .querySelectorAll<HTMLButtonElement>("button")
-        .forEach((b) => (b.disabled = !writable));
+        .forEach((b) => (b.disabled = !writable || locked));
     }
     this.dialog
       .querySelectorAll<HTMLButtonElement>("[data-reset], [data-randomize]")

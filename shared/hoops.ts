@@ -12,9 +12,9 @@ export const HOOPS_CONFIG = {
   rimRestitution: 0.58,
   kickoffVerticalVelocity: 10,
   kickoffBallHeight: 1.0,
-  netFlare: 0.32,
-  netCurveHeight: 0.4,
-  netRestitution: 0.28,
+  netFlare: 6,
+  netCurveHeight: 3.85,
+  netRestitution: 0,
   spawnPositions: [
     { x: -9, z: 15 },
     { x: 9, z: 15 },

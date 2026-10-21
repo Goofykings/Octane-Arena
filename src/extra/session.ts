@@ -38,6 +38,8 @@ export interface ExtraReadout {
 }
 
 export interface ExtraSession {
+  readonly editing?: boolean;
+  readonly blocksProgression?: boolean;
   readonly replayCapturing?: boolean;
   readonly replayActive?: boolean;
   readonly replayClip?: import("../../shared/replay").ReplayClip | null;
@@ -67,6 +69,8 @@ export interface ExtraSession {
   dispose(): void;
 }
 export interface ExtraSessionOptions {
+  domElement?: HTMLElement;
+  clearInput?: () => void;
   camera: T.PerspectiveCamera;
   preset: Preset;
   arenaId: ArenaId;

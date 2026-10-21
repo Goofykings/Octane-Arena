@@ -1,4 +1,4 @@
-import { HOOPS_NET_GROUP } from "../physics/collision-groups";
+import { HOOPS_NET_GROUP, HOOPS_RIM_GROUP } from "../physics/collision-groups";
 import RAPIER from "@dimforge/rapier3d-compat";
 import { HOOPS_CONFIG as H, hoopsRimPath } from "../../shared/hoops";
 import type { ArenaMesh } from "./geometry";
@@ -78,24 +78,22 @@ export function hoopsShell(): ArenaMesh {
     profileLength: rings.length,
   });
 }
-/** Ball-only net surface with a small 0.32 m outward curl at the foot.
- * Shared visual/collision vertices; this is a skirt, never a launch bank. */
+/** Ball-only continuous roll-up net: horizontal at the floor, smoothly rising to the rim.
+ * Rendering uses these same vertices; cars still pass through the net. */
 export function hoopsNet(sign: number): ArenaMesh {
   const path = hoopsRimPath(sign),
     vertices: number[] = [],
     indices: number[] = [];
-  const rows = [
-    { y: 0.06, flare: H.netFlare },
-    { y: 0.14, flare: H.netFlare * 0.65 },
-    { y: 0.28, flare: H.netFlare * 0.18 },
-    { y: H.netCurveHeight, flare: 0 },
-    ...Array.from({ length: 9 }, (_, i) => ({
-      y:
-        H.netCurveHeight +
-        ((H.hoopHeight - H.rimThickness / 2 - H.netCurveHeight) * (i + 1)) / 9,
-      flare: 0,
-    })),
-  ];
+  const rows = Array.from({ length: 25 }, (_, i) => {
+    const t = i / 24;
+    return {
+      y: H.netCurveHeight * t * t,
+      flare:
+        H.rimThickness / 2 +
+        0.03 +
+        (H.netFlare - H.rimThickness / 2 - 0.03) * (1 - t),
+    };
+  });
   for (const row of rows)
     for (let i = 0; i < path.length; i++) {
       const p = path[i],
@@ -117,6 +115,62 @@ export function hoopsNet(sign: number): ArenaMesh {
     profileLength: rows.length,
   };
 }
+/** Thin watertight net volume gives repaired contact normals on both faces.
+ * The render net stays on its center surface; physical thickness is only 8 cm. */
+export function hoopsNetCollision(sign: number): ArenaMesh {
+  const mesh = hoopsNet(sign),
+    n = mesh.vertices.length / 3;
+  const normals = new Float64Array(mesh.vertices.length);
+  const edges = new Map<string, [number, number, number]>();
+  for (let k = 0; k < mesh.indices.length; k += 3) {
+    const [a, b, c] = Array.from(mesh.indices.slice(k, k + 3));
+    const v = mesh.vertices,
+      ux = v[b * 3] - v[a * 3],
+      uy = v[b * 3 + 1] - v[a * 3 + 1],
+      uz = v[b * 3 + 2] - v[a * 3 + 2],
+      vx = v[c * 3] - v[a * 3],
+      vy = v[c * 3 + 1] - v[a * 3 + 1],
+      vz = v[c * 3 + 2] - v[a * 3 + 2];
+    const normal = [uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx];
+    for (const id of [a, b, c])
+      for (let j = 0; j < 3; j++) normals[id * 3 + j] += normal[j];
+    for (const [u, w] of [
+      [a, b],
+      [b, c],
+      [c, a],
+    ]) {
+      const key = Math.min(u, w) + ":" + Math.max(u, w);
+      const edge = edges.get(key);
+      if (edge) edge[2]++;
+      else edges.set(key, [u, w, 1]);
+    }
+  }
+  const vertices = new Float32Array(mesh.vertices.length * 2),
+    indices: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const length = Math.hypot(
+      normals[i * 3],
+      normals[i * 3 + 1],
+      normals[i * 3 + 2],
+    );
+    for (let j = 0; j < 3; j++) {
+      const d = (normals[i * 3 + j] / length) * 0.04;
+      vertices[i * 3 + j] = mesh.vertices[i * 3 + j] + d;
+      vertices[(i + n) * 3 + j] = mesh.vertices[i * 3 + j] - d;
+    }
+  }
+  for (let k = 0; k < mesh.indices.length; k += 3) {
+    const [a, b, c] = Array.from(mesh.indices.slice(k, k + 3));
+    indices.push(a, b, c, c + n, b + n, a + n);
+  }
+  for (const [a, b, count] of edges.values())
+    if (count === 1) indices.push(b, a, a + n, b, a + n, b + n);
+  return {
+    vertices,
+    indices: new Uint32Array(indices),
+    profileLength: mesh.profileLength,
+  };
+}
 export function createHoopsArena(world: RAPIER.World) {
   const add = (m: ArenaMesh, oriented = true) =>
     world.createCollider(
@@ -133,14 +187,17 @@ export function createHoopsArena(world: RAPIER.World) {
     );
   const shell = add(hoopsShell()),
     colliders = [shell],
-    rims: RAPIER.Collider[] = [];
+    rims: RAPIER.Collider[] = [],
+    nets: RAPIER.Collider[] = [];
   for (const sign of [-1, 1]) {
-    // Open net is two-sided; ORIENTED is reserved for the closed arena shell.
-    const net = add(hoopsNet(sign), false);
+    // Closed thin bank supports both faces without open-mesh edge artifacts.
+    const net = add(hoopsNetCollision(sign));
     net.setCollisionGroups(HOOPS_NET_GROUP);
     net.setRestitution(H.netRestitution);
+    net.setRestitutionCombineRule(RAPIER.CoefficientCombineRule.Min);
     net.setFriction(0.12);
     colliders.push(net);
+    nets.push(net);
     const path = hoopsRimPath(sign);
     for (let i = 0; i < path.length - 1; i++) {
       const a = path[i],
@@ -159,6 +216,7 @@ export function createHoopsArena(world: RAPIER.World) {
           z: -ux * Math.SQRT1_2,
           w: Math.SQRT1_2,
         })
+        .setCollisionGroups(HOOPS_RIM_GROUP)
         .setFriction(0.22)
         .setRestitution(H.rimRestitution);
       const c = world.createCollider(desc);
@@ -167,5 +225,5 @@ export function createHoopsArena(world: RAPIER.World) {
       rims.push(c);
     }
   }
-  return { shell, colliders, rims };
+  return { shell, colliders, rims, nets };
 }
