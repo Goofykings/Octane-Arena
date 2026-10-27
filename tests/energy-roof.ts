@@ -76,16 +76,8 @@ for (const body of ["ion", "vector"] as const) {
           yaw * steer > 0.85 && yaw * steer < 2,
           `correct direction and freer roof yaw ${yaw}`,
         );
-        assert.equal(
-          c.collider.friction(),
-          Math.fround(P.car.roofSteeringFriction),
-        );
-        s.step([n, n]);
-        assert.equal(
-          c.collider.friction(),
-          P.car.roofFriction,
-          "release restores normal roof sliding friction",
-        );
+        // RL: one constant car/world friction; no roof-steering switch.
+        assert.equal(c.collider.friction(), Math.fround(P.car.chassisFriction));
       }
       if (action === "coast")
         assert.ok(

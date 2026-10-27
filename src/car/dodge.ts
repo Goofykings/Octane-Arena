@@ -12,6 +12,7 @@ const predictionKeys = [
   "age",
   "held",
   "used",
+  "holding",
   "second",
   "wasDown",
   "flipLeft",
@@ -43,6 +44,8 @@ export class JumpState {
   age = 0;
   held = 0;
   used = false;
+  /** RL "isJumping": the held first-jump force, ending on release or after holdTime. */
+  holding = false;
   second = false;
   wasDown = false;
   flipLeft = 0;
@@ -80,6 +83,7 @@ export class JumpState {
     this.age = 0;
     this.held = 0;
     this.used = false;
+    this.holding = false;
     this.second = false;
     this.flipLeft = 0;
     this.flipAge = Infinity;
@@ -119,6 +123,7 @@ export class JumpState {
     if (!edge) return null;
     if (grounded && !this.used) {
       this.used = true;
+      this.holding = true;
       this.age = 0;
       return "first";
     }

@@ -1,6 +1,7 @@
-/** Original shells. Existing Ion/Vector collision dimensions are preserved.
- * New bodies share Vector's tested chassis and rigid wheel geometry; cosmetics
- * never alter the length, inertia, contact solver or driving tuning.
+/** Collision dimensions. Every selectable body shares Vector's tested chassis and rigid
+ * wheel geometry; cosmetics never alter the length, inertia, contact solver or driving tuning.
+ * Ion is a legacy hitbox kept only as a physics fixture: it is not selectable, and saved
+ * presets that used it (or the retired Cargo/Slicer/Wraith shells) migrate to Vector.
  */
 export const bodies = {
   ion: {
@@ -19,24 +20,25 @@ export const bodies = {
     hitboxY: 0.13, // Raise the roof while preserving the existing underside clearance.
     axle: 0.49,
   },
-  cargo: {
-    name: "Cargo",
+  // GLB lineup (art/blender/build_octane_arena_cars.py): visual-only shells on Vector's chassis.
+  lowflat: {
+    name: "LowFlat",
     halfWidth: 0.43,
     halfHeight: 0.25,
     halfLength: 0.66,
     hitboxY: 0.13,
     axle: 0.49,
   },
-  slicer: {
-    name: "Slicer",
+  boxy: {
+    name: "Boxy",
     halfWidth: 0.43,
     halfHeight: 0.25,
     halfLength: 0.66,
     hitboxY: 0.13,
     axle: 0.49,
   },
-  wraith: {
-    name: "Wraith",
+  wedge: {
+    name: "Wedge",
     halfWidth: 0.43,
     halfHeight: 0.25,
     halfLength: 0.66,
@@ -47,11 +49,10 @@ export const bodies = {
 export type BodyId = keyof typeof bodies;
 export const inventory = {
   body: [
-    { id: "ion", name: "Ion" },
     { id: "vector", name: "Vector" },
-    { id: "cargo", name: "Cargo" },
-    { id: "slicer", name: "Slicer" },
-    { id: "wraith", name: "Wraith" },
+    { id: "lowflat", name: "LowFlat" },
+    { id: "boxy", name: "Boxy" },
+    { id: "wedge", name: "Wedge" },
   ],
   wheels: [
     { id: "apex", name: "Apex" },
@@ -104,11 +105,13 @@ export const inventory = {
   ],
 } as const;
 export type CosmeticSlot = keyof typeof inventory;
+/** Bodies a preset may use (Ion is a physics fixture only). */
+export type SelectableBodyId = (typeof inventory.body)[number]["id"];
 export type Team = "blue" | "orange";
 export interface Preset {
   id: string;
   name: string;
-  body: BodyId;
+  body: SelectableBodyId;
   blue: string;
   orange: string;
   wheels: string;
@@ -175,9 +178,18 @@ export const starter = (): Preset => ({
 /** Accept only known effects; missing/obsolete saved choices use the original Pulse. */
 export const goalExplosionId = (value: unknown): string =>
   inventory.explosion.some((x) => x.id === value) ? (value as string) : "pulse";
+/** Ion and the retired Cargo/Slicer/Wraith shells migrate to the default Vector.
+ * Any other unknown body is left alone so validation still rejects it. */
+const retiredBodies = ["ion", "cargo", "slicer", "wraith"];
+export const selectableBody = (value: unknown): unknown =>
+  retiredBodies.includes(value as string) ? "vector" : value;
 /** Narrow legacy migration only. The rest of preset validation remains strict. */
 export function migratePreset(raw: unknown): unknown {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
   const { decal: _removed, ...preset } = raw as Record<string, unknown>;
-  return { ...preset, explosion: goalExplosionId(preset.explosion) };
+  return {
+    ...preset,
+    body: selectableBody(preset.body),
+    explosion: goalExplosionId(preset.explosion),
+  };
 }

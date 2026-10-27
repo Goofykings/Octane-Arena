@@ -8,6 +8,33 @@ import { FixedLoop } from "../src/physics/loop";
 import { neutralInput } from "../shared/player";
 import { P } from "../src/config/physics";
 await RAPIER.init();
+// RL camera contract: the view rolls with the surface under the wheels and is
+// never rolled off its own reference up. A fixed FOV frames the ball whenever
+// it is no steeper than FRAMEABLE above that reference plane; a ball farther
+// overhead (midfield seen from high on a wall) pitches the view up instead.
+const FRAMEABLE = (35 * Math.PI) / 180;
+const level = (camera: PerspectiveCamera, control: GameCamera) =>
+  Math.abs(
+    new Vector3(1, 0, 0)
+      .applyQuaternion(camera.quaternion)
+      .dot(control.referenceUp),
+  ) < 1e-6;
+function frameable(control: GameCamera, car: Vector3, ball: Vector3) {
+  const offset = ball.clone().sub(car);
+  return offset.dot(control.referenceUp) / offset.length() < Math.sin(FRAMEABLE);
+}
+/** Ball fully framed when frameable; otherwise the view pitches toward it. */
+function ballFramed(
+  camera: PerspectiveCamera,
+  control: GameCamera,
+  car: Vector3,
+  ball: Vector3,
+) {
+  if (!frameable(control, car, ball))
+    return control.lookDirection.dot(control.referenceUp) > 0;
+  const screen = ball.clone().project(camera);
+  return Math.abs(screen.x) < 1 && Math.abs(screen.y) < 1 && screen.z < 1;
+}
 const s = new Simulation(false),
   c = s.cars[0],
   n = neutralInput();
@@ -111,12 +138,15 @@ try {
                 previousNormal.copy(c.normal);
               });
               c.pose.render(model, result.alpha);
-              const q = camera.quaternion.clone();
+              const q = camera.quaternion.clone(),
+                up = control.referenceUp.clone();
               control.update(model, ball, s, 1 / fps, false, frame / fps);
               camera.updateMatrixWorld(true);
               cameraRate = Math.max(
                 cameraRate,
-                q.angleTo(camera.quaternion) * fps,
+                (q.angleTo(camera.quaternion) -
+                  up.angleTo(control.referenceUp)) *
+                  fps,
               );
               const screen = ball.position.clone().project(camera);
               const carScreen = model.position.clone().project(camera);
@@ -127,12 +157,10 @@ try {
                 `car framing lost ${body}/${side}/${travel}/${profile.name}/${fps}`,
               );
               assert.ok(
-                Math.abs(screen.x) < 1 &&
-                  Math.abs(screen.y) < 1 &&
-                  screen.z < 1,
+                ballFramed(camera, control, model.position, ball.position),
                 `lost ball ${body}/${side}/${travel}/${profile.name}/${fps}: ${screen.toArray()}`,
               );
-              assert.ok(Math.abs(camera.rotation.z) < 1e-9);
+              assert.ok(level(camera, control), "camera rolled off reference up");
               assert.ok(
                 camera.position.distanceTo(model.position) > 2.1,
                 `boom collapsed ${body}/${side}/${travel}/${profile.name}/${fps} frame=${frame} car=${model.position.toArray()} camera=${camera.position.toArray()} desired=${control.desiredPosition.toArray()}`,
@@ -155,7 +183,11 @@ try {
               `normal discontinuity ${normalStep} ${context}`,
             );
             assert.ok(cameraRate < 4, `camera snap ${cameraRate} ${context}`);
-            assert.ok(force <= P.car.adhesion + P.gravity + 0.001);
+            // RL sticky force: at most (0.5 + 1) g on a vertical surface.
+            assert.ok(
+              force <= (P.sticky.base + P.sticky.driving) * P.gravity + 0.001,
+              `sticky force ${force} ${context}`,
+            );
             assert.equal(s.containmentRecoveries, 0);
             results.push({
               body,
@@ -212,10 +244,15 @@ try {
         camera.updateMatrixWorld(true);
         const screen = ball.position.clone().project(camera);
         assert.ok(
-          Math.abs(screen.x) < 1 && Math.abs(screen.y) < 1 && screen.z < 1,
+          ballFramed(camera, control, model.position, ball.position),
           `wall target lost ${side}/${fps}/${target}: ${screen.toArray()}`,
         );
-        assert.ok(Math.abs(camera.rotation.z) < 1e-9);
+        const carScreen = model.position.clone().project(camera);
+        assert.ok(
+          Math.abs(carScreen.x) < 0.86 && Math.abs(carScreen.y) < 0.86,
+          `wall car unreadable ${side}/${fps}/${target}`,
+        );
+        assert.ok(level(camera, control));
       }
     }
   console.log(
@@ -273,16 +310,26 @@ try {
               c.body.translation().y < 0.5;
           });
           c.pose.render(model, sample.alpha);
-          const q = camera.quaternion.clone();
+          const q = camera.quaternion.clone(),
+            up = control.referenceUp.clone();
           control.update(model, ball, s, 1 / fps, false, frame / fps);
-          peakTurn = Math.max(peakTurn, q.angleTo(camera.quaternion) * fps);
+          peakTurn = Math.max(
+            peakTurn,
+            (q.angleTo(camera.quaternion) - up.angleTo(control.referenceUp)) *
+              fps,
+          );
           camera.updateMatrixWorld(true);
           const screen = ball.position.clone().project(camera);
           assert.ok(
-            Math.abs(screen.x) < 1 && Math.abs(screen.y) < 1 && screen.z < 1,
+            ballFramed(camera, control, model.position, ball.position),
             `wall departure ball lost ${side}/${fps}/${jump}: ${screen.toArray()}`,
           );
-          assert.ok(Math.abs(camera.rotation.z) < 1e-9);
+          const carScreen = model.position.clone().project(camera);
+          assert.ok(
+            Math.abs(carScreen.x) < 0.86 && Math.abs(carScreen.y) < 0.86,
+            `wall departure car unreadable ${side}/${fps}/${jump}`,
+          );
+          assert.ok(level(camera, control));
           if ((detached && frame > fps * 0.8) || (floor && frame > fps)) break;
         }
         assert.ok(

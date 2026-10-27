@@ -112,7 +112,10 @@ for (let i = 0; i < 8; i++) tick({ ...n, throttle: 1 });
 assert.ok(c.grounded);
 tick({ ...n, jump: true, throttle: 1 });
 assert.equal(burst.triggers, 1);
-tick();
+// RL: the wheels stay on the wall for the 0.025 s minimum jump; a second
+// press only double-jumps once the car is airborne.
+for (let i = 0; i < 12 && c.grounded; i++) tick();
+assert.equal(c.grounded, false);
 tick({ ...n, jump: true });
 assert.equal(burst.triggers, 2);
 const effectNormal = new Vector3(0, 0, 1).applyQuaternion(

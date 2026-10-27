@@ -105,12 +105,10 @@ for (const id of ["ion", "vector"] as const) {
           naturalRoll = Math.max(naturalRoll, q.angleTo(current));
           chassisSupport ||= c.chassisContacts > 0;
           if (i < 12) initialChassis ||= c.chassisContacts > 0;
-          force = Math.max(force, c.edgeDriveForce.length());
-          assert.ok(
-            c.edgeDriveForce.length() <=
-              c.body.mass() * P.gravity * P.car.edgeDriveGrip + 0.001,
-            "unbounded tire-edge force",
-          );
+          // RL has no tire-edge drive: a side-lying car rights itself only
+          // through the throttle-gated auto-roll torque.
+          force += Number(c.autoRolling);
+          assert.equal(c.edgeDriveForce.length(), 0, "tire-edge drive force");
           if (c.supportKind === "edge") {
             assert.equal(c.grounded, false);
             assert.equal(c.stableContact, false);

@@ -3,16 +3,19 @@ import {
   restoreValues,
   type CarPredictionState,
 } from "../../shared/prediction";
-import { refineContactNormal } from "./contact-frame";
 import { LandingContact } from "./landing";
-import {
-  HOOPS_NET_GROUP,
-  DROPSHOT_TILE_GROUP,
-} from "../physics/collision-groups";
 import RAPIER from "@dimforge/rapier3d-compat";
-import { MathUtils, Quaternion, Vector3 } from "three";
+import { Quaternion, Vector3 } from "three";
 import { RUMBLE_CONFIG } from "../config/rumble";
-import { P, curvature, throttleAcceleration } from "../config/physics";
+import {
+  P,
+  DRIVE_SPEED_CURVE,
+  LATERAL_FRICTION_CURVE,
+  NON_STICKY_FRICTION_CURVE,
+  lookup,
+  powerslideSteerAngle,
+  steerAngle,
+} from "../config/physics";
 import type { PlayerInput } from "../../shared/player";
 import type { MatchPhysics } from "../config/mutators";
 import {
@@ -22,22 +25,24 @@ import {
 } from "../../shared/mutators";
 import { JumpState } from "./dodge";
 import { Pose } from "../physics/pose";
-import { chassisShape, chassisPoints } from "./chassis";
+import { chassisShape } from "./chassis";
+import { ChassisGuard } from "./chassis-guard";
 import { bodies, type BodyId } from "../game/inventory";
 import {
-  wheelMount,
-  wheelClearance,
-  wheelMountY,
-  wheelSupportPoint,
-} from "./wheels";
+  WheelState,
+  castWheel,
+  suspensionSurface,
+  vehicleGeometry,
+  type VehicleGeometry,
+} from "./suspension";
 const predictionKeys = [
   "sonicGrace",
   "lateralSlip",
   "skidIntensity",
-  "roofSteer",
   "impactTime",
   "boost",
   "boostRechargeDelay",
+  "boostingTime",
   "supersonic",
   "boosting",
   "lastJump",
@@ -45,21 +50,17 @@ const predictionKeys = [
   "jumpSupported",
   "contacts",
   "stableContact",
-  "stableSupportAge",
   "supportContacts",
   "wheelSupport",
   "supportKind",
   "chassisContacts",
-  "edgeContacts",
   "forwardSpeed",
   "steerAngle",
   "handbrake",
-  "driftSign",
   "recovery",
   "recoverySide",
   "recoveryHeld",
   "recoveryCooldown",
-  "contactGap",
   "contactState",
   "aerialControl",
   "normalReady",
@@ -71,9 +72,6 @@ const predictionKeys = [
 ] as const;
 const predictionVectors = [
   "normal",
-  "surfaceForward",
-  "surfaceRight",
-  "surfaceTurn",
   "recoveryAxis",
   "recoveryNormal",
   "normalJumpOrigin",
@@ -81,7 +79,11 @@ const predictionVectors = [
   "flipResetOrigin",
   "flipResetNormal",
 ] as const;
+type ContactState = "AIRBORNE" | "PARTIAL_CONTACT" | "GROUNDED";
 
+/** RL-style vehicle: four raycast spring/damper wheels, per-wheel tire impulses,
+ * sticky force, RL jump/dodge and per-axis air control. The rigid chassis is a
+ * normal Rapier body; every vehicle force is an impulse applied before the step. */
 export class Car {
   physics: MatchPhysics = P;
   mutators: MatchMutators = DEFAULT_MUTATORS;
@@ -112,31 +114,30 @@ export class Car {
   lateralSlip = 0;
   skidIntensity = 0;
   readonly landing = new LandingContact();
-  private landingNormal = new Vector3();
-  private roofSteer = 0;
   impactTime = 0;
   body: RAPIER.RigidBody;
   collider: RAPIER.Collider;
   pose: Pose;
   jump = new JumpState();
   boost = 100;
+  boostingTime = 0;
   forward = new Vector3();
   right = new Vector3();
   up = new Vector3();
+  /** Average contact normal of the touching wheels (car up when airborne). */
   normal = new Vector3(0, 1, 0);
   teleportSequence = 0;
   grapplePulling = false;
+  /** Three or four coherent wheel contacts (RL "on ground"). */
   grounded = false;
   jumpSupported = false;
+  /** Wheels whose ray currently touches a static surface. */
   contacts = 0;
   stableContact = false;
-  private stableSupportAge = 0;
-  private landingInputBlocked = false;
-  private landingApproach = false;
-  get supportState(): "AIRBORNE" | "PARTIAL_CONTACT" | "GROUNDED" {
+  get supportState(): ContactState {
     return this.grounded
       ? "GROUNDED"
-      : this.supportKind !== "air"
+      : this.contacts > 0 || this.chassisContacts > 0
         ? "PARTIAL_CONTACT"
         : "AIRBORNE";
   }
@@ -147,10 +148,13 @@ export class Car {
         ? "CEILING"
         : "WALL";
   }
+  /** Coherent wheel contacts (normals agreeing with the average). */
   supportContacts = 0;
-  wheelSupport = 0; // Tire force fraction; narrow/tilted contact cannot carry full grip.
+  /** Fraction of tire load available: coherent wheels / 4. */
+  wheelSupport = 0;
   supportKind: "wheel" | "partial" | "edge" | "chassis" | "air" = "air";
   chassisContacts = 0;
+  /** Retained for diagnostics compatibility; the shoulder-probe hack is gone. */
   edgeContacts = 0;
   edgeDriveForce = new Vector3();
   forwardSpeed = 0;
@@ -161,37 +165,51 @@ export class Car {
   normalJumpOrigin = new Vector3();
   normalJumpNormal = new Vector3(0, 1, 0);
   bodyId: BodyId = "ion";
+  /** Front-wheel steering angle (radians, positive = left), for physics and visuals. */
   steerAngle = 0;
   handbrake = 0;
-  private driftSign = 1;
+  /** Geometric path curvature of the steered front axle (1/m). */
+  steeringCurvature = 0;
+  /** Measured yaw rate about the contact normal divided by forward speed (1/m). */
+  turnCurvature = 0;
   private recovery = 0;
   private recoverySide = 1;
   private recoveryHeld = false;
   private recoveryAxis = new Vector3();
   private recoveryNormal = new Vector3(0, 1, 0);
   private recoveryCooldown = 0;
-  private contactGap = 1;
   contactState: "surface" | "transition" | "air" = "air";
   aerialControl = 1;
+  /** RL auto-roll applied this tick (resting on a side/nose with throttle). */
+  autoRolling = false;
   get recovering() {
     return this.recovery > 0;
   }
+  /** RL caps angular speed at 5.5 rad/s. A wheel-supported car following a
+   * curved transition may add the surface's own turn rate on top, so a tight
+   * Dropshot/Hoops curve at supersonic speed is followed rather than rammed. */
   get angularLimit() {
-    return this.jump.flipLeft > 0
-      ? P.jump.flipMaxAngular
-      : this.contacts >= 1 && this.surfaceTurn.length() > 0.5
-        ? 14
+    // An active flip may spin faster than the ordinary cap; it returns once the torque window ends.
+    const cap =
+      this.jump.flipLeft > 0
+        ? Math.max(this.physics.car.maxAngular, P.jump.flipMaxAngular)
         : this.physics.car.maxAngular;
+    return cap + (this.contacts >= 1 ? this.surfaceTurn.length() : 0);
   }
-  private surfaceForward = new Vector3();
-  private surfaceRight = new Vector3();
+  readonly wheels = Array.from({ length: 4 }, () => new WheelState());
+  geometry: VehicleGeometry = vehicleGeometry("ion");
   wheelOrigins = Array.from({ length: 4 }, () => new Vector3());
   wheelHits = Array.from({ length: 4 }, () => new Vector3());
   wheelContact = [false, false, false, false];
   wheelNormals = Array.from({ length: 4 }, () => new Vector3());
+  /** Sticky-force acceleration applied this tick (m/s²). */
   adhesionAcceleration = new Vector3();
+  /** Positional correction applied this tick (m): bump stop (split mode) and chassis guard. */
   contactCorrection = new Vector3();
+  /** Net suspension acceleration applied this tick (m/s²). */
   normalCorrectionAcceleration = new Vector3();
+  /** World-space centre of mass at the start of the last tick. */
+  readonly centerOfMass = new Vector3();
   pitchInput = 0;
   flipPitchAcceleration = 0;
   flipCancelAcceleration = 0;
@@ -217,50 +235,52 @@ export class Car {
   private v = new Vector3();
   private w = new Vector3();
   private tmp = new Vector3();
+  private tmp2 = new Vector3();
+  private position = new Vector3();
+  private com = new Vector3();
   private acceleration = new Vector3();
   private angular = new Vector3();
   private normalReady = false;
   private surfaceTurn = new Vector3();
+  private previousNormal = new Vector3(0, 1, 0);
+  private invInertia = [0, 0, 0, 0, 0, 0];
+  private invMass = 1 / P.car.mass;
+  private chassisNormal = new Vector3();
+  private applyPoint = new Vector3();
+  private axle = new Vector3();
+  private wheelForward = new Vector3();
+  private arm = new Vector3();
+  private pointVelocity = new Vector3();
+  private impulse = new Vector3();
+  private suspensionStart = new Vector3();
+  private positionCorrection = new Vector3();
+  private guard = new ChassisGuard();
   constructor(public world: RAPIER.World) {
-    const c = this.physics.car;
     this.body = world.createRigidBody(
       RAPIER.RigidBodyDesc.dynamic().setCanSleep(false).setCcdEnabled(true),
     );
     this.collider = world.createCollider(
       chassisShape(this.bodyId)
-        .setTranslation(0, c.hitboxY, 0)
-        .setMassProperties(
-          c.mass,
-          {
-            x: 0,
-            y:
-              c.comY -
-              2 * bodies[this.bodyId].halfHeight * c.comLowerHeightFraction,
-            z: 0,
-          },
-          { x: c.inertiaPitch, y: c.inertiaYaw, z: c.inertiaRoll },
-          { x: 0, y: 0, z: 0, w: 1 },
-        )
+        .setTranslation(0, this.physics.car.hitboxY, 0)
         .setFriction(this.physics.car.chassisFriction)
         .setContactSkin(this.physics.car.contactSkin)
-        .setRestitution(c.chassisRestitution),
+        .setRestitution(this.physics.car.chassisRestitution),
       this.body,
     );
+    this.setBody(this.bodyId);
     this.pose = new Pose(this.body);
     this.reset(0, 25, 0);
   }
   clearSurfaceHistory() {
     this.landing.reset();
-    this.stableSupportAge = 0;
-    this.landingApproach = this.landingInputBlocked = false;
-    this.contacts = 0;
+    this.contacts = this.supportContacts = 0;
     this.grounded = this.stableContact = this.normalReady = false;
     this.jumpSupported = false;
-    this.wheelSupport = this.supportContacts = 0;
-    this.contactGap = 1;
+    this.wheelSupport = 0;
     this.contactState = "air";
     this.supportKind = "air";
     this.wheelContact.fill(false);
+    this.wheels.forEach((w) => w.clear());
     this.surfaceTurn.set(0, 0, 0);
   }
   reset(x: number, z: number, yaw: number, y = 0.36) {
@@ -268,29 +288,15 @@ export class Car {
     this.respawnTimer = 0;
     this.supersonic = false;
     this.sonicGrace = 0;
-    this.roofSteer = 0;
-    this.landing.reset();
-    this.stableSupportAge = 0;
-    this.landingApproach = this.landingInputBlocked = false;
+    this.clearSurfaceHistory();
     this.lateralSlip = this.skidIntensity = 0;
     this.handbrake = 0;
     this.recovery = 0;
     this.recoveryHeld = false;
     this.recoveryCooldown = 0;
-    this.contactGap = 1;
-    this.contactState = "air";
     this.aerialControl = 1;
-    this.contacts = 0;
-    this.grounded = false;
-    this.jumpSupported = false;
-    this.stableContact = false;
-    this.wheelSupport = this.supportContacts = 0;
-    this.supportKind = "air";
     this.chassisContacts = this.edgeContacts = 0;
     this.edgeDriveForce.set(0, 0, 0);
-    this.normalReady = false;
-    this.surfaceTurn.set(0, 0, 0);
-    this.wheelContact.fill(false);
     this.wheelNormals.forEach((n) => n.set(0, 0, 0));
     this.adhesionAcceleration.set(0, 0, 0);
     this.contactCorrection.set(0, 0, 0);
@@ -299,8 +305,10 @@ export class Car {
       this.flipPitchAcceleration =
       this.flipCancelAcceleration =
         0;
+    this.steeringCurvature = this.turnCurvature = 0;
     this.impactTime = 0;
     this.boosting = false;
+    this.boostingTime = 0;
     this.boostRechargeDelay = 0;
     this.body.setTranslation({ x, y, z }, true);
     this.body.setRotation(
@@ -316,6 +324,8 @@ export class Car {
     this.flipResetAge = Infinity;
     this.jump.wasDown = false;
     this.boost = 100;
+    this.normal.set(0, 1, 0);
+    this.previousNormal.set(0, 1, 0);
     this.pose.snap();
   }
   /** Network checkpoint only; the same forces and contact solver run on host and predictor. */
@@ -332,278 +342,472 @@ export class Car {
     restoreValues(this, predictionKeys, state.values);
     if (state.vectors.length === predictionVectors.length)
       predictionVectors.forEach((k, i) => this[k].copy(state.vectors[i]));
+    this.previousNormal.copy(this.normal);
     this.jump.restorePrediction(state.jump);
     this.jump.direction.copy(state.direction);
     this.landing.restorePrediction(state.landing);
   }
   setBody(id: BodyId) {
     this.bodyId = id;
-    const d = bodies[id];
+    this.geometry = vehicleGeometry(id);
+    const g = this.geometry,
+      offset = bodies[id].hitboxY;
     this.collider.setShape(chassisShape(id).shape);
-    this.collider.setTranslationWrtParent({ x: 0, y: d.hitboxY, z: 0 });
-    const c = this.physics.car;
+    this.collider.setTranslationWrtParent({ x: 0, y: offset, z: 0 });
+    // Collider-local COM; the collider itself sits at the hitbox offset.
     this.collider.setMassProperties(
-      c.mass,
-      { x: 0, y: c.comY - 2 * d.halfHeight * c.comLowerHeightFraction, z: 0 },
-      { x: c.inertiaPitch, y: c.inertiaYaw, z: c.inertiaRoll },
+      this.physics.car.mass,
+      { x: g.com.x, y: g.com.y - offset, z: g.com.z },
+      g.inertia,
       { x: 0, y: 0, z: 0, w: 1 },
     );
     this.body.recomputeMassPropertiesFromColliders();
+    this.invMass = 1 / this.physics.car.mass;
   }
   /** Countdown changes only the displayed steering rack, never rigid-body state. */
   steerAtKickoff(input: PlayerInput) {
-    this.steerAngle =
-      -input.steer * Math.atan(2 * bodies[this.bodyId].axle * curvature(0));
+    this.steerAngle = -input.steer * steerAngle(0);
+  }
+  /** World inverse inertia (symmetric 3×3: xx, xy, xz, yy, yz, zz). */
+  private readInverseInertia() {
+    const m = this.body.effectiveWorldInvInertia();
+    const I = this.invInertia;
+    I[0] = m.m11;
+    I[1] = m.m12;
+    I[2] = m.m13;
+    I[3] = m.m22;
+    I[4] = m.m23;
+    I[5] = m.m33;
+  }
+  private inertiaTimes(v: Vector3, out: Vector3) {
+    const I = this.invInertia;
+    return out.set(
+      I[0] * v.x + I[1] * v.y + I[2] * v.z,
+      I[1] * v.x + I[3] * v.y + I[4] * v.z,
+      I[2] * v.x + I[4] * v.y + I[5] * v.z,
+    );
+  }
+  /** Effective mass of the chassis at an arm, along a direction. */
+  private effectiveMass(arm: Vector3, direction: Vector3) {
+    const r = this.tmp.crossVectors(arm, direction);
+    const ir = this.inertiaTimes(r, this.tmp2);
+    return 1 / (this.invMass + r.dot(ir));
+  }
+  /** Velocity of the chassis at a world point. */
+  private velocityAt(point: Vector3, out: Vector3) {
+    this.arm.subVectors(point, this.com);
+    return out.crossVectors(this.w, this.arm).add(this.v);
+  }
+  /** Apply an impulse at a world point to the local velocity copies. */
+  private impulseAt(impulse: Vector3, point: Vector3) {
+    this.v.addScaledVector(impulse, this.invMass);
+    this.arm.subVectors(point, this.com);
+    this.w.add(
+      this.inertiaTimes(this.tmp.crossVectors(this.arm, impulse), this.tmp2),
+    );
   }
   tick(input: PlayerInput) {
-    if (this.demolitionState !== "active") return;
+    // A disabled body reports zero inverse mass; never integrate it.
+    if (this.demolitionState !== "active" || !this.body.isEnabled()) return;
     this.normalJumpAge += P.dt;
     this.impactTime = Math.max(0, this.impactTime - P.dt);
     this.recoveryCooldown = Math.max(0, this.recoveryCooldown - P.dt);
     const dt = P.dt,
       c = this.physics.car,
-      b = this.body;
+      tire = P.tire,
+      b = this.body,
+      g = this.geometry,
+      gravity = this.physics.gravity;
     this.q.copy(b.rotation());
     this.v.copy(b.linvel());
     this.w.copy(b.angvel());
+    this.position.copy(b.translation());
+    this.com.copy(b.worldCom());
+    this.centerOfMass.copy(this.com);
+    this.invMass = b.invMass() || 1 / this.physics.car.mass;
+    this.readInverseInertia();
     this.forward.set(0, 0, -1).applyQuaternion(this.q);
     this.right.set(1, 0, 0).applyQuaternion(this.q);
     this.up.set(0, 1, 0).applyQuaternion(this.q);
     this.forwardSpeed = this.v.dot(this.forward);
-    const dimensions = bodies[this.bodyId];
-    const slide = P.powerslide;
-    if (this.handbrake === 0)
-      this.driftSign =
-        Math.sign(this.forwardSpeed) || Math.sign(input.throttle) || 1;
+    const speed = Math.abs(this.forwardSpeed);
+    this.acceleration.set(0, 0, 0);
+    this.adhesionAcceleration.set(0, 0, 0);
+    this.normalCorrectionAcceleration.set(0, 0, 0);
+    this.contactCorrection.set(0, 0, 0);
+    this.angular.set(0, 0, 0);
+    this.pitchInput = input.pitch;
+    this.flipPitchAcceleration = this.flipCancelAcceleration = 0;
     this.handbrake = Math.max(
       0,
       Math.min(
         1,
-        this.handbrake + (input.slide ? slide.rise : -slide.fall) * dt,
+        this.handbrake +
+          (input.slide ? P.powerslide.rise : -P.powerslide.fall) * dt,
       ),
     );
-    const ordinaryAngle = Math.atan(
-      2 * dimensions.axle * curvature(this.forwardSpeed),
-    );
-    const baseSlideAngle =
-      slide.lowSpeedSteer +
-      (slide.highSpeedSteer - slide.lowSpeedSteer) *
-        Math.min(1, Math.abs(this.forwardSpeed) / slide.steerCurveEnd);
-    // Scale curvature (and therefore yaw target), keeping wheel visuals in sync.
-    const slideAngle = Math.atan(
-      Math.tan(baseSlideAngle) * slide.rotationScale,
-    );
-    this.steerAngle =
-      -input.steer *
-      (ordinaryAngle + (slideAngle - ordinaryAngle) * this.handbrake);
-    this.acceleration.set(0, 0, 0);
-    this.adhesionAcceleration.set(0, 0, 0);
-    this.angular.set(0, 0, 0);
-    this.landingInputBlocked =
+
+    // ---- Wheel rays and contact classification -------------------------
+    this.contacts = 0;
+    this.normal.set(0, 0, 0);
+    for (let i = 0; i < 4; i++) {
+      const wheel = this.wheels[i];
+      const hit = castWheel(
+        this.world,
+        wheel,
+        this.bodyId,
+        i,
+        this.position,
+        this.q,
+        this.up,
+        g,
+        this.collider,
+        b,
+      );
+      this.wheelOrigins[i].copy(wheel.hardpoint);
+      this.wheelHits[i].copy(wheel.point);
+      // The ray reaches past full extension so the damper engages early, as in
+      // RL; only a tire near its rest length actually touches the surface.
+      wheel.loaded = hit && wheel.length <= g.restLength + c.loadedTravel;
+      this.wheelContact[i] = wheel.loaded;
+      if (wheel.loaded) {
+        this.contacts++;
+        this.normal.add(wheel.normal);
+        this.wheelNormals[i].copy(wheel.normal);
+      } else this.wheelNormals[i].set(0, 0, 0);
+    }
+    if (this.contacts) this.normal.normalize();
+    else this.normal.copy(this.up);
+    this.supportContacts = 0;
+    for (let i = 0; i < 4; i++)
+      if (
+        this.wheelContact[i] &&
+        this.wheels[i].normal.dot(this.normal) >= c.coherentNormal
+      )
+        this.supportContacts++;
+    this.grounded = this.supportContacts >= c.groundedWheels;
+    this.stableContact = this.jumpSupported = this.grounded;
+    // The surface frame's own rotation lets a car follow a curved transition.
+    this.surfaceTurn
+      .copy(this.previousNormal)
+      .cross(this.normal)
+      .multiplyScalar(this.normalReady && this.contacts ? 1 / dt : 0)
+      .clampLength(0, 12);
+    this.previousNormal.copy(this.normal);
+    this.normalReady = this.contacts > 0;
+
+    // Static chassis contacts (roof, side, nose) are world contact, never support.
+    this.chassisContacts = 0;
+    this.chassisNormal.set(0, 0, 0);
+    this.world.contactPairsWith(this.collider, (other) => {
+      if (!suspensionSurface(other)) return;
+      this.world.contactPair(this.collider, other, (manifold, flipped) => {
+        let touching = 0;
+        for (let i = 0; i < manifold.numContacts(); i++)
+          if (manifold.contactDist(i) <= c.contactSkin * 2) touching++;
+        if (!touching) return;
+        this.chassisContacts += touching;
+        const n = manifold.normal();
+        const s = flipped ? 1 : -1;
+        this.chassisNormal.x += n.x * s * touching;
+        this.chassisNormal.y += n.y * s * touching;
+        this.chassisNormal.z += n.z * s * touching;
+      });
+    });
+    if (this.chassisContacts) this.chassisNormal.normalize();
+    this.supportKind = this.grounded
+      ? "wheel"
+      : this.contacts
+        ? "partial"
+        : this.chassisContacts
+          ? "chassis"
+          : "air";
+    const leavingByJump = this.jump.used && this.jump.age < 0.18;
+    this.contactState = this.grounded
+      ? "surface"
+      : this.contacts || this.chassisContacts
+        ? "transition"
+        : "air";
+    this.aerialControl = this.grounded || this.recovering ? 0 : 1;
+
+    // ---- Boost (RL: minimum 0.1 s burst) --------------------------------
+    this.applyBoostRule(dt, input.boost);
+    const hasBoost = this.boost > 0;
+    this.boosting =
+      hasBoost &&
+      (input.boost ||
+        (this.boosting && this.boostingTime + 1e-9 < c.boostMinTime));
+    this.boostingTime = this.boosting ? this.boostingTime + dt : 0;
+    const realThrottle = this.boosting ? 1 : input.throttle;
+
+    // ---- Throttle / brake (RL drive logic) ------------------------------
+    let engineThrottle = realThrottle,
+      realBrake = 0;
+    if (!input.slide) {
+      if (Math.abs(realThrottle) >= tire.throttleDeadzone) {
+        if (
+          speed > tire.stopSpeed &&
+          Math.sign(realThrottle) !== Math.sign(this.forwardSpeed)
+        ) {
+          realBrake = 1;
+          engineThrottle = 0;
+        }
+      } else {
+        engineThrottle = 0;
+        realBrake = speed < tire.stopSpeed ? 1 : tire.coastBrake;
+      }
+    }
+    const driveScale =
+      lookup(speed, DRIVE_SPEED_CURVE) *
+      (this.contacts < 3 ? tire.partialEngine : 1);
+    const engineAccel = engineThrottle * tire.engine * driveScale;
+    const brakeAccel = realBrake * tire.brake;
+
+    // ---- Steering: RL speed-dependent wheel angle -----------------------
+    const wheelAngle =
+      steerAngle(speed) +
+      (powerslideSteerAngle(speed) - steerAngle(speed)) * this.handbrake;
+    this.steerAngle = -input.steer * wheelAngle;
+    this.steeringCurvature = Math.tan(-this.steerAngle) / g.wheelbase;
+
+    // ---- Per-wheel tire impulses from the pre-impulse state -------------
+    const tireLoad = this.grapplePulling ? RUMBLE_CONFIG.grapple.tireLoad : 1;
+    const partialGrip = this.grounded
+      ? 1
+      : c.partialGrip[this.contacts] *
+        lookup(this.normal.y, NON_STICKY_FRICTION_CURVE);
+    this.wheelSupport = this.grounded ? 1 : (this.contacts / 4) * partialGrip;
+    const impact = this.impactTime > 0 ? 0.3 : 1;
+    const mass = 1 / this.invMass;
+    for (let i = 0; i < 4; i++) {
+      const wheel = this.wheels[i];
+      wheel.impulse.set(0, 0, 0);
+      wheel.steer = i < 2 ? this.steerAngle : 0;
+      if (!wheel.contact) continue;
+      const n = wheel.normal;
+      this.axle
+        .set(Math.cos(wheel.steer), 0, -Math.sin(wheel.steer))
+        .applyQuaternion(this.q);
+      this.axle.addScaledVector(n, -this.axle.dot(n));
+      if (this.axle.lengthSq() < 1e-8) continue;
+      this.axle.normalize();
+      this.wheelForward.crossVectors(n, this.axle).normalize();
+      // Slip ratio from the hardpoint velocity, as RL does.
+      this.velocityAt(wheel.hardpoint, this.pointVelocity);
+      const lateralHard = Math.abs(this.pointVelocity.dot(this.axle));
+      wheel.slip =
+        lateralHard > tire.slipDeadband
+          ? lateralHard /
+            (Math.abs(this.pointVelocity.dot(this.wheelForward)) + lateralHard)
+          : 0;
+      let lateral = lookup(wheel.slip, LATERAL_FRICTION_CURVE),
+        longitudinal = 1;
+      if (this.handbrake > 0) {
+        lateral *= (P.powerslide.lateralFactor - 1) * this.handbrake + 1;
+        longitudinal =
+          (P.powerslide.longitudinalAtForward +
+            (P.powerslide.longitudinalAtSideways -
+              P.powerslide.longitudinalAtForward) *
+              wheel.slip -
+            1) *
+            this.handbrake +
+          1;
+      }
+      if (realThrottle === 0) {
+        // RL: an unpowered tire on a wall keeps only a tenth of its grip.
+        const scale = lookup(n.y, NON_STICKY_FRICTION_CURVE);
+        lateral *= scale;
+        longitudinal *= scale;
+      }
+      wheel.lateralFriction = lateral;
+      wheel.longitudinalFriction = longitudinal;
+      this.velocityAt(wheel.point, this.pointVelocity);
+      this.arm.subVectors(wheel.point, this.com);
+      const lateralMass = this.effectiveMass(this.arm, this.axle);
+      const side =
+        -tire.lateral *
+        this.pointVelocity.dot(this.axle) *
+        lateralMass *
+        lateral *
+        partialGrip *
+        tireLoad *
+        impact;
+      let drive = 0;
+      if (engineAccel !== 0) drive = engineAccel * mass * dt * longitudinal;
+      else if (brakeAccel > 0) {
+        const limit = brakeAccel * mass * dt;
+        drive =
+          Math.max(
+            -limit,
+            Math.min(
+              limit,
+              -this.pointVelocity.dot(this.wheelForward) * tire.brakeStop * mass,
+            ),
+          ) * longitudinal;
+      }
+      wheel.impulse
+        .copy(this.axle)
+        .multiplyScalar(side)
+        .addScaledVector(this.wheelForward, drive * tireLoad);
+    }
+
+    // ---- Landing stabilization: coherent 3-4 wheel touchdown only -------
+    // A real wheels-down landing (nearly aligned, settling, no flip torque or
+    // strong player rotation) briefly damps pitch/roll spin that tilts the car
+    // AWAY from the surface. Rotation the suspension uses to level the car is
+    // never resisted, and nothing pushes toward a pose: no upright torque, never
+    // in the air and never for partial, nose, side or roof contact.
+    const landingInput =
       Math.max(
         Math.abs(input.pitch),
         Math.abs(input.yaw),
         Math.abs(input.roll),
-      ) > c.landingInputThreshold;
-    this.pitchInput = input.pitch;
-    this.flipPitchAcceleration = this.flipCancelAcceleration = 0;
-    const contactNormal = new Vector3(),
-      normalWeights = [0, 0, 0, 0];
-    this.contacts = this.supportContacts = 0;
+      ) > 0.5;
+    let descending = false;
+    for (const wheel of this.wheels)
+      if (
+        wheel.contact &&
+        wheel.normal.dot(this.velocityAt(wheel.point, this.pointVelocity)) <=
+          0.05
+      )
+        descending = true;
+    const validLanding =
+      this.grounded &&
+      this.up.dot(this.normal) >= c.landingAlignment &&
+      this.jump.flipLeft === 0 &&
+      !this.recovering &&
+      !leavingByJump &&
+      !landingInput &&
+      this.impactTime === 0 &&
+      this.w.length() < c.landingMaxAngular;
+    const landingGain = this.landing.step(
+      this.contacts === 0 && this.chassisContacts === 0,
+      validLanding,
+      dt,
+      c.landingDamping,
+      c.landingDampingTime,
+      descending,
+      c.landingMinAir,
+      this.chassisContacts === 0 &&
+        this.up.dot(this.normal) >= c.landingFirstContact,
+    );
+
+    // ---- Suspension: spring, asymmetric damper and bump stop ------------
+    const s = P.suspension;
+    this.suspensionStart.copy(this.v);
+    this.positionCorrection.set(0, 0, 0);
+    // RL splits the bump stop by four, assuming all four wheels share it; on
+    // a ramp entry only the leading pair is engaged, so split among the
+    // wheels whose rays touch (identical for an ordinary 4-wheel landing).
+    let rayContacts = 0;
+    for (const wheel of this.wheels) if (wheel.contact) rayContacts++;
     for (let i = 0; i < 4; i++) {
-      const o = wheelMount(this.bodyId, i, this.wheelOrigins[i])
-        .applyQuaternion(this.q)
-        .add(b.translation());
-      const hit = this.world.castRayAndGetNormal(
-        new RAPIER.Ray(o, this.tmp.copy(this.up).negate()),
-        c.rayLength,
-        true,
-        undefined,
-        undefined,
-        this.collider,
-        this.body,
-        (col) =>
-          col.parent() === null &&
-          col.collisionGroups() !== HOOPS_NET_GROUP &&
-          col.collisionGroups() !== DROPSHOT_TILE_GROUP,
+      const wheel = this.wheels[i];
+      if (!wheel.contact) continue;
+      const n = wheel.normal;
+      const denominator = n.dot(this.up);
+      this.velocityAt(wheel.point, this.pointVelocity);
+      const projected = n.dot(this.pointVelocity);
+      const inverse = 1 / Math.max(denominator, s.minContactDot);
+      wheel.velocity = projected * inverse;
+      wheel.springForce =
+        s.stiffness * (g.restLength - wheel.length) * inverse;
+      wheel.damperForce =
+        (wheel.velocity < 0 ? s.compressionDamping : s.relaxationDamping) *
+        wheel.velocity;
+      // Per unit sprung mass → newtons. RL never pulls a wheel down.
+      wheel.force = Math.max(
+        0,
+        (wheel.springForce - wheel.damperForce) * g.shares[i] * mass,
       );
-      this.wheelContact[i] = false;
-      this.wheelNormals[i].set(0, 0, 0);
-      this.wheelHits[i].copy(o).addScaledVector(this.up, -c.rayLength);
-      if (
-        hit &&
-        hit.normal.x * this.up.x +
-          hit.normal.y * this.up.y +
-          hit.normal.z * this.up.z >
-          0.25
-      ) {
-        this.wheelHits[i].copy(o).addScaledVector(this.up, -hit.timeOfImpact);
-        this.wheelNormals[i].copy(hit.normal);
-        const weight = Math.max(
-          0.1,
-          Math.min(
-            1,
-            1 -
-              (hit.timeOfImpact - c.contactHeight) /
-                (c.rayLength - c.contactHeight),
-          ),
-        );
-        normalWeights[i] = weight;
-        contactNormal.addScaledVector(this.wheelNormals[i], weight);
-        if (
-          hit.timeOfImpact <
-            c.contactReach +
-              (this.stableContact ? c.maxContactCorrection : 0) &&
-          !(this.jump.used && this.jump.age < 0.18)
-        ) {
-          this.contacts++;
-          if (hit.timeOfImpact < c.supportReach) this.supportContacts++;
-          this.wheelContact[i] = true;
-          this.wheelNormals[i].copy(hit.normal);
-        }
+      wheel.pushback = 0;
+      if (wheel.distance < g.bumpStop) {
+        // Bump stop: an inelastic stop of the wheel's approach. Its depth is
+        // corrected positionally (split impulse) so the stop never converts
+        // penetration into rebound velocity.
+        this.arm.subVectors(wheel.point, this.com);
+        const normalMass = this.effectiveMass(this.arm, n);
+        const depth = g.bumpStop - wheel.distance;
+        wheel.pushback =
+          Math.max(
+            0,
+            ((s.splitPushback ? 0 : (s.pushbackErp * depth) / dt) -
+              projected) *
+              normalMass,
+          ) / rayContacts;
+        if (s.splitPushback)
+          this.positionCorrection.addScaledVector(
+            n,
+            (s.pushbackErp * depth) / rayContacts,
+          );
       }
     }
-    if (this.contacts >= 1) {
-      contactNormal.normalize();
-      let midpoint: Vector3 | null = null;
-      if (
-        this.wheelNormals.some(
-          (n) => n.lengthSq() > 0 && n.dot(contactNormal) < 0.98,
-        )
-      ) {
-        const hit = this.world.castRayAndGetNormal(
-          new RAPIER.Ray(b.translation(), this.up.clone().negate()),
-          c.rayLength,
-          true,
-          undefined,
-          undefined,
-          this.collider,
-          b,
-          (col) =>
-            col.parent() === null &&
-            col.collisionGroups() !== HOOPS_NET_GROUP &&
-            col.collisionGroups() !== DROPSHOT_TILE_GROUP,
+    for (let i = 0; i < 4; i++) {
+      const wheel = this.wheels[i];
+      // RL applies the bump stop only with the suspension force: a wheel
+      // rebounding fast enough to clamp its force to zero gets no pushback.
+      if (!wheel.contact || wheel.force === 0) continue;
+      const amount = wheel.force * dt + wheel.pushback;
+      if (amount > 0)
+        this.impulseAt(
+          this.impulse.copy(wheel.normal).multiplyScalar(amount),
+          wheel.point,
         );
-        if (hit) midpoint = new Vector3().copy(hit.normal);
-      }
-      const smoothPatch = refineContactNormal(
-        contactNormal,
-        this.wheelNormals,
-        normalWeights,
-        midpoint,
-      );
-      // Fit the wheel footprint, rather than selecting a single triangle's normal.
-      const active = this.wheelHits.filter(
-        (_, i) =>
-          this.wheelNormals[i].lengthSq() > 0 &&
-          (smoothPatch || this.wheelNormals[i].dot(contactNormal) > 0.98),
-      );
-      const flatFloor = this.wheelNormals.every(
-        (n) => n.lengthSq() === 0 || n.y > 0.9999,
-      );
-      const plane = new Vector3();
-      for (let i = 0; i < active.length; i++)
-        for (let j = i + 1; j < active.length; j++)
-          for (let k = j + 1; k < active.length; k++) {
-            const n = new Vector3()
-              .subVectors(active[j], active[i])
-              .cross(new Vector3().subVectors(active[k], active[i]));
-            if (n.dot(contactNormal) < 0) n.negate();
-            plane.add(n);
-          }
-      if (
-        smoothPatch &&
-        !flatFloor &&
-        active.length === 4 &&
-        plane.lengthSq() > 1e-8 &&
-        plane.normalize().dot(contactNormal) > 0.7
-      )
-        contactNormal.lerp(plane, 0.65).normalize();
-      const previousNormal = this.normal.clone();
-      if (
-        flatFloor ||
-        !smoothPatch ||
-        !this.normalReady ||
-        this.normal.dot(contactNormal) < 0.5
-      )
-        this.normal.copy(contactNormal);
-      else
-        this.normal
-          .lerp(contactNormal, 1 - Math.exp(-c.normalResponse * dt))
-          .normalize();
-      this.surfaceTurn
-        .copy(previousNormal)
-        .cross(this.normal)
-        .multiplyScalar(this.normalReady && !flatFloor ? 1 / dt : 0)
-        .clampLength(0, 12);
-      this.normalReady ||= active.length >= 3 || this.contacts >= 2;
-      // Preserve the fitted ramp frame, but a tilted touchdown must settle
-      // through wheel-point constraints before orientation feedback can own it.
-      const coherent = this.wheelNormals.every(
-        (n, i) => !this.wheelContact[i] || n.dot(contactNormal) > 0.7,
-      );
-      // Proximity rays may fit the curve, but cannot turn a wheel pair into
-      // driving support. Ceiling support also requires loaded, not distant rays.
-      const candidate =
-        coherent &&
-        this.jump.flipLeft === 0 &&
-        this.normalReady &&
-        this.contacts >= 3 &&
-        this.up.dot(this.normal) > (this.stableContact ? 0.94 : 0.98) &&
-        (this.supportContacts >= 3 ||
-          (!flatFloor && this.surfaceType !== "CEILING"));
-      this.stableSupportAge = candidate ? this.stableSupportAge + dt : 0;
-      this.stableContact =
-        candidate &&
-        (this.stableContact ||
-          this.stableSupportAge + 1e-8 >= c.stableContactTime);
-    } else if (!this.contacts) {
-      this.stableSupportAge = 0;
-      this.stableContact = false;
-      this.normalReady = false;
-      this.surfaceTurn.set(0, 0, 0);
-      this.normal.copy(this.up);
     }
-    const treadContact = this.contacts > 0 && this.up.dot(this.normal) > 0.55;
-    // Grounding owns jump reset and driving control, not mere proximity rays.
-    this.grounded = this.stableContact;
-    // A real aligned tread pair can support a surface jump/landing reset even
-    // while driving support is incomplete. It must not own aerial controls,
-    // adhesion or alignment, nor grant jump support to nose/shoulder/ceiling edges.
-    this.jumpSupported =
-      this.stableContact ||
-      (this.supportContacts >= 2 &&
-        this.up.dot(this.normal) > c.partialSurfaceAlignment &&
-        this.normal.y >= c.overheadPartialNormal);
-    // Held throttle requests recovery immediately when real roof support appears.
-    // Jump retains its press edge; upright braking and cooldown remain unchanged.
+    this.normalCorrectionAcceleration
+      .copy(this.v)
+      .sub(this.suspensionStart)
+      .multiplyScalar(1 / dt);
+    // Friction impulses act at the contact point projected to the COM plane
+    // (RL's roll-influence fix): grip yaws the car but never rolls/pitches it.
+    for (let i = 0; i < 4; i++) {
+      const wheel = this.wheels[i];
+      if (!wheel.contact || wheel.impulse.lengthSq() === 0) continue;
+      this.arm.subVectors(wheel.point, this.com);
+      this.applyPoint
+        .copy(wheel.point)
+        .addScaledVector(this.up, -this.arm.dot(this.up));
+      this.impulseAt(wheel.impulse, this.applyPoint);
+    }
+
+    // ---- Sticky force (RL), weakened for one or two wheel contacts ------
+    if (this.contacts) {
+      const fullStick =
+        realThrottle !== 0 || speed > tire.stopSpeed ? 1 : 0;
+      const scale =
+        P.sticky.base +
+        fullStick * P.sticky.driving * (1 - Math.abs(this.normal.y));
+      const support = this.grounded ? 1 : c.partialSticky[this.contacts];
+      this.adhesionAcceleration
+        .copy(this.normal)
+        .multiplyScalar(-scale * gravity * support * tireLoad);
+      this.acceleration.add(this.adhesionAcceleration);
+    }
+
+    // ---- Roof recovery (RL auto-flip equivalent) -----------------------
     const recoveryInput =
       Math.abs(input.throttle) > c.recoveryInputThreshold ||
       (input.jump && !this.recoveryHeld);
     this.recoveryHeld = input.jump;
     if (
       !this.grounded &&
+      !this.contacts &&
       recoveryInput &&
       this.recoveryCooldown === 0 &&
       this.recovery === 0
     ) {
+      const d = bodies[this.bodyId].halfHeight + bodies[this.bodyId].hitboxY;
       const support = this.world.castRayAndGetNormal(
-        new RAPIER.Ray(b.translation(), this.up),
-        dimensions.hitboxY + dimensions.halfHeight + 0.13,
+        new RAPIER.Ray(this.position, this.up),
+        d + 0.13,
         true,
         undefined,
         undefined,
         this.collider,
         b,
-        (col) =>
-          col.parent() === null &&
-          col.collisionGroups() !== HOOPS_NET_GROUP &&
-          col.collisionGroups() !== DROPSHOT_TILE_GROUP,
+        suspensionSurface,
       );
       if (support && this.up.dot(this.tmp.copy(support.normal)) < -0.65) {
-        // Player-requested roof recovery needs a full half-turn. Previously
-        // the driving alignment controller finished it on partial touchdown;
-        // that controller must now wait for real stable support instead.
         this.recovery = c.recoveryDuration;
         this.recoveryCooldown = c.recoveryCooldown;
         this.recoverySide =
@@ -623,344 +827,45 @@ export class Car {
         this.v.addScaledVector(this.recoveryNormal, c.recoveryHop);
       }
     }
-    this.contactGap = this.contacts ? 0 : this.contactGap + dt;
-    const leavingByJump = this.jump.used && this.jump.age < 0.18;
-    this.contactState =
-      this.stableContact && this.contacts >= 3
-        ? "surface"
-        : this.contacts ||
-            (!leavingByJump && this.contactGap < c.contactRelease)
-          ? "transition"
-          : "air";
-    // Chassis support is independent of driving support. Preserve manifold
-    // rotation around roof ramps without passive aerial damping, while still
-    // accepting deliberate rotation input. Average near-touching roof manifolds.
-    const roofNormal = new Vector3();
-    let roofContacts = 0;
-    this.chassisContacts = 0;
-    const noseContacts: { point: Vector3; normal: Vector3 }[] = [];
-    this.world.contactPairsWith(this.collider, (other) => {
-      if (other.parent() !== null) return;
-      this.world.contactPair(this.collider, other, (manifold, flipped) => {
-        const normal = new Vector3()
-          .copy(manifold.normal())
-          .multiplyScalar(flipped ? 1 : -1);
-        if (
-          Math.abs(this.forward.dot(normal)) > 0.9 &&
-          Math.abs(this.up.dot(normal)) < 0.45 &&
-          normal.y > 0.65
-        )
-          for (let i = 0; i < manifold.numSolverContacts(); i++)
-            noseContacts.push({
-              point: new Vector3().copy(manifold.solverContactPoint(i)),
-              normal: normal.clone(),
-            });
-        for (let i = 0; i < manifold.numContacts(); i++) {
-          if (manifold.contactDist(i) > c.contactSkin * 2) continue;
-          this.chassisContacts++;
 
-          if (normal.dot(this.up) <= -0.5) {
-            roofNormal.add(normal);
-            roofContacts++;
-          }
-        }
-      });
-    });
-    if (roofContacts) roofNormal.normalize();
-    const edges = this.wheelEdges(
-      this.q,
-      new Vector3().copy(b.translation()),
-    ).filter((edge) => edge.gap <= c.contactSkin * 2);
-    this.edgeContacts = edges.length;
-    this.edgeDriveForce.set(0, 0, 0);
-    this.supportKind = this.stableContact
-      ? "wheel"
-      : treadContact
-        ? "partial"
-        : this.chassisContacts
-          ? "chassis"
-          : edges.length
-            ? "edge"
-            : "air";
-    this.roofSteer =
-      roofContacts && !this.recovering ? Math.abs(input.steer) : 0;
-    // Only genuine driving support owns the orientation controller. A nose,
-    // shoulder or roof edge must leave player aerial torque available. Preserve
-    // the short lost-ray debounce solely after settled driving contact.
-    const partialContact =
-      this.contacts > 0 || this.chassisContacts > 0 || edges.length > 0;
-    this.aerialControl =
-      this.recovering || this.stableContact
-        ? 0
-        : partialContact || leavingByJump
-          ? 1
-          : this.contactState === "transition" && this.aerialControl === 0
-            ? 0
-            : Math.min(1, this.aerialControl + dt / c.airControlBlend);
-    this.applyBoostRule(dt, input.boost);
-    this.boosting = input.boost && this.boost > 0;
-    const throttle = this.boosting ? 1 : input.throttle;
-    if (treadContact) {
-      const alignment = Math.max(
-        0,
-        Math.min(
-          1,
-          (this.up.dot(this.normal) - 0.55) /
-            (c.partialSurfaceAlignment - 0.55),
-        ),
-      );
-      // Partial support can scrub/drive at a loaded tire, but cannot act as a
-      // full friction patch. Scale continuously with count/alignment, and shed
-      // overhead grip so gravity can release a narrow two-wheel support.
-      this.wheelSupport = this.stableContact
-        ? 1
-        : Math.min(0.5, this.contacts / 4) *
-          alignment *
-          alignment *
-          (c.overheadPartialSupport +
-            (1 - c.overheadPartialSupport) * Math.max(0, this.normal.y) ** 2);
-      const support =
-        this.wheelSupport *
-        (this.grapplePulling ? RUMBLE_CONFIG.grapple.tireLoad : 1);
-      this.surfaceForward
-        .copy(this.forward)
-        .addScaledVector(this.normal, -this.forward.dot(this.normal))
-        .normalize();
-      this.surfaceRight
-        .crossVectors(this.surfaceForward, this.normal)
-        .normalize();
-      // Grip and adhesion are separate. Gravity remains world-down; neither
-      // throttle at rest nor ceiling contact can sustain a magnetic attachment.
-      const drive = Math.min(1, Math.abs(this.forwardSpeed) / c.wallDriveSpeed);
-      const floor = Math.max(0, this.normal.y);
-      const overhead = Math.max(
-        0,
-        Math.min(1, 1 - this.normal.y / c.ceilingAdhesionEnd),
-      );
-      const wallGrip =
-        floor * floor +
-        (1 - floor * floor) *
-          (c.wallIdleGrip + (1 - c.wallIdleGrip) * drive * drive);
-      this.acceleration.addScaledVector(
-        this.normal,
-        -(c.adhesion + this.physics.gravity * (1 - floor) * drive) *
-          overhead *
-          support *
-          Number(this.stableContact),
-      );
-      this.adhesionAcceleration
-        .copy(this.normal)
-        .multiplyScalar(
-          -(c.adhesion + this.physics.gravity * (1 - floor) * drive) *
-            overhead *
-            support *
-            Number(this.stableContact),
-        );
-      const vf = this.v.dot(this.surfaceForward);
-      let engine = 0;
-      if (Math.abs(throttle) < 0.01)
-        engine = -Math.sign(vf) * Math.min(c.coast, Math.abs(vf) / dt);
-      else if (throttle * vf < -0.1)
-        engine = Math.sign(throttle) * Math.min(c.brake, Math.abs(vf) / dt);
-      else engine = throttle * throttleAcceleration(vf);
-      const lateral = this.v.dot(this.surfaceRight);
-      const slipRatio =
-        Math.abs(lateral) / (Math.abs(vf) + Math.abs(lateral) + 0.001);
-      const lateralFactor = Math.max(
-        slide.minimumLateralGrip,
-        (slide.lateralAtForward +
-          (slide.lateralAtSideways - slide.lateralAtForward) * slipRatio) *
-          (1 - slide.slipGripFalloff * slipRatio),
-      );
-      const longitudinalFactor =
-        slide.longitudinalAtForward +
-        (slide.longitudinalAtSideways - slide.longitudinalAtForward) *
-          slipRatio;
-      // Pre-held handbrake is already engaged on touchdown; no velocity realignment.
-      const driftEngine =
-        throttle * throttleAcceleration(vf) * longitudinalFactor -
-        (Math.abs(throttle) < 0.01 ? vf * slide.coastDrag : 0);
-      const contactScale =
-        this.contacts < 3
-          ? 1 + (slide.partialContactScale - 1) * this.handbrake
-          : 1;
-      engine += (driftEngine - engine) * this.handbrake;
-      this.acceleration.addScaledVector(
-        this.surfaceForward,
-        engine *
-          contactScale *
-          support *
-          (Math.abs(throttle) > 0.01 ? 1 : wallGrip),
-      );
-      // More authority at speed for settled tracking, without grabbing a sideways
-      // landing. The separate handbrake force below keeps its original curve.
-      const highSpeedGrip =
-        Number(this.stableContact) *
-        MathUtils.smoothstep(
-          Math.abs(vf),
-          c.highSpeedGripStart,
-          c.highSpeedGripEnd,
-        ) *
-        (1 - MathUtils.smoothstep(slipRatio, 0.12, 0.35));
-      const lateralLimit =
-        c.lateralMaxAcceleration * (1 + c.highSpeedForceGain * highSpeedGrip);
-      const ordinaryLateral = MathUtils.clamp(
-        -lateral * c.grip * (1 + c.highSpeedGripGain * highSpeedGrip),
-        -lateralLimit,
-        lateralLimit,
-      );
-      const slidingLateral = -lateral * c.grip * lateralFactor;
-      this.acceleration.addScaledVector(
-        this.surfaceRight,
-        (ordinaryLateral +
-          (slidingLateral - ordinaryLateral) * this.handbrake) *
-          contactScale *
-          support *
-          wallGrip *
-          (this.impactTime > 0 ? 0.18 : 1),
-      );
-      // Contact-normal feedback aligns physical angular motion on every surface, including ramps.
-      const curveResponse = Math.min(1, this.surfaceTurn.length() / 2);
-      const alignmentTorque =
-        c.align *
-        (1 + (c.curveAlignmentScale - 1) * curveResponse) *
-        Number(this.stableContact);
-      const damping =
-        c.alignDamping *
-        (1 + (c.curveDampingScale - 1) * curveResponse) *
-        Number(this.stableContact);
-      const supportNormal = this.normal.clone();
-      if (this.surfaceTurn.lengthSq() > 0.01)
-        supportNormal.applyAxisAngle(
-          this.surfaceTurn.clone().normalize(),
-          Math.min(0.25, this.surfaceTurn.length() / c.normalResponse),
-        );
-      this.angular
-        .copy(this.up)
-        .cross(supportNormal)
-        .multiplyScalar(alignmentTorque);
-      this.tmp
-        .copy(this.w)
-        .addScaledVector(this.normal, -this.w.dot(this.normal));
-      this.angular.addScaledVector(
-        this.tmp,
-        -damping * (this.impactTime > 0 ? 0.3 : 1),
-      );
-      const normalTarget = -input.steer * curvature(vf) * vf;
-      const surfaceSpeed = Math.hypot(vf, lateral);
-      const driftTarget =
-        ((-input.steer * Math.tan(slideAngle)) / (2 * dimensions.axle)) *
-        surfaceSpeed *
-        this.driftSign;
-      const target =
-        normalTarget + (driftTarget - normalTarget) * this.handbrake;
-      this.angular.addScaledVector(
-        this.normal,
-        (target - this.w.dot(this.normal)) *
-          this.wheelSupport *
-          (c.steeringResponse +
-            (slide.yawResponse - c.steeringResponse) * this.handbrake) *
-          (this.impactTime > 0 ? 0.3 : 1),
-      );
-      // The curve's changing normal is a geometric angular target, not tire
-      // traction. Preserve it when a wheel unloads instead of freezing the frame.
-      this.angular.addScaledVector(this.surfaceTurn, damping);
-    } else {
-      this.wheelSupport = 0;
-      this.acceleration.addScaledVector(
-        this.forward,
-        throttle * (throttle >= 0 ? c.airThrottle : c.airReverse),
-      );
-    }
-    // A driven, nearly side-on tire can scrub across its rounded shoulder.
-    // Apply a load-limited friction force at the supported wheel, not a generic
-    // upright torque or a timed recovery flip. Its real lever arm creates roll.
-    // Exclude moving cornering/powerslides, walls, nose contact and airborne cars.
+    // ---- RL auto-roll, only for a car resting on its side ---------------
+    this.autoRolling = false;
     if (
-      edges.length &&
-      (Math.abs(input.throttle) > c.edgeInputThreshold ||
-        Math.abs(input.steer) > c.edgeInputThreshold) &&
-      this.v.length() < c.edgeRecoverySpeed &&
+      input.throttle !== 0 &&
+      !this.grounded &&
       !this.recovering &&
+      (this.contacts > 0 || this.chassisContacts > 0) &&
+      this.v.length() < c.autoRollMaxSpeed &&
+      this.w.length() < c.autoRollMaxAngular &&
       !leavingByJump
     ) {
-      const beforeV = new Vector3().copy(b.linvel()),
-        beforeW = new Vector3().copy(b.angvel());
-      for (const edge of edges) {
-        const inward = this.up
-          .clone()
-          .addScaledVector(edge.normal, -this.up.dot(edge.normal))
-          .normalize();
-        const travel = this.forward
-          .clone()
-          .addScaledVector(edge.normal, -this.forward.dot(edge.normal))
-          .normalize();
-        const force = inward
-          .multiplyScalar(
-            Math.abs(input.throttle) + input.steer * c.edgeSteerGrip,
-          )
-          .addScaledVector(travel, input.throttle * 0.25)
+      const groundUp = this.contacts ? this.normal : this.chassisNormal;
+      if (groundUp.lengthSq() > 0.5) {
+        const crossRight = this.tmp.crossVectors(this.forward, groundUp);
+        const crossForward = this.tmp2.crossVectors(groundUp, crossRight);
+        const rightFactor =
+          1 - Math.max(0, Math.min(1, this.right.dot(crossRight)));
+        const forwardFactor =
+          1 - Math.max(0, Math.min(1, this.forward.dot(crossForward)));
+        this.angular
           .addScaledVector(
-            this.right
-              .clone()
-              .addScaledVector(edge.normal, -this.right.dot(edge.normal)),
-            input.steer * c.edgeSteerGrip,
+            this.forward,
+            (this.right.dot(groundUp) >= 0 ? 1 : -1) *
+              rightFactor *
+              c.autoRollTorque,
           )
-          .clampLength(0, 1)
-          .multiplyScalar(
-            (b.mass() * this.physics.gravity * c.edgeDriveGrip) / edges.length,
-          );
-        b.applyImpulseAtPoint(
-          force.clone().multiplyScalar(dt),
-          edge.point,
-          true,
-        );
-        this.edgeDriveForce.add(force);
-      }
-      this.v.add(new Vector3().copy(b.linvel()).sub(beforeV));
-      this.w.add(new Vector3().copy(b.angvel()).sub(beforeW));
-    }
-    // A nose/corner scrape is not tire support. Deliberate input produces a
-    // bounded tangential force at the actual manifold, whose lever arm tips it.
-    // Delicate input retains skillful balancing; no pose target is involved.
-    if (
-      noseContacts.length &&
-      this.contacts < 2 &&
-      !this.recovering &&
-      this.v.length() < c.edgeRecoverySpeed
-    ) {
-      const drive = (value: number) =>
-        Math.sign(value) *
-        Math.max(
-          0,
-          (Math.abs(value) - c.edgeInputThreshold) / (1 - c.edgeInputThreshold),
-        );
-      const amount = drive(input.throttle),
-        steer = drive(input.steer);
-      const beforeV = new Vector3().copy(b.linvel()),
-        beforeW = new Vector3().copy(b.angvel());
-      for (const contact of noseContacts) {
-        const force = this.up
-          .clone()
-          .multiplyScalar(amount)
-          .addScaledVector(this.right, steer)
           .addScaledVector(
-            contact.normal,
-            -(
-              this.up.dot(contact.normal) * amount +
-              this.right.dot(contact.normal) * steer
-            ),
-          )
-          .clampLength(0, 1)
-          .multiplyScalar(
-            (b.mass() * this.physics.gravity * c.noseInputGrip) /
-              noseContacts.length,
+            this.right,
+            (this.forward.dot(groundUp) >= 0 ? -1 : 1) *
+              forwardFactor *
+              c.autoRollTorque,
           );
-        b.applyImpulseAtPoint(force.multiplyScalar(dt), contact.point, true);
+        this.acceleration.addScaledVector(groundUp, -c.autoRollForce);
+        this.autoRolling = true;
       }
-      this.v.add(new Vector3().copy(b.linvel()).sub(beforeV));
-      this.w.add(new Vector3().copy(b.angvel()).sub(beforeW));
     }
+
+    // ---- Boost and air throttle -----------------------------------------
     if (this.boosting) {
       this.acceleration.addScaledVector(
         this.forward,
@@ -969,10 +874,17 @@ export class Car {
       if (!this.infiniteBoost && this.mutators.boostAmount !== "UNLIMITED")
         this.boost = Math.max(0, this.boost - c.boostUse * dt);
     }
+    if (!this.grounded && input.throttle !== 0)
+      this.acceleration.addScaledVector(
+        this.forward,
+        input.throttle * (input.throttle >= 0 ? c.airThrottle : c.airReverse),
+      );
+
+    // ---- Jump, double jump and dodge -----------------------------------
     this.flipResetAge += dt;
     const action = this.jump.step(
       this.recovering ? { ...input, jump: false } : input,
-      this.jumpSupported,
+      this.grounded,
       dt,
     );
     if (this.recovering) this.jump.wasDown = input.jump;
@@ -982,23 +894,21 @@ export class Car {
       this.normalJumpAge = 0;
       this.normalJumpNormal.copy(this.up);
       this.normalJumpOrigin
-        .copy(b.translation())
-        .addScaledVector(this.up, -this.physics.car.contactHeight)
+        .copy(this.position)
+        .addScaledVector(this.up, -c.contactHeight)
         .addScaledVector(this.normal, 0.06);
     }
-    if (action === "first" || action === "double") {
+    if (action === "first" || action === "double")
       this.v.addScaledVector(this.up, P.jump.impulse);
-      this.grounded = false;
-    }
     if (action === "dodge") {
-      const ratio = Math.abs(this.forwardSpeed) / c.maxSpeed;
+      const ratio = speed / c.maxSpeed;
       const forward2 = this.forward.clone().setY(0);
       if (forward2.lengthSq() < 0.001) forward2.set(0, 0, -1);
       forward2.normalize();
       const right2 = new Vector3(-forward2.z, 0, forward2.x);
       const forwardAmount = -this.jump.direction.z;
       const backward =
-        Math.abs(this.forwardSpeed) < 1
+        speed < 1
           ? forwardAmount < 0
           : forwardAmount * this.forwardSpeed < 0;
       this.v.addScaledVector(
@@ -1012,18 +922,27 @@ export class Car {
         this.jump.direction.x * P.jump.dodgeImpulse * (1 + 0.9 * ratio),
       );
     }
-    if (roofContacts && !this.recovering && input.steer && !input.yaw) {
-      // Weaker sliding steering, only about the actual support normal. No
-      // alignment torque, adhesion, or pitch/roll damping is applied here.
-      const target = input.steer * c.roofYawSpeed;
-      this.angular.addScaledVector(
-        roofNormal,
-        (target - this.w.dot(roofNormal)) * c.roofYawResponse,
-      );
+    // RL held jump: minimum 0.025 s (at 62% force), then while held up to 0.2 s.
+    if (this.jump.holding) {
+      if (
+        !this.jump.second &&
+        !this.jump.resetAvailable &&
+        (this.jump.age < P.jump.minTime ||
+          (input.jump && this.jump.age < P.jump.holdTime))
+      ) {
+        this.acceleration.addScaledVector(
+          this.up,
+          P.jump.holdAcceleration *
+            (this.jump.age < P.jump.minTime ? P.jump.minTimeScale : 1),
+        );
+        this.jump.held = Math.min(P.jump.holdTime, this.jump.held + dt);
+      } else this.jump.holding = false;
     }
-    if (this.aerialControl > 0) {
+
+    // ---- Air control (RL per-axis torque and damping) -------------------
+    if (!this.grounded && !this.recovering) {
       const flipping = this.jump.flipLeft > 0;
-      const cancel = input.pitch * this.jump.direction.z > 0;
+      const cancel = flipping && input.pitch * this.jump.direction.z > 0;
       const pitchScale = this.jump.stall
         ? 1
         : Math.max(
@@ -1034,65 +953,33 @@ export class Car {
                 P.jump.controlReturn,
             ),
           );
-      // A cancel removes pitch flip torque; it never applies reverse pitch torque.
+      // A flip cancel removes the pitch flip torque; it never reverses it.
       if (!flipping || cancel) {
+        const pitch = input.pitch * pitchScale,
+          yaw = this.jump.stallChordHeld ? 0 : input.yaw,
+          roll = this.jump.stallChordHeld
+            ? input.roll - (input.directionalRoll ?? 0)
+            : input.roll;
         this.angular
-          .addScaledVector(
-            this.right,
-            -input.pitch * c.airPitch * pitchScale * this.aerialControl,
-          )
-          .addScaledVector(
-            this.up,
-            -(this.jump.stallChordHeld ? 0 : input.yaw) *
-              c.airYaw *
-              this.aerialControl,
-          )
-          .addScaledVector(
-            this.forward,
-            (this.jump.stallChordHeld
-              ? input.roll - (input.directionalRoll ?? 0)
-              : input.roll) *
-              c.airRoll *
-              this.aerialControl,
-          );
-        // Passive air damping must not pin a body rotating about a loaded edge.
-        // Damp commanded axes only during contact; roof ramp torque remains physical.
-        if (!partialContact)
-          this.angular.addScaledVector(
-            this.w,
-            -c.airDamping * this.aerialControl,
-          );
-        else {
-          for (const [axis, amount] of [
-            [this.right, input.pitch * pitchScale],
-            [this.up, this.jump.stallChordHeld ? 0 : input.yaw],
-            [
-              this.forward,
-              this.jump.stallChordHeld
-                ? input.roll - (input.directionalRoll ?? 0)
-                : input.roll,
-            ],
-          ] as const)
-            if (amount)
-              this.angular.addScaledVector(
-                axis,
-                -this.w.dot(axis) * c.airDamping * this.aerialControl,
-              );
+          .addScaledVector(this.right, -pitch * c.airPitch)
+          .addScaledVector(this.up, -yaw * c.airYaw)
+          .addScaledVector(this.forward, roll * c.airRoll);
+        // RL damping in true air only: partial wheel contact keeps the player's
+        // torque but never adds a hidden stabilizing damper.
+        if (!this.contacts && !this.chassisContacts) {
+          const dampPitch =
+            this.w.dot(this.right) * c.airPitchDamping * (1 - Math.abs(pitch));
+          const dampYaw =
+            this.w.dot(this.up) * c.airYawDamping * (1 - Math.abs(yaw));
+          const dampRoll = this.w.dot(this.forward) * c.airRollDamping;
+          this.angular
+            .addScaledVector(this.right, -dampPitch)
+            .addScaledVector(this.up, -dampYaw)
+            .addScaledVector(this.forward, -dampRoll);
+          if (cancel) this.flipCancelAcceleration = -dampPitch;
         }
       }
     }
-    if (
-      this.jump.used &&
-      !this.jump.second &&
-      !this.jump.resetAvailable &&
-      this.jump.age < P.jump.holdTime &&
-      (input.jump || this.jump.age < P.jump.stickyTime)
-    ) {
-      this.acceleration.addScaledVector(this.up, P.jump.holdAcceleration);
-      this.jump.held = Math.min(P.jump.holdTime, this.jump.held + dt);
-    }
-    if (this.jump.used && this.jump.age < P.jump.stickyTime)
-      this.acceleration.addScaledVector(this.up, -P.jump.sticky);
     if (this.jump.flipLeft > 0) {
       const cancel = input.pitch * this.jump.direction.z > 0;
       const cancelAmount = cancel ? Math.min(1, Math.abs(input.pitch)) : 0;
@@ -1103,11 +990,6 @@ export class Car {
         this.forward,
         this.jump.direction.x * P.jump.flipRollTorque,
       );
-      if (cancel) {
-        this.flipCancelAcceleration =
-          -this.w.dot(this.right) * P.jump.cancelDamping * cancelAmount;
-        this.angular.addScaledVector(this.right, this.flipCancelAcceleration);
-      }
     }
     if (this.jump.verticalDampingActive) {
       if (
@@ -1144,10 +1026,33 @@ export class Car {
       )
         this.recovery = 0;
     }
+
+    if (landingGain > 0) {
+      // Surface-tangent spin relative to the surface's own turning.
+      this.tmp.copy(this.w).sub(this.surfaceTurn);
+      this.tmp.addScaledVector(this.normal, -this.tmp.dot(this.normal));
+      // The leveling component (about up × normal, toward alignment) is kept.
+      this.tmp2.crossVectors(this.up, this.normal);
+      const tilt = this.tmp2.length();
+      if (tilt > 1e-4) {
+        this.tmp2.multiplyScalar(1 / tilt);
+        const leveling = this.tmp.dot(this.tmp2);
+        if (leveling > 0) this.tmp.addScaledVector(this.tmp2, -leveling);
+      }
+      this.w.addScaledVector(this.tmp, Math.exp(-landingGain * dt) - 1);
+    }
+
+    // ---- Integrate control accelerations and apply caps -----------------
+    if (this.positionCorrection.lengthSq() > 0) {
+      this.contactCorrection.copy(this.positionCorrection);
+      b.setTranslation(this.position.add(this.positionCorrection), true);
+    }
     this.v.addScaledVector(this.acceleration, dt).clampLength(0, c.maxSpeed);
     b.setLinvel(this.v, true);
     this.w.addScaledVector(this.angular, dt).clampLength(0, this.angularLimit);
     b.setAngvel(this.w, true);
+    this.turnCurvature =
+      speed > 1 && this.contacts ? this.w.dot(this.normal) / this.forwardSpeed : 0;
     this.lateralSlip = Math.abs(this.v.dot(this.right));
     this.skidIntensity =
       input.slide && (this.wheelContact[2] || this.wheelContact[3])
@@ -1180,510 +1085,23 @@ export class Car {
       this.sonicGrace = 0;
     }
   }
-  /** Gravity-side probes find rounded wheel shoulders missed by wheel-up rays.
-   * They provide unilateral support, never suspension or magnetic attraction. */
-  private wheelEdges(q: Quaternion, position: Vector3) {
-    const up = new Vector3(0, 1, 0).applyQuaternion(q),
-      forward = new Vector3(0, 0, -1).applyQuaternion(q);
-    const edges: { point: Vector3; normal: Vector3; gap: number }[] = [];
-    if (Math.abs(up.y) > 0.6) return edges;
-    for (let i = 0; i < 4; i++) {
-      const origin = wheelMount(this.bodyId, i)
-        .applyQuaternion(q)
-        .add(position);
-      const center = origin.clone().addScaledVector(up, wheelMountY);
-      const hit = this.world.castRayAndGetNormal(
-        new RAPIER.Ray(center.clone().add(new Vector3(0, 0.4, 0)), {
-          x: 0,
-          y: -1,
-          z: 0,
-        }),
-        0.65,
-        true,
-        undefined,
-        undefined,
-        this.collider,
-        this.body,
-        (col) =>
-          col.parent() === null &&
-          col.collisionGroups() !== HOOPS_NET_GROUP &&
-          col.collisionGroups() !== DROPSHOT_TILE_GROUP,
-      );
-      if (!hit) continue;
-      const normal = new Vector3().copy(hit.normal);
-      if (
-        normal.y < 0.65 ||
-        Math.abs(normal.dot(up)) > 0.55 ||
-        Math.abs(normal.dot(forward)) > 0.4
-      )
-        continue;
-      const point = wheelSupportPoint(
-        origin,
-        q,
-        normal,
-        i < 2 ? this.steerAngle : 0,
-      );
-      const plane = center
-        .clone()
-        .add(new Vector3(0, 0.4 - hit.timeOfImpact, 0));
-      const gap =
-        point.clone().sub(plane).dot(normal) - this.physics.car.contactSkin;
-      if (gap <= 0.05) edges.push({ point, normal, gap });
-    }
-    return edges;
-  }
-  /** Unilateral static-surface constraint. Never removes tangential velocity or
-   * attracts a separated body; Rapier still owns chassis and dynamic impacts. */
+  /** Step hook around world.step(). The wheels own support (no velocity
+   * clamps); this only adds per-vertex chassis CCD and bounded positional
+   * correction against static geometry, which Rapier's discrete contacts miss
+   * for fast or tumbling hull corners. */
   constrainSurface(afterStep = false) {
     if (!this.body.isEnabled() || this.demolitionState !== "active") return;
-    const b = this.body,
-      q = new Quaternion().copy(b.rotation()),
-      up = new Vector3(0, 1, 0).applyQuaternion(q),
-      position = new Vector3().copy(b.translation()),
-      velocity = new Vector3().copy(b.linvel()),
-      correction = new Vector3();
-    const initialVelocity = velocity.clone();
-    let floorCount = 0,
-      floorLow = Infinity,
-      floorHigh = -Infinity;
-    for (let i = 0; i < 4; i++) {
-      if (!this.wheelContact[i] || this.wheelNormals[i].y < 0.9999) continue;
-      floorCount++;
-      floorLow = Math.min(floorLow, this.wheelHits[i].y);
-      floorHigh = Math.max(floorHigh, this.wheelHits[i].y);
-    }
-    const flatFloorFootprint =
-      floorCount >= 3 &&
-      floorHigh - floorLow < this.physics.car.contactSkin * 2;
-    // A diagonal footprint on cylindrical curvature is not a coplanar four-point
-    // support set. Iterating all four there over-constrains legitimate roll/slip.
-    const chord = new Vector3()
-      .subVectors(this.wheelHits[1], this.wheelHits[0])
-      .cross(new Vector3().subVectors(this.wheelHits[2], this.wheelHits[0]));
-    const curvedWheelSet =
-      this.stableContact &&
-      this.wheelNormals.every((n) => n.lengthSq() > 0) &&
-      chord.lengthSq() > 1e-8 &&
-      Math.abs(
-        new Vector3()
-          .subVectors(this.wheelHits[3], this.wheelHits[0])
-          .dot(chord.normalize()),
-      ) < 0.012;
-    const constrainPoint = (
-      point: Vector3,
-      normal: Vector3,
-      minimum: number,
-    ) => {
-      b.setLinvel(velocity, true);
-      const deficit =
-        minimum - new Vector3().copy(b.velocityAtPoint(point)).dot(normal);
-      if (deficit <= 0) return;
-      const torque = point.clone().sub(b.worldCom()).cross(normal),
-        m = b.effectiveWorldInvInertia();
-      const response = new Vector3(
-        m.m11 * torque.x + m.m12 * torque.y + m.m13 * torque.z,
-        m.m12 * torque.x + m.m22 * torque.y + m.m23 * torque.z,
-        m.m13 * torque.x + m.m23 * torque.y + m.m33 * torque.z,
-      );
-      b.applyImpulseAtPoint(
-        normal
-          .clone()
-          .multiplyScalar(deficit / (b.invMass() + torque.dot(response))),
-        point,
-        true,
-      );
-      velocity.copy(b.linvel());
-    };
-    if (!afterStep) {
-      this.normalCorrectionAcceleration.set(0, 0, 0);
-      this.landingApproach = false;
-    }
-    if (!afterStep) {
-      // Use real static contacts, including curves: being inverted in midair
-      // alone must not change tire grip or add artificial drag.
-      let roofContact = false;
-      this.world.contactPairsWith(this.collider, (other) => {
-        if (other.parent() !== null) return;
-        this.world.contactPair(this.collider, other, (manifold, flipped) => {
-          const normal = new Vector3()
-            .copy(manifold.normal())
-            .multiplyScalar(flipped ? 1 : -1);
-          if (normal.dot(up) > -0.5) return;
-          for (let i = 0; i < manifold.numContacts(); i++)
-            if (manifold.contactDist(i) <= this.physics.car.contactSkin * 2)
-              roofContact = true;
-        });
-      });
-      this.collider.setFriction(
-        roofContact
-          ? this.physics.car.roofFriction +
-              (this.physics.car.roofSteeringFriction -
-                this.physics.car.roofFriction) *
-                this.roofSteer
-          : this.physics.car.chassisFriction,
-      );
-    }
-    if (!afterStep) {
-      // Sweep each chassis corner over this step against static geometry only.
-      // Rapier's hard CCD can stay inactive below its size/speed threshold;
-      // these short speculative contacts prevent that sub-threshold penetration
-      // without changing car-car/ball collision timing or restitution.
-      const d = bodies[this.bodyId],
-        angular = new Vector3().copy(b.angvel());
-      const constraints: {
-        point: Vector3;
-        normal: Vector3;
-        minimum: number;
-      }[] = [];
-      for (const local of chassisPoints(this.bodyId)) {
-        const offset = local.applyQuaternion(q),
-          point = offset.clone().add(position);
-        const rotationVelocity = new Vector3().crossVectors(angular, offset);
-        const travel = velocity.clone().add(rotationVelocity);
-        travel.y -= this.physics.gravity * P.dt;
-        const speed = travel.length();
-        if (speed < 0.01) continue;
-        const hit = this.world.castRayAndGetNormal(
-          new RAPIER.Ray(point, travel.multiplyScalar(1 / speed)),
-          speed * P.dt + this.physics.car.contactSkin,
-          false,
-          undefined,
-          undefined,
-          this.collider,
-          b,
-          (col) =>
-            col.parent() === null &&
-            col.collisionGroups() !== HOOPS_NET_GROUP &&
-            col.collisionGroups() !== DROPSHOT_TILE_GROUP,
-        );
-        if (!hit) continue;
-        const normal = new Vector3().copy(hit.normal),
-          approach = -travel.dot(normal);
-        if (approach <= 0) continue;
-        const gap = Math.max(
-          0,
-          hit.timeOfImpact * approach - this.physics.car.contactSkin,
-        );
-        const pointMinimum =
-          -gap / P.dt + this.physics.gravity * normal.y * P.dt;
-        if (
-          (!this.stableContact || normal.dot(up) < -0.5) &&
-          !this.recovering
-        ) {
-          constraints.push({ point, normal, minimum: pointMinimum });
-        } else {
-          // Keep the existing wheel-side and player recovery path intact.
-          const minimum = Math.min(
-            0,
-            pointMinimum - rotationVelocity.dot(normal),
-          );
-          if (velocity.dot(normal) < minimum)
-            velocity.addScaledVector(normal, minimum - velocity.dot(normal));
-        }
-      }
-      // Solve the complete support set, alternating order to avoid privileging
-      // the front edge. The impulse includes rotational effective mass and acts
-      // at the real chassis point, rather than blocking COM translation alone.
-      for (let pass = 0; pass < 4; pass++) {
-        const ordered = pass % 2 ? [...constraints].reverse() : constraints;
-        for (const contact of ordered)
-          constrainPoint(contact.point, contact.normal, contact.minimum);
-      }
-    }
-    for (const edge of this.wheelEdges(q, position)) {
-      if (this.jump.used && this.jump.age < 0.18) break;
-      if (afterStep) {
-        const depth = -edge.gap - correction.dot(edge.normal);
-        if (depth > 0)
-          correction.addScaledVector(
-            edge.normal,
-            Math.min(depth, this.physics.car.maxContactCorrection),
-          );
-        if (edge.gap < this.physics.car.contactSkin)
-          constrainPoint(edge.point, edge.normal, 0);
-      } else {
-        constrainPoint(
-          edge.point,
-          edge.normal,
-          -Math.max(0, edge.gap) / P.dt +
-            this.physics.gravity * edge.normal.y * P.dt,
-        );
-      }
-    }
-    let alignedFloorContacts = 0,
-      landingContacts = 0,
-      nearWheelContacts = 0;
-    this.landingNormal.set(0, 0, 0);
-    const wheelConstraints: {
-      point: Vector3;
-      normal: Vector3;
-      minimum: number;
-    }[] = [];
-    for (let i = 0; i < 4; i++) {
-      if (this.jump.used && this.jump.age < 0.18) break;
-      const origin = wheelMount(this.bodyId, i)
-        .applyQuaternion(q)
-        .add(position);
-      const hit = this.world.castRayAndGetNormal(
-        new RAPIER.Ray(origin, up.clone().negate()),
-        this.physics.car.contactReach,
-        true,
-        undefined,
-        undefined,
-        this.collider,
-        b,
-        (col) =>
-          col.parent() === null &&
-          col.collisionGroups() !== HOOPS_NET_GROUP &&
-          col.collisionGroups() !== DROPSHOT_TILE_GROUP,
-      );
-      if (!hit) continue;
-      const normal = new Vector3().copy(hit.normal),
-        alignment = normal.dot(up);
-      if (alignment < 0.25) continue;
-      const rigidHeight = wheelClearance(
+    if (!afterStep)
+      this.guard.before(
         this.world,
-        position,
-        q,
         this.bodyId,
-        i,
         this.collider,
-        b,
-        i < 2 ? this.steerAngle : 0,
+        this.body,
+        this.physics.gravity,
       );
-      const ordinaryGap =
-        (hit.timeOfImpact - this.physics.car.contactHeight) * alignment;
-      const gap =
-        rigidHeight > wheelMountY
-          ? Math.min(ordinaryGap, -(rigidHeight - wheelMountY) * alignment)
-          : ordinaryGap;
-      if (
-        !afterStep &&
-        gap < 0.15 &&
-        new Vector3()
-          .copy(
-            b.velocityAtPoint(
-              wheelSupportPoint(origin, q, normal, i < 2 ? this.steerAngle : 0),
-            ),
-          )
-          .dot(normal) < -0.2
-      )
-        this.landingApproach = true;
-      if (afterStep) {
-        if (gap <= this.physics.car.contactSkin * 2) nearWheelContacts++;
-        if (alignment > 0.985 && gap <= this.physics.car.contactSkin * 2) {
-          landingContacts++;
-          this.landingNormal.add(normal);
-        }
-        if (
-          normal.y > 0.9999 &&
-          alignment > 0.9999 &&
-          gap < this.physics.car.contactSkin
-        )
-          alignedFloorContacts++;
-        // Split positional correction: clearance error is not converted to bounce velocity.
-        const depth = -gap - correction.dot(normal);
-        if (depth > 0)
-          correction.addScaledVector(
-            normal,
-            Math.min(depth, this.physics.car.maxContactCorrection),
-          );
-        // A tilted body may move downward while its loaded wheel stays still:
-        // that is rotation about the contact, not penetration. Clamping COM
-        // descent here cancels gravity before the point constraint can produce
-        // its physical settling torque on the following step.
-        if (
-          ((flatFloorFootprint && alignment > 0.9999) ||
-            (this.stableContact && !curvedWheelSet)) &&
-          gap < this.physics.car.contactSkin &&
-          velocity.dot(normal) < 0
-        )
-          velocity.addScaledVector(normal, -velocity.dot(normal));
-        else if (
-          curvedWheelSet &&
-          !flatFloorFootprint &&
-          gap < this.physics.car.contactSkin
-        ) {
-          const point = wheelSupportPoint(
-            origin,
-            q,
-            normal,
-            i < 2 ? this.steerAngle : 0,
-          );
-          wheelConstraints.push({ point, normal, minimum: 0 });
-        }
-      } else {
-        // Permit approach until the clearance plane; account for the next gravity step.
-        const minimum =
-          -Math.max(0, gap) / P.dt + this.physics.gravity * normal.y * P.dt;
-        if (
-          (this.stableContact || flatFloorFootprint) &&
-          normal.y > 0.9999 &&
-          up.y > 0.9999
-        ) {
-          if (velocity.dot(normal) < minimum)
-            velocity.addScaledVector(normal, minimum - velocity.dot(normal));
-          continue;
-        }
-        const point = wheelSupportPoint(
-          origin,
-          q,
-          normal,
-          i < 2 ? this.steerAngle : 0,
-        );
-        wheelConstraints.push({ point, normal, minimum });
-      }
+    else {
+      this.guard.after(this.world, this.bodyId, this.collider, this.body);
+      this.contactCorrection.add(this.guard.correction);
     }
-    // Solve all loaded wheel points as one support set. A single ordered pass
-    // converted touchdown momentum into a leftover pitch/roll impulse at the last
-    // wheel; alternating iterations distribute support without an upright torque.
-    const supportPasses =
-      wheelConstraints.length >= 3 &&
-      up.y > 0.98 &&
-      wheelConstraints.every((c) => c.normal.y > 0.995)
-        ? 6
-        : curvedWheelSet &&
-            wheelConstraints.length >= 3 &&
-            wheelConstraints.every((c) => c.normal.dot(this.normal) > 0.9)
-          ? 3
-          : 1;
-    for (let pass = 0; pass < supportPasses; pass++)
-      for (let j = 0; j < wheelConstraints.length; j++) {
-        const contact =
-          wheelConstraints[pass % 2 ? wheelConstraints.length - 1 - j : j];
-        constrainPoint(contact.point, contact.normal, contact.minimum);
-      }
-    if (afterStep) {
-      const valid =
-        landingContacts >= 3 &&
-        this.landingNormal.length() > landingContacts * 0.98 &&
-        up.dot(this.landingNormal.clone().normalize()) > 0.985 &&
-        !this.landingInputBlocked &&
-        new Vector3().copy(b.angvel()).length() <
-          this.physics.car.landingMaxAngular &&
-        !this.recovering &&
-        !(this.jump.used && this.jump.age < 0.18) &&
-        this.jump.flipLeft === 0 &&
-        this.impactTime === 0;
-      const rate = this.landing.step(
-        nearWheelContacts === 0 && this.chassisContacts === 0,
-        valid,
-        P.dt,
-        this.physics.car.landingDamping,
-        this.physics.car.landingDampingTime,
-        this.landingApproach,
-      );
-      if (rate > 0) {
-        this.landingNormal.normalize();
-        const angular = new Vector3().copy(b.angvel()),
-          normal = this.landingNormal;
-        // A bounded torque impulse absorbs only surface-tangent pitch/roll.
-        // Preserve yaw and player aerial authority; never set a target rotation.
-        const delta = up
-          .clone()
-          .cross(normal)
-          .multiplyScalar(this.physics.car.landingAlign * P.dt)
-          .addScaledVector(
-            angular.addScaledVector(normal, -angular.dot(normal)),
-            Math.exp(-rate * P.dt) - 1,
-          )
-          .clampLength(0, this.physics.car.landingMaxAcceleration * P.dt);
-        const rotation = new Quaternion().copy(b.rotation());
-        const impulse = delta
-          .applyQuaternion(rotation.clone().invert())
-          .multiply(b.principalInertia())
-          .applyQuaternion(rotation);
-        b.applyTorqueImpulse(impulse, true);
-      }
-    }
-    // Full, geometrically verified floor support also works when this helper
-    // is called directly before tick(). Never use this clamp for a wheel pair.
-    if (afterStep && alignedFloorContacts >= 3 && velocity.y < 0)
-      velocity.y = 0;
-    if (afterStep) {
-      // Static chassis manifolds cover roof/side impacts too. Correct residual
-      // penetration with a bounded split impulse: position only, and remove
-      // inward velocity. No bounce energy or tangential damping is introduced.
-      this.world.contactPairsWith(this.collider, (other) => {
-        if (other.parent() !== null) return;
-        this.world.contactPair(this.collider, other, (manifold, flipped) => {
-          const normal = new Vector3()
-            .copy(manifold.normal())
-            .multiplyScalar(flipped ? 1 : -1);
-          let depth = 0;
-          for (let i = 0; i < manifold.numContacts(); i++)
-            depth = Math.max(depth, -manifold.contactDist(i));
-          const remaining = depth - correction.dot(normal);
-          if (remaining > 0)
-            correction.addScaledVector(
-              normal,
-              Math.min(remaining, this.physics.car.maxContactCorrection),
-            );
-          // Rapier resolves velocity at all manifold contacts. A COM-only clamp
-          // here would cancel descent/rotation about a loaded roof edge.
-          if (
-            (this.stableContact || this.recovering) &&
-            depth > 0 &&
-            velocity.dot(normal) < 0
-          )
-            velocity.addScaledVector(normal, -velocity.dot(normal));
-        });
-      });
-      // Rays from the chassis centre to its actual corners detect penetration
-      // on every face, even when discrete manifold generation is one tick late.
-      // Unlike wheel-up rays this covers roof/side impacts and remains active
-      // during a jump. All corrections follow the actual surface normal.
-      const d = bodies[this.bodyId];
-      const center = new Vector3(0, d.hitboxY, 0)
-        .applyQuaternion(q)
-        .add(position);
-      for (const local of chassisPoints(this.bodyId)) {
-        const point = local.applyQuaternion(q).add(position);
-        const direction = point.clone().sub(center),
-          length = direction.length();
-        direction.normalize();
-        const hit = this.world.castRayAndGetNormal(
-          new RAPIER.Ray(center, direction),
-          length + this.physics.car.contactSkin,
-          false,
-          undefined,
-          undefined,
-          this.collider,
-          b,
-          (col) =>
-            col.parent() === null &&
-            col.collisionGroups() !== HOOPS_NET_GROUP &&
-            col.collisionGroups() !== DROPSHOT_TILE_GROUP,
-        );
-        if (!hit) continue;
-        const normal = new Vector3().copy(hit.normal),
-          alignment = -normal.dot(direction);
-        if (alignment < 0.01) continue;
-        const depth =
-          (length - hit.timeOfImpact) * alignment +
-          this.physics.car.contactSkin -
-          correction.dot(normal);
-        if (depth > 0) correction.addScaledVector(normal, depth);
-        if (
-          (!this.stableContact || normal.dot(up) < -0.5) &&
-          !this.recovering
-        ) {
-          if (depth > 0) constrainPoint(point, normal, 0);
-        } else if (velocity.dot(normal) < 0)
-          velocity.addScaledVector(normal, -velocity.dot(normal));
-      }
-    }
-    if (afterStep && correction.lengthSq() > 0) {
-      correction.clampLength(0, this.physics.car.maxContactCorrection);
-      b.setTranslation(position.add(correction), true);
-    }
-    if (afterStep) this.contactCorrection.copy(correction);
-    this.normalCorrectionAcceleration.add(
-      velocity
-        .clone()
-        .sub(initialVelocity)
-        .multiplyScalar(1 / P.dt),
-    );
-    b.setLinvel(velocity, true);
   }
 }

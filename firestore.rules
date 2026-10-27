@@ -21,33 +21,41 @@ service cloud.firestore {
       allow read, update, delete: if false;
     }
     match /publishedTrainingPacks/{packDoc} {
+      // Ownership is the Firebase Anonymous Auth UID, never the local Octane username.
       function validPack() {
         let d = request.resource.data;
-        return d.keys().hasAll(['packId','ownerUid','authorName','name','version','createdAt','updatedAt','publishedAt','shotCount','shots','published'])
-          && d.keys().hasOnly(['packId','ownerUid','authorName','name','version','createdAt','updatedAt','publishedAt','shotCount','shots','published'])
-          && d.packId is string && d.packId.size() > 0 && d.packId.size() <= 80
+        return d.keys().hasAll(['packId','ownerUid','authorName','name','description','version','createdAt','updatedAt','publishedAt','shotCount','shots','published'])
+          && d.keys().hasOnly(['packId','ownerUid','authorName','name','description','version','createdAt','updatedAt','publishedAt','shotCount','shots','published'])
+          && d.packId is string && d.packId.matches('[A-Za-z0-9_-]{1,80}')
           && d.ownerUid is string && d.ownerUid == request.auth.uid
           && packDoc == d.ownerUid + '_' + d.packId
           && d.authorName is string && d.authorName.size() > 0 && d.authorName.size() <= 20
           && d.authorName.matches('(?s).*\\S.*')
           && d.name is string && d.name.size() > 0 && d.name.size() <= 40 && d.name.matches('(?s).*\\S.*')
+          && d.description is string && d.description.size() <= 250
           && d.version is int && d.version > 0 && d.version <= 1000000
           && d.createdAt is timestamp && d.updatedAt is timestamp && d.publishedAt is timestamp
-          && d.updatedAt == request.time && d.publishedAt == request.time
+          && d.updatedAt == request.time
           && d.published == true
           && d.shotCount is int && d.shotCount >= 1 && d.shotCount <= 50
           && d.shots is list && d.shots.size() == d.shotCount;
       }
+      // Owners may probe their own not-yet-created document (publish transaction / unpublish check).
       allow get: if (resource == null && request.auth != null && packDoc.matches(request.auth.uid + '_.*'))
         || (resource != null && resource.data.published == true);
-      allow list: if resource.data.published == true && request.query.limit != null && request.query.limit <= 21;
-      allow create: if request.auth != null && validPack() && request.resource.data.version == 1 && request.resource.data.createdAt == request.time;
+      // Every stored document is published (create/update require it), so pages only need a bound.
+      allow list: if request.query.limit != null && request.query.limit <= 21;
+      allow create: if request.auth != null && validPack()
+        && request.resource.data.version == 1
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.publishedAt == request.time;
       allow update: if request.auth != null && resource.data.ownerUid == request.auth.uid && validPack()
         && request.resource.data.ownerUid == resource.data.ownerUid
         && request.resource.data.packId == resource.data.packId
         && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.publishedAt == resource.data.publishedAt
         && request.resource.data.version == resource.data.version + 1;
-      allow delete: if request.auth != null && resource.data.ownerUid == request.auth.uid;
+      allow delete: if request.auth != null && resource != null && resource.data.ownerUid == request.auth.uid;
     }
     match /{document=**} {
       allow read, write: if false;

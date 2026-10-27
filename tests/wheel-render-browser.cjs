@@ -46,7 +46,7 @@ const { staticGame } = require("./static-game.cjs");
       "experimental",
     ];
     const shapes = new Set();
-    for (const body of ["vector", "ion", "cargo", "slicer", "wraith"]) {
+    for (const body of ["vector", "lowflat", "boxy", "wedge"]) {
       await page.locator('[data-category="body"]').click();
       await page.locator('[data-item="' + body + '"]').click();
       await page.locator('[data-category="wheels"]').click();
@@ -103,7 +103,7 @@ const { staticGame } = require("./static-game.cjs");
         __arena.garage.current.body,
         __arena.garage.current.wheels,
       ]),
-      ["wraith", "glow"],
+      ["wedge", "glow"],
     );
     await page.waitForFunction(() =>
       [...__arena.homeLobby.displays.values()].some((d) =>

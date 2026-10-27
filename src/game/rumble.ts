@@ -560,15 +560,17 @@ export class Rumble {
     if (!st.attachment || st.attachment.age < R.spikes.protection) return;
     let largest = 0;
     const owner = this.sim.cars.find((c) => c.id === this.carrier)!;
-    this.sim.world.contactPairsWith(this.sim.ballCollider, (other) => {
-      if (other.handle === owner.collider.handle) return;
-      this.sim.world.contactPair(this.sim.ballCollider, other, (m) => {
-        let impulse = 0;
-        for (let k = 0; k < m.numContacts(); k++)
-          impulse += Math.abs(m.contactImpulse(k));
-        largest = Math.max(largest, impulse);
+    // Cars touch the ball's car-material shell; the world touches its main collider.
+    for (const collider of [this.sim.ballCollider, this.sim.ballCarCollider])
+      this.sim.world.contactPairsWith(collider, (other) => {
+        if (other.handle === owner.collider.handle) return;
+        this.sim.world.contactPair(collider, other, (m) => {
+          let impulse = 0;
+          for (let k = 0; k < m.numContacts(); k++)
+            impulse += Math.abs(m.contactImpulse(k));
+          largest = Math.max(largest, impulse);
+        });
       });
-    });
     if (largest >= R.spikes.breakImpulse) this.end(this.carrier);
   }
   snapshot(): RumbleSnapshot {

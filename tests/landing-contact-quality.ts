@@ -6,6 +6,7 @@ import { neutralInput } from "../shared/player";
 import { bodies } from "../shared/catalog";
 import { P } from "../src/config/physics";
 import { LandingContact } from "../src/car/landing";
+import { vehicleGeometry } from "../src/car/suspension";
 await initializeSimulation();
 const n = neutralInput();
 function fixture() {
@@ -25,7 +26,7 @@ function frame(up: Vector3, forward = new Vector3(0, 0, -1)) {
     ),
   );
 }
-// Every body gets its own 2%-of-height COM offset, also after repeated garage swaps.
+// Every body gets its own RL-style low/rear COM and box inertia, also after repeated garage swaps.
 {
   const s = fixture(),
     c = s.cars[0];
@@ -35,36 +36,39 @@ function frame(up: Vector3, forward = new Vector3(0, 0, -1)) {
     "vector",
   ] as (keyof typeof bodies)[]) {
     c.setBody(id);
-    assert.equal(c.body.mass(), 150);
-    const expected =
-      bodies[id].hitboxY +
-      P.car.comY -
-      2 * bodies[id].halfHeight * P.car.comLowerHeightFraction;
-    assert.ok(Math.abs(c.body.localCom().y - expected) < 1e-6);
-    assert.ok(Math.abs(c.body.principalInertia().x - 27) < 1e-5);
-    assert.ok(Math.abs(c.body.principalInertia().y - 35) < 1e-5);
-    assert.ok(Math.abs(c.body.principalInertia().z - 21.6) < 1e-5);
+    const g = vehicleGeometry(id);
+    assert.ok(Math.abs(c.body.mass() - P.car.mass) < 1e-3);
+    assert.ok(Math.abs(c.body.localCom().y - g.com.y) < 1e-6);
+    assert.ok(Math.abs(c.body.localCom().z - g.com.z) < 1e-6);
+    assert.ok(
+      g.com.y <= bodies[id].hitboxY - bodies[id].halfHeight + 1e-9,
+      "COM sits at the chassis floor",
+    );
+    assert.ok(Math.abs(c.body.principalInertia().x - g.inertia.x) < 1e-3);
+    assert.ok(Math.abs(c.body.principalInertia().y - g.inertia.y) < 1e-3);
+    assert.ok(Math.abs(c.body.principalInertia().z - g.inertia.z) < 1e-3);
     assert.equal(
       c.collider.translationWrtParent()!.y,
       Math.fround(bodies[id].hitboxY),
     );
     assert.equal(c.body.angularDamping(), 0);
-    assert.ok(Math.abs(c.collider.restitution() - 0.02) < 1e-6);
+    assert.ok(
+      Math.abs(c.collider.restitution() - P.car.chassisRestitution) < 1e-6,
+    );
   }
   c.reset(0, 0, 0);
   for (let i = 0; i < 12; i++) s.step([n, n]);
   assert.ok(c.grounded);
   c.reset(0, 0, 0, 0.31);
-  s.step([n, n]);
   assert.equal(
-    c.grounded,
+    c.grounded || c.contacts > 0 || c.supportState !== "AIRBORNE",
     false,
-    "New kickoff/reset must clear support hysteresis history",
+    "New kickoff/reset must clear support history",
   );
   s.dispose();
 }
-// Entry requires three consecutive samples. A shrinking ceiling footprint loses
-// full support immediately, even with all four proximity normals still visible.
+// Four touching wheels ground immediately (RL). A shrinking ceiling footprint
+// loses full support immediately and gravity peels the car away.
 for (const drive of [false, true]) {
   const s = fixture(),
     c = s.cars[0];
@@ -77,13 +81,12 @@ for (const drive of [false, true]) {
   for (let i = 0; i < 3; i++) {
     s.step([n, n]);
     assert.equal(c.contacts, 4);
-    assert.equal(c.grounded, i === 2, "Debounced ceiling entry");
+    assert.equal(c.grounded, true, "Four touching ceiling wheels ground");
   }
   assert.equal(c.surfaceType, "CEILING");
   assert.equal(c.supportState, "GROUNDED");
-  assert.equal(
-    c.adhesionAcceleration.length(),
-    0,
+  assert.ok(
+    c.adhesionAcceleration.length() < s.physics.gravity * 0.75,
     "Full ceiling support is not a permanent magnet",
   );
   const checkpoint = c.capturePrediction();
@@ -105,7 +108,11 @@ for (const drive of [false, true]) {
   s.world.step();
   s.step([n, n]);
   assert.equal(c.contacts, 2);
-  assert.ok(c.wheelNormals.every((v) => v.lengthSq() > 0));
+  assert.equal(
+    c.wheelNormals.filter((v) => v.lengthSq() > 0).length,
+    2,
+    "Only touching wheels report a contact normal",
+  );
   assert.equal(c.supportState, "PARTIAL_CONTACT");
   assert.equal(c.grounded, false);
   assert.equal(c.aerialControl, 1);
@@ -115,8 +122,11 @@ for (const drive of [false, true]) {
     if (c.contacts === 2) {
       partial++;
       assert.equal(c.stableContact, false);
-      assert.equal(c.adhesionAcceleration.length(), 0);
-      assert.ok(c.wheelSupport <= 0.061);
+      assert.ok(
+        c.adhesionAcceleration.length() < s.physics.gravity * 0.5,
+        "Two wheels cannot hold the car to the ceiling",
+      );
+      assert.ok(c.wheelSupport <= 0.5);
       assert.equal(c.landing.rate, 0);
     }
   }
@@ -127,8 +137,8 @@ for (const drive of [false, true]) {
   );
   s.dispose();
 }
-// Four nearby rays can still mean only two loaded tires. This was the remaining
-// ceiling loophole: non-floor proximity used to bypass the loaded support count.
+// Four rays reaching the ceiling can still mean only two touching tires: a
+// fully extended wheel is not support (the old two-wheel ceiling-stick loophole).
 {
   const s = fixture(),
     c = s.cars[0];
@@ -145,18 +155,23 @@ for (const drive of [false, true]) {
     RAPIER.ColliderDesc.cuboid(0.16, 0.2, 3).setTranslation(0.27, 6.2, 0),
   );
   s.world.createCollider(
-    RAPIER.ColliderDesc.cuboid(3, 0.2, 3).setTranslation(0, 6.32, 0),
+    RAPIER.ColliderDesc.cuboid(3, 0.2, 3).setTranslation(0, 6.29, 0),
   );
   s.world.step();
   s.step([n, n]);
-  assert.equal(c.contacts, 4, "All four proximity rays still see the ceiling");
+  assert.equal(
+    c.wheels.filter((w) => w.contact).length,
+    4,
+    "All four suspension rays still reach the ceiling",
+  );
+  assert.equal(c.contacts, 2, "Only one real tread pair touches");
   assert.equal(
     c.supportContacts,
     2,
     "Only one real tread pair carries support",
   );
   assert.equal(c.supportState, "PARTIAL_CONTACT");
-  assert.equal(c.adhesionAcceleration.length(), 0);
+  assert.ok(c.adhesionAcceleration.length() < s.physics.gravity * 0.5);
   assert.equal(c.landing.rate, 0);
   for (let i = 0; i < 120; i++) s.step([n, n]);
   assert.ok(
@@ -254,7 +269,8 @@ assert.ok(
   c.body.setLinvel({ x: 0, y: 4, z: 0 }, true);
   let active = false,
     full = false;
-  for (let i = 0; i < 150; i++) {
+  // ~0.2 s of ceiling contact, then free fall from the 6 m ceiling.
+  for (let i = 0; i < 190; i++) {
     s.step([n, n]);
     full ||= c.grounded && c.contacts === 4;
     if (c.landing.rate > 0) {
@@ -262,7 +278,10 @@ assert.ok(
       assert.equal(c.surfaceType, "CEILING");
       assert.ok(c.up.dot(c.normal) > 0.985);
     }
-    assert.equal(c.adhesionAcceleration.length(), 0);
+    assert.ok(
+      c.adhesionAcceleration.length() < s.physics.gravity * 0.75,
+      "Ceiling stickiness never outweighs gravity",
+    );
   }
   assert.ok(
     active && full,

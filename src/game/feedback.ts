@@ -63,6 +63,9 @@ export class FeedbackService {
   }
 }
 export function feedbackError(error: unknown) {
+  return "REPORT FAILED. " + feedbackErrorDetail(error);
+}
+function feedbackErrorDetail(error: unknown) {
   const raw = (error as { code?: unknown })?.code;
   const code = typeof raw === "string" ? raw.split("/").pop() : undefined;
   if (code === "permission-denied")

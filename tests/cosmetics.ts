@@ -17,13 +17,17 @@ Object.defineProperty(globalThis, "localStorage", {
     setItem: (k: string, v: string) => store.set(k, v),
   },
 });
+// Ion survives only as a physics fixture; the garage offers the four GLB bodies.
 assert.equal(Object.keys(bodies).length, 5);
-assert.equal(inventory.body.length, 5);
+assert.deepEqual(
+  inventory.body.map((b) => b.id),
+  ["vector", "lowflat", "boxy", "wedge"],
+);
 assert.equal(inventory.topper.length, 11); // Ten sculptures plus None.
 assert.equal(inventory.boost.length, 10);
 assert.equal(starter().body, "vector");
 const garage = new Garage();
-for (const body of Object.keys(bodies) as BodyId[]) {
+for (const { id: body } of inventory.body) {
   for (const topper of inventory.topper) {
     const preset = {
       ...starter(),
@@ -73,10 +77,18 @@ for (const body of Object.keys(bodies) as BodyId[]) {
       if (o instanceof T.Mesh) {
         const pos = o.geometry.getAttribute("position");
         assert.ok(Array.from(pos.array).every(Number.isFinite));
-        triangles += (o.geometry.index?.count ?? pos.count) / 3;
       }
     });
-    assert.ok(triangles < 12000, "model should remain lightweight");
+    model.traverseVisible((o) => {
+      if (o instanceof T.Mesh)
+        triangles +=
+          (o.geometry.index?.count ??
+            o.geometry.getAttribute("position").count) / 3;
+    });
+    assert.ok(
+      triangles < (body === "vector" ? 30000 : 12000),
+      "model should remain lightweight",
+    );
     disposeModel(model);
   }
 }
@@ -131,12 +143,16 @@ for (const boost of inventory.boost) {
   assert.equal(new Garage().current.boost, boost.id);
 }
 assert.equal(signatures.size, inventory.boost.length);
-// Existing saved bodies are not silently migrated to the new default.
-garage.current.body = "ion";
-garage.save();
-assert.equal(new Garage().current.body, "ion");
+// Saved presets on Ion or a retired shell migrate to the default Vector.
+for (const legacy of ["ion", "cargo", "slicer", "wraith"]) {
+  (garage.current as { body: string }).body = legacy;
+  garage.save();
+  assert.equal(new Garage().current.body, "vector");
+  const parsed = presetSchema.safeParse({ ...starter(), body: legacy });
+  assert.ok(parsed.success && parsed.data.body === "vector");
+}
 await initializeSimulation();
-for (const body of ["cargo", "slicer", "wraith"] as const) {
+for (const body of ["lowflat", "boxy", "wedge"] as const) {
   const a = new Simulation(true),
     b = new Simulation(true);
   try {
@@ -168,5 +184,5 @@ for (const body of ["cargo", "slicer", "wraith"] as const) {
   }
 }
 console.log(
-  "PASS five bodies, 55 roof/topper combinations, rigid wheel alignment/bounds, ten fixed-buffer boost styles on all bodies, continuous preview, schema/preset persistence, legacy saves and unchanged shared-chassis driving",
+  "PASS four selectable bodies, 44 roof/topper combinations, rigid wheel alignment/bounds, ten fixed-buffer boost styles on all bodies, continuous preview, schema/preset persistence, legacy saves and unchanged shared-chassis driving",
 );

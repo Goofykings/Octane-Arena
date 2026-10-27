@@ -6,78 +6,78 @@
     "maxStep": 0
   },
   "overhead ball retains orbit": {
-    "movement": 0.011499901352411189
+    "movement": 0.00019226611383455874
   },
   "high speed car retains camera distance": {
-    "distance": 6.25384881492976
+    "distance": 3.3678760737832993
   },
   "circling ball 30 fps": {
-    "maxTurn": 1.0000000000008
+    "maxTurn": 1.001348687556311
   },
   "circling ball 60 fps": {
-    "maxTurn": 1.0000000000024667
+    "maxTurn": 1.001636951314725
   },
   "circling ball 144 fps": {
-    "maxTurn": 1.0000000000299971
+    "maxTurn": 1.001833119039307
   },
   "wall -1 transition 30 fps ball=false": {
-    "maxSpeed": 1.0172684602070678,
-    "maxTurn": 0.00040724652723740326,
-    "minDistance": 5.727702699676189
+    "maxSpeed": 1.9298383443493816,
+    "maxTurn": 0.7702254433488447,
+    "minDistance": 2.863388764218196
   },
   "wall -1 transition 30 fps ball=true": {
-    "maxSpeed": 1.151820374240729,
-    "maxTurn": 0.1355756436091726,
-    "minDistance": 5.72770269967619
+    "maxSpeed": 2.8066566482747515,
+    "maxTurn": 1.216499815645266,
+    "minDistance": 2.863432195708565
   },
   "wall -1 transition 60 fps ball=false": {
-    "maxSpeed": 1.0172944850767298,
-    "maxTurn": 0.00041844370994016894,
-    "minDistance": 5.727700789434653
+    "maxSpeed": 1.993168854067345,
+    "maxTurn": 0.7825504244663657,
+    "minDistance": 2.857465237388475
   },
   "wall -1 transition 60 fps ball=true": {
-    "maxSpeed": 1.1504526935514239,
-    "maxTurn": 0.13550711913480315,
-    "minDistance": 5.727700789434651
+    "maxSpeed": 2.818322914824708,
+    "maxTurn": 1.2006260754869966,
+    "minDistance": 2.8575534276427352
   },
   "wall -1 transition 144 fps ball=false": {
-    "maxSpeed": 1.017323920224748,
-    "maxTurn": 0.00042510025967929167,
-    "minDistance": 5.727696457002741
+    "maxSpeed": 2.0447389239645264,
+    "maxTurn": 0.8084515114622887,
+    "minDistance": 2.8533246836743693
   },
   "wall -1 transition 144 fps ball=true": {
-    "maxSpeed": 1.1495734356111722,
-    "maxTurn": 0.13545739039738028,
-    "minDistance": 5.727696457002747
+    "maxSpeed": 2.8526772516417997,
+    "maxTurn": 1.1706841608384313,
+    "minDistance": 2.8534495896381302
   },
   "wall 1 transition 30 fps ball=false": {
-    "maxSpeed": 1.0172684602070678,
-    "maxTurn": 0.00040724652723740326,
-    "minDistance": 5.727702699676189
+    "maxSpeed": 1.9298383443493816,
+    "maxTurn": 0.7702254433488447,
+    "minDistance": 2.863388764218196
   },
   "wall 1 transition 30 fps ball=true": {
-    "maxSpeed": 1.2189439042551626,
-    "maxTurn": 0.14086251467616495,
-    "minDistance": 5.727702699676191
+    "maxSpeed": 2.794719092998328,
+    "maxTurn": 1.2433698577100938,
+    "minDistance": 2.8634593874946592
   },
   "wall 1 transition 60 fps ball=false": {
-    "maxSpeed": 1.0172944850767298,
-    "maxTurn": 0.00041844370994016894,
-    "minDistance": 5.727700789434653
+    "maxSpeed": 1.993168854067345,
+    "maxTurn": 0.7825504244663657,
+    "minDistance": 2.857465237388475
   },
   "wall 1 transition 60 fps ball=true": {
-    "maxSpeed": 1.2172459274378404,
-    "maxTurn": 0.1407950895039128,
-    "minDistance": 5.727700789434653
+    "maxSpeed": 2.8992697593579417,
+    "maxTurn": 1.2286412744157453,
+    "minDistance": 2.8575903973435275
   },
   "wall 1 transition 144 fps ball=false": {
-    "maxSpeed": 1.017323920224748,
-    "maxTurn": 0.00042510025967929167,
-    "minDistance": 5.727696457002741
+    "maxSpeed": 2.0447389239645264,
+    "maxTurn": 0.8084515114622887,
+    "minDistance": 2.8533246836743693
   },
   "wall 1 transition 144 fps ball=true": {
-    "maxSpeed": 1.216092956625097,
-    "maxTurn": 0.14073913520239967,
-    "minDistance": 5.727696457002745
+    "maxSpeed": 2.9313211188376886,
+    "maxTurn": 1.2018465978267627,
+    "minDistance": 2.8534930791499926
   }
 }

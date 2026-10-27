@@ -75,17 +75,25 @@ for (const kind of ["nose", "edge", "roof", "floor strip", "wall", "ceiling"])
     const neutral = setup(kind),
       commanded = setup(kind);
     try {
+      // RL air torque is unchanged by surface contact, but a roof-down car's
+      // roll (38 rad/s² about the COM) cannot beat gravity's moment about the
+      // roof edge, so it rocks and settles: compare the peak response.
+      let response = 0;
       for (let i = 0; i < 12; i++) {
         neutral.s.step([n(), n()]);
         commanded.s.step([
           { ...n(), [action]: 1, steer: action === "yaw" ? 1 : 0 },
           n(),
         ]);
+        response = Math.max(
+          response,
+          new Vector3()
+            .copy(neutral.c.body.angvel())
+            .distanceTo(commanded.c.body.angvel()),
+        );
       }
       assert.ok(
-        new Vector3()
-          .copy(neutral.c.body.angvel())
-          .distanceTo(commanded.c.body.angvel()) > 0.01,
+        response > 0.01,
         kind + " " + action + " must affect physical angular motion",
       );
       assert.equal(
@@ -143,9 +151,10 @@ for (const kind of ["wall", "ceiling"]) {
   s.world.step(); // Refresh scene queries after replacing static geometry.
   s.step([n(), n()]);
   assert.equal(c.contacts, 2);
-  assert.ok(
-    c.wheelNormals.every((normal) => normal.lengthSq() > 0),
-    "Other rays see nearby, unloaded floor",
+  assert.equal(
+    c.wheelNormals.filter((normal) => normal.lengthSq() > 0).length,
+    2,
+    "Nearby, unloaded floor is not wheel contact",
   );
   assert.equal(
     c.stableContact,
@@ -171,13 +180,13 @@ for (const kind of ["wall", "ceiling"]) {
   );
   s.dispose();
 }
-// A loaded, aligned tread pair still allows a normal surface jump without
-// being promoted to driving contact or suppressing aerial controls.
+// RL: a loaded tread pair is not ground. Jump spends the aerial action
+// (double jump) instead of a surface jump, and controls stay aerial.
 {
   const { s, c } = setup("floor strip");
-  assert.equal(c.jumpSupported, true);
+  assert.equal(c.jumpSupported, false);
   s.step([{ ...n(), jump: true }, n()]);
-  assert.ok(c.jump.used && !c.jump.second && c.lastJump);
+  assert.ok(!c.jump.used && c.jump.second && c.lastJump);
   assert.ok(c.body.linvel().y > 2);
   assert.equal(c.grounded, false);
   s.dispose();
@@ -253,6 +262,7 @@ function hit(
   flip = false,
   spin = 0,
   diagonal = false,
+  tilt = spin > 0,
 ) {
   const s = fixture(),
     c = s.cars[0];
@@ -261,7 +271,7 @@ function hit(
   s.ball.setAngularDamping(0);
   if (air) s.world.gravity = { x: 0, y: 0, z: 0 };
   c.reset(0, 1.7, 0, air ? 5 : 0.36);
-  if (spin)
+  if (tilt)
     c.body.setRotation(
       new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), 0.55),
       true,
@@ -301,13 +311,16 @@ function hit(
           // Normal gravity contributes to pair momentum during this tick.
           momentum.y +=
             (c.body.mass() + s.ball.mass()) * s.world.gravity.y * P.dt;
+          // The rigid contact conserves pair momentum; RL's extra impulse is
+          // ball-only and is reported exactly, never hidden energy.
+          momentum.add(contact.impulse);
           assert.ok(
             momentum.distanceTo(after) < 0.05,
-            "Equal and opposite aerial reaction",
+            "Rigid aerial reaction plus the reported RL extra impulse",
           );
         }
-        return {
-          speed: new Vector3().copy(s.ball.linvel()).length(),
+        const result = {
+          speed: 0,
           closing: contact.closing,
           rotation: contact.rotationalClosing,
           bonus: contact.dodgeImpulse.length(),
@@ -316,6 +329,11 @@ function hit(
           angular: contact.angular.clone(),
           local: contact.local.clone(),
         };
+        // Ball speed after the whole contact sequence (RL applies its extra
+        // impulse at most every other tick while the bodies stay in contact).
+        for (let k = 0; k < 12; k++) s.step([n(), n()]);
+        result.speed = new Vector3().copy(s.ball.linvel()).length();
+        return result;
       }
     }
     throw Error("Fixture missed ball");
@@ -326,10 +344,9 @@ function hit(
 const drive = hit(23, false),
   aerial = hit(23, true);
 assert.ok(
-  // The lower COM and +8% pitch inertia change rigid-body recoil slightly.
-  // Preserve the strike curve within 0.5%, rather than a 0.01 m/s mass-specific snapshot.
-  Math.abs(drive.speed / 34.54174175322715 - 1) < 0.005,
-  "Full-speed ground strike curve is preserved after mass-distribution tuning",
+  // Inelastic RL car-ball contact plus the extra impulse: ~1.2-1.6x car speed.
+  drive.speed > 23 * 1.15 && drive.speed < 23 * 1.65,
+  "Full-speed ground strike follows the RL car-ball response: " + drive.speed,
 );
 for (const speed of [8, 12, 23]) {
   const ground = hit(speed, false),
@@ -340,14 +357,15 @@ for (const speed of [8, 12, 23]) {
   );
 }
 const front = hit(23, true, true, 7),
-  diagonal = hit(23, true, true, 7, true);
+  diagonal = hit(23, true, true, 7, true),
+  samePose = hit(23, true, false, 0, false, true);
 assert.ok(
-  front.speed > drive.speed * 1.08 && diagonal.speed > drive.speed * 1.08,
+  front.speed > samePose.speed * 1.05 && diagonal.speed > samePose.speed * 1.05,
+  "A rotating flip strikes harder than the same pose without rotation",
 );
 assert.ok(
-  front.rotation > 0.25 &&
-    front.bonus > 0 &&
-    front.bonus <= P.hit.dodgeHitMaxImpulse + 0.01,
+  front.rotation > 0.25 && front.bonus === 0,
+  "Flip strength comes from the rotating contact point, not a dodge bonus",
 );
 const rotating = hit(23, true, false, 7);
 assert.ok(

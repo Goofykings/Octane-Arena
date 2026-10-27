@@ -124,16 +124,26 @@ try {
     reverse.reset();
     reverse.reverseHeld = true;
     reverse.update(car, ball, arena, dt, false, 6);
+    // The reverse boom is the RL boom (270 uu back, 100 uu up).
     assert.ok(
-      cameraB.position.distanceTo(car.position) > 3,
+      cameraB.position.distanceTo(car.position) >
+        Math.hypot(reverse.settings.distance, reverse.settings.height) *
+          0.01 *
+          0.95,
       "Reverse view preserves useful distance near boundaries",
     );
     assert.ok(
       cameraB.position.y >= 0.24,
       "Reverse view retains floor clearance",
     );
-    const horizon = new T.Euler().setFromQuaternion(cameraB.quaternion, "YXZ");
-    assert.ok(Math.abs(horizon.z) < 1e-5);
+    // Level against the camera's reference up (the wall under a wheels-down car).
+    assert.ok(
+      Math.abs(
+        new T.Vector3(1, 0, 0)
+          .applyQuaternion(cameraB.quaternion)
+          .dot(reverse.referenceUp),
+      ) < 1e-5,
+    );
   }
 } finally {
   arena.dispose();

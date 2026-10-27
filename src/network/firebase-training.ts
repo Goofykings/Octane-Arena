@@ -1,68 +1,58 @@
 import { firebaseWebApp } from "./firebase-app";
 import type { FirebaseOptions } from "firebase/app";
+import type { DocumentSnapshot } from "firebase/firestore";
 import { firebaseConfig } from "../config/firebase";
 import {
-  validatePlayablePack,
+  parsePublishedPack,
+  serializePublishedPack,
   type CustomTrainingPack,
 } from "../../shared/custom-training";
 export const TRAINING_COLLECTION = "publishedTrainingPacks";
+export const COMMUNITY_PAGE_SIZE = 20;
+export interface CommunityEntry {
+  pack: CustomTrainingPack;
+  /** True when the signed-in anonymous Firebase user published this pack. */
+  owned: boolean;
+}
 export interface CommunityPage {
-  packs: CustomTrainingPack[];
-  cursor: string | null;
+  entries: CommunityEntry[];
+  /** Opaque pagination cursor; null when there are no more packs. */
+  cursor: unknown;
   skipped: number;
 }
+export interface PublishResult {
+  documentId: string;
+  ownerUid: string;
+  version: number;
+  publishedAt: number;
+}
 export interface TrainingCloud {
-  publish(
-    pack: CustomTrainingPack,
-    authorName: string,
-  ): Promise<{
-    documentId: string;
-    ownerUid: string;
-    version: number;
-    publishedAt: number;
-  }>;
+  publish(pack: CustomTrainingPack, authorName: string): Promise<PublishResult>;
   unpublish(pack: CustomTrainingPack): Promise<void>;
-  browse(cursor?: string | null): Promise<CommunityPage>;
+  browse(cursor?: unknown): Promise<CommunityPage>;
+  download(documentId: string): Promise<CustomTrainingPack>;
 }
-export function communityPack(
-  value: unknown,
-  documentId: string,
-): CustomTrainingPack {
-  const d = value as Record<string, unknown>;
-  if (
-    !d ||
-    d.published !== true ||
-    typeof d.ownerUid !== "string" ||
-    typeof d.shotCount !== "number"
-  )
-    throw new Error("Invalid published pack.");
-  const millis = (t: unknown) => {
-    if (t && typeof (t as { toMillis?: unknown }).toMillis === "function")
-      return (t as { toMillis(): number }).toMillis();
-    throw new Error("Invalid publication timestamp.");
-  };
-  const pack = validatePlayablePack({
-    id: d.packId,
-    name: d.name,
-    authorName: d.authorName,
-    version: d.version,
-    createdAt: millis(d.createdAt),
-    updatedAt: millis(d.updatedAt),
-    published: true,
-    shots: d.shots,
-    ownerUid: d.ownerUid,
-    publishedDocumentId: documentId,
-    publishedAt: millis(d.publishedAt),
-    publishedVersion: d.version,
-  });
-  if (pack.shots.length !== d.shotCount) throw new Error("Invalid shot count.");
-  return pack;
-}
+/** Validates an untrusted Firestore document; kept as the cloud-facing name for tests/callers. */
+export const communityPack = parsePublishedPack;
+/** The document ID is derived from the owner and the local pack ID, so republishing
+ * always targets the same document and can never create duplicates. */
+export const publicationId = (ownerUid: string, packId: string) =>
+  ownerUid + "_" + packId;
+const ANONYMOUS_DISABLED = [
+  "auth/operation-not-allowed",
+  "auth/admin-restricted-operation",
+];
 export class FirebaseTrainingPacks implements TrainingCloud {
   private pending?: ReturnType<FirebaseTrainingPacks["connect"]>;
   constructor(
     private config: FirebaseOptions = firebaseConfig,
-    private emulator?: { authUrl: string; host: string; port: number },
+    /** Local emulators only; `instance` isolates a second simulated browser/identity in tests. */
+    private emulator?: {
+      authUrl: string;
+      host: string;
+      port: number;
+      instance?: string;
+    },
   ) {}
   private async connect() {
     const [appSDK, authSDK, dbSDK] = await Promise.all([
@@ -71,7 +61,10 @@ export class FirebaseTrainingPacks implements TrainingCloud {
       import("firebase/firestore"),
     ]);
     const name = this.emulator
-      ? "octane-training-" + this.config.projectId + "-emulator"
+      ? "octane-training-" +
+        this.config.projectId +
+        "-emulator" +
+        (this.emulator.instance ? "-" + this.emulator.instance : "")
       : "octane-web-" + this.config.projectId;
     const existed = appSDK.getApps().find((a) => a.name === name),
       app = await firebaseWebApp(this.config, name, !!this.emulator);
@@ -96,48 +89,56 @@ export class FirebaseTrainingPacks implements TrainingCloud {
       throw error;
     }));
   }
+  /** Silent anonymous sign-in: the Firebase UID is the security identity, never the local username. */
   private async owner() {
     const s = await this.services();
     await s.auth.authStateReady();
-    if (!s.auth.currentUser) await s.authSDK.signInAnonymously(s.auth);
+    if (!s.auth.currentUser)
+      try {
+        await s.authSDK.signInAnonymously(s.auth);
+      } catch (error) {
+        const code = String((error as { code?: unknown })?.code ?? "");
+        if (ANONYMOUS_DISABLED.includes(code))
+          console.error(
+            "[Octane Arena] Firebase Anonymous Authentication is disabled. Enable it in Firebase Console -> Authentication -> Sign-in method -> Anonymous.",
+          );
+        throw error;
+      }
     return { ...s, uid: s.auth.currentUser!.uid };
   }
   async publish(value: CustomTrainingPack, authorName: string) {
-    const pack = validatePlayablePack({ ...value, authorName });
+    const payload = serializePublishedPack(value, authorName);
     const { db, dbSDK: sdk, uid } = await this.owner();
-    if (pack.ownerUid && pack.ownerUid !== uid)
+    if (value.publishedDocumentId && value.ownerUid && value.ownerUid !== uid)
       throw new Error(
         "This browser no longer owns that publication. Its original Firebase identity is required.",
       );
-    const documentId = pack.publishedDocumentId ?? uid + "_" + pack.id;
-    if (!/^[a-zA-Z0-9_-]{1,220}$/.test(documentId))
-      throw new Error("Invalid publication ID.");
+    const documentId = publicationId(uid, payload.packId);
+    if (value.publishedDocumentId && value.publishedDocumentId !== documentId)
+      throw new Error("Only the original publisher can update this pack.");
     const ref = sdk.doc(db, TRAINING_COLLECTION, documentId);
     const version = await sdk.runTransaction(db, async (tx) => {
       const existing = await tx.get(ref);
-      if (existing.exists() && existing.data().ownerUid !== uid)
+      const old = existing.exists() ? existing.data() : undefined;
+      if (old && old.ownerUid !== uid)
         throw new Error("Only the original publisher can update this pack.");
       if (
-        existing.exists() &&
-        existing.data().version !== (pack.publishedVersion ?? 0)
+        old &&
+        value.publishedVersion !== undefined &&
+        old.version !== value.publishedVersion
       )
         throw new Error(
-          "The published version changed. Reopen the latest local pack before updating.",
+          "The published version changed elsewhere. Reopen the latest local pack before updating.",
         );
-      const version = existing.exists() ? existing.data().version + 1 : 1;
+      const version = old ? old.version + 1 : 1;
       tx.set(ref, {
-        packId: pack.id,
+        ...payload,
+        // Always taken from the authenticated session, never from pack data.
         ownerUid: uid,
-        authorName: pack.authorName,
-        name: pack.name,
         version,
-        createdAt: existing.exists()
-          ? existing.data().createdAt
-          : sdk.serverTimestamp(),
+        createdAt: old ? old.createdAt : sdk.serverTimestamp(),
+        publishedAt: old ? old.publishedAt : sdk.serverTimestamp(),
         updatedAt: sdk.serverTimestamp(),
-        publishedAt: sdk.serverTimestamp(),
-        shotCount: pack.shots.length,
-        shots: pack.shots,
         published: true,
       });
       return version;
@@ -155,43 +156,62 @@ export class FirebaseTrainingPacks implements TrainingCloud {
     const { db, dbSDK: sdk, uid } = await this.owner();
     if (pack.ownerUid !== uid)
       throw new Error("Only the original publisher can unpublish this pack.");
-    await sdk.deleteDoc(
-      sdk.doc(db, TRAINING_COLLECTION, pack.publishedDocumentId),
-    );
+    const ref = sdk.doc(db, TRAINING_COLLECTION, pack.publishedDocumentId);
+    // Already removed (e.g. from another tab): treat as unpublished.
+    if (!(await sdk.getDoc(ref)).exists()) return;
+    await sdk.deleteDoc(ref);
   }
-  async browse(cursor?: string | null) {
+  /** Signs in if possible so owned packs can be flagged; browsing still works if auth fails. */
+  private async viewerUid() {
+    try {
+      return (await this.owner()).uid;
+    } catch {
+      return null;
+    }
+  }
+  async browse(cursor?: unknown) {
     const { db, dbSDK: sdk } = await this.services();
-    const constraints = [
-      sdk.where("published", "==", true),
-      sdk.orderBy(sdk.documentId()),
-      ...(cursor ? [sdk.startAfter(cursor)] : []),
-      sdk.limit(21),
-    ];
+    const uid = await this.viewerUid();
     const result = await sdk.getDocs(
-      sdk.query(sdk.collection(db, TRAINING_COLLECTION), ...constraints),
+      sdk.query(
+        sdk.collection(db, TRAINING_COLLECTION),
+        sdk.orderBy("updatedAt", "desc"),
+        ...(cursor ? [sdk.startAfter(cursor as DocumentSnapshot)] : []),
+        sdk.limit(COMMUNITY_PAGE_SIZE + 1),
+      ),
     );
-    const docs = result.docs.slice(0, 20),
-      packs: CustomTrainingPack[] = [];
+    const docs = result.docs.slice(0, COMMUNITY_PAGE_SIZE),
+      entries: CommunityEntry[] = [];
     let skipped = 0;
     for (const doc of docs) {
       try {
-        packs.push(communityPack(doc.data(), doc.id));
+        const pack = parsePublishedPack(doc.data(), doc.id);
+        entries.push({ pack, owned: !!uid && pack.ownerUid === uid });
       } catch {
         skipped++;
       }
     }
     return {
-      packs,
+      entries,
       skipped,
-      cursor: result.docs.length > 20 ? docs[docs.length - 1].id : null,
+      cursor:
+        result.docs.length > COMMUNITY_PAGE_SIZE ? docs[docs.length - 1] : null,
     };
+  }
+  async download(documentId: string) {
+    if (!/^[A-Za-z0-9_-]{1,220}$/.test(documentId))
+      throw new Error("Malformed publication ID.");
+    const { db, dbSDK: sdk } = await this.services();
+    const snap = await sdk.getDoc(sdk.doc(db, TRAINING_COLLECTION, documentId));
+    if (!snap.exists()) throw new Error("This pack is no longer published.");
+    return parsePublishedPack(snap.data(), snap.id);
   }
 }
 export function trainingCloudError(error: unknown) {
   const issues = (error as { issues?: { message?: string }[] })?.issues;
   if (Array.isArray(issues) && issues[0]?.message) return issues[0].message;
   const code = String((error as { code?: unknown })?.code ?? "");
-  if (code.includes("operation-not-allowed"))
+  if (ANONYMOUS_DISABLED.some((c) => code.includes(c.slice(5))))
     return "Publishing is unavailable: enable Anonymous sign-in in Firebase Authentication.";
   if (code.includes("unauthorized-domain"))
     return "Add this website to Firebase Authentication's authorized domains.";

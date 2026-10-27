@@ -6,20 +6,15 @@ import { neutral } from "../src/input/types";
 import { P } from "../src/config/physics";
 
 await RAPIER.init();
-const roofFriction = P.car.roofFriction;
+// RL car/world friction (0.3) is constant; there is no roof-only friction switch.
 function slide(body: "ion" | "vector", inverted: boolean, friction: number) {
   const s = new Simulation(true),
     c = s.cars[0];
-  const constrainSurface = c.constrainSurface.bind(c);
-  c.constrainSurface = (afterStep = false) => {
-    constrainSurface(afterStep);
-    if (!afterStep && c.collider.friction() > P.car.chassisFriction + 0.001)
-      c.collider.setFriction(friction);
-  };
   try {
     s.ball.setEnabled(false);
     s.cars[1].body.setEnabled(false);
     c.setBody(body);
+    c.collider.setFriction(friction);
     c.reset(0, 0, 0, 0.6);
     if (inverted)
       c.body.setRotation(
@@ -43,15 +38,17 @@ function slide(body: "ion" | "vector", inverted: boolean, friction: number) {
   }
 }
 for (const body of ["ion", "vector"] as const) {
-  const previous = slide(body, true, P.car.chassisFriction);
-  const current = slide(body, true, roofFriction);
+  const previous = slide(body, true, 0.02);
+  const current = slide(body, true, P.car.chassisFriction);
   assert.ok(
     current.speed < previous.speed - 0.3,
     JSON.stringify({ previous, current }),
   );
   assert.ok(current.distance < previous.distance - 0.1);
-  const uprightPrevious = slide(body, false, P.car.chassisFriction);
-  const uprightCurrent = slide(body, false, roofFriction);
+  assert.ok(current.speed < 10 - 0.6 * P.car.chassisFriction * P.gravity);
+  // Upright, the chassis never touches: tires alone govern the slide.
+  const uprightPrevious = slide(body, false, 0.02);
+  const uprightCurrent = slide(body, false, P.car.chassisFriction);
   assert.deepEqual(uprightCurrent, uprightPrevious);
   console.log("PASS roof braking and unchanged tire sliding", body, {
     previous,

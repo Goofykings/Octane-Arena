@@ -17,14 +17,22 @@ export const wheelDesigns = {
 /** Visual-only parts inside the existing rigid tire envelope. Local rim Z is
  * the axle; outer faces are mirrored so every wheel reads on both car sides.
  * Components are merged by material on equip, not submitted as separate spokes. */
-export function addWheelDesign(spin: T.Group, id: string, side: number) {
+export function addWheelDesign(
+  spin: T.Group,
+  id: string,
+  side: number,
+  coupe = false,
+  palette?: Record<"RUBBER" | "METAL" | "DARK_TRIM", T.MeshStandardMaterial>,
+) {
   const style = id in wheelDesigns ? (id as keyof typeof wheelDesigns) : "apex";
   spin.userData.designId = style;
-  const rubber = new T.MeshStandardMaterial({
-    color: 0x111318,
-    roughness: 0.9,
-    metalness: 0,
-  });
+  const rubber =
+    palette?.RUBBER ??
+    new T.MeshStandardMaterial({
+      color: coupe ? 0x20262c : 0x111318,
+      roughness: 0.9,
+      metalness: 0,
+    });
   rubber.userData.wheelPart = "tire";
   const tyre = new T.Mesh(
     new T.LatheGeometry(
@@ -42,11 +50,12 @@ export function addWheelDesign(spin: T.Group, id: string, side: number) {
         ([r, y]) =>
           new T.Vector2(style === "offroad" && r > 0.16 ? r * 0.955 : r, y),
       ),
-      20,
+      coupe ? 32 : 20,
     ),
     rubber,
   );
   tyre.name = "wheel-tire";
+  if (coupe) tyre.geometry.normalizeNormals();
   tyre.rotation.z = Math.PI / 2;
   tyre.castShadow = true;
   spin.add(tyre);
@@ -54,16 +63,20 @@ export function addWheelDesign(spin: T.Group, id: string, side: number) {
   rim.name = "wheel-rim";
   rim.rotation.y = (side * Math.PI) / 2;
   spin.add(rim);
-  const alloy = new T.MeshStandardMaterial({
-    color: 0xb6cbd2,
-    metalness: 0.45,
-    roughness: 0.36,
-  });
-  const dark = new T.MeshStandardMaterial({
-    color: 0x26343e,
-    metalness: 0.25,
-    roughness: 0.58,
-  });
+  const alloy =
+    palette?.METAL ??
+    new T.MeshStandardMaterial({
+      color: 0xb6cbd2,
+      metalness: 0.45,
+      roughness: 0.36,
+    });
+  const dark =
+    palette?.DARK_TRIM ??
+    new T.MeshStandardMaterial({
+      color: 0x26343e,
+      metalness: 0.25,
+      roughness: 0.58,
+    });
   const accent = new T.MeshStandardMaterial({
     color:
       style === "dish" ? 0xc88b59 : style === "offroad" ? 0xabb2a0 : 0x658ca3,
@@ -193,7 +206,10 @@ export function addWheelDesign(spin: T.Group, id: string, side: number) {
     );
     if (style === "apex") {
       for (let i = 0; i < 5; i++)
-        blade((i * Math.PI * 2) / 5, z, 0.035, 0.018, 0.025);
+        if (coupe) {
+          for (const split of [-0.075, 0.075])
+            blade((i * Math.PI * 2) / 5 + split, z, 0.05, 0.007, 0.011);
+        } else blade((i * Math.PI * 2) / 5, z, 0.035, 0.018, 0.025);
     } else if (style === "filament") {
       for (let i = 0; i < 16; i++)
         bar((i * Math.PI) / 8, 0.026, 0.121, 0.007, z);
@@ -331,6 +347,19 @@ export function addWheelDesign(spin: T.Group, id: string, side: number) {
         0,
         a,
       );
+    }
+  if (coupe && style !== "offroad")
+    for (let i = 0; i < 28; i++) {
+      const a = (i * Math.PI * 2) / 28;
+      for (const face of [-1, 1])
+        put(
+          new T.BoxGeometry(0.004, 0.018, 0.039),
+          rubber,
+          Math.cos(a) * 0.176,
+          Math.sin(a) * 0.176,
+          face * 0.021,
+          a + face * 0.18,
+        );
     }
   const used = new Set<T.Material>();
   for (const [mat, geos] of batches) {

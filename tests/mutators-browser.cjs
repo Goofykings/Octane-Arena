@@ -156,7 +156,7 @@ const { staticGame } = require("./static-game.cjs");
     await button(host, 0);
     await button(host, 15);
     await host.waitForFunction(
-      () => __arena.botSetup.mutators.matchLength === "10 MINUTES",
+      () => __arena.botSetup.mutators.matchLength === "5 MINUTES",
     );
     await button(host, 13);
     await host.waitForFunction(
@@ -168,7 +168,7 @@ const { staticGame } = require("./static-game.cjs");
     );
     await botDialog.locator("[data-reset]").click();
     await host.waitForFunction(
-      () => __arena.botSetup.mutators.matchLength === "5 MINUTES",
+      () => __arena.botSetup.mutators.matchLength === "3 MINUTES",
     );
     async function cycle(dialog, key, value) {
       for (let i = 0; i < 6; i++) {

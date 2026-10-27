@@ -146,7 +146,8 @@ for (const latency of [0.03, 0.06, 0.1]) {
     }[] = [],
     states: { at: number; state: typeof latest }[] = [];
   let maximum = 0;
-  for (let frame = 0; frame < 360; frame++) {
+  // Long enough idle tail for a car that rolls up the goal wall to settle.
+  for (let frame = 0; frame < 720; frame++) {
     const time = frame / 60,
       input = {
         ...neutralInput(),

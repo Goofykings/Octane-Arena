@@ -602,9 +602,9 @@ const { staticGame } = require("./static-game.cjs");
       "Verified direct object/arrow dragging, history, clean/advanced controls, enabled-only test switching, controller, menu safety, exact persistence and responsive layout.",
     );
     // Actual anonymous-auth Firestore publication through the menu, never production.
-    const publish = async () => {
+    const publish = async (label = "PUBLISH") => {
       await page.locator("#custom-publish").click();
-      await confirm("PUBLISH");
+      await confirm(label);
     };
     await openMenu();
     await publish();
@@ -620,21 +620,32 @@ const { staticGame } = require("./static-game.cjs");
     await returnMenu();
     await object("ball");
     await field("ball-speed", 32);
+    assert.match(
+      await page.locator("#custom-edit-mode").textContent(),
+      /PUBLISHED • CHANGES NOT PUBLISHED/,
+    );
     await openMenu();
-    await publish();
+    assert.equal(
+      await page.locator("#custom-publish").textContent(),
+      "UPDATE PUBLISHED PACK",
+    );
+    await publish("UPDATE");
     await page.waitForFunction(
       () => __arena.extraSession.draft.pack.publishedVersion === 2,
     );
     const { page: friend, context: friendContext } = await make();
     await menu(friend);
     await friend.locator("#training-community").click();
-    await friend
-      .locator(".training-pack-row")
-      .filter({
-        has: friend.getByRole("heading", { name: packName, exact: true }),
-      })
-      .getByRole("button", { name: "PLAY PACK", exact: true })
-      .click();
+    const friendRow = friend.locator(".training-pack-row").filter({
+      has: friend.getByRole("heading", { name: packName, exact: true }),
+    });
+    await friendRow.waitFor();
+    // Someone else's pack is read-only: PLAY is the only action, and no UID is shown.
+    assert.deepEqual(await friendRow.getByRole("button").allTextContents(), [
+      "PLAY",
+    ]);
+    assert.doesNotMatch(await friendRow.textContent(), /OWNED/);
+    await friendRow.getByRole("button", { name: "PLAY", exact: true }).click();
     await friend
       .locator("#custom-training-editor")
       .waitFor({ state: "visible" });
@@ -656,6 +667,19 @@ const { staticGame } = require("./static-game.cjs");
     await friendContext.close();
     await page.locator("#custom-save-exit").click();
     await page.locator("#custom-training").waitFor({ state: "visible" });
+    // Deleting a published pack must offer an explicit choice, never silently unpublish.
+    await page
+      .locator(".training-pack-row")
+      .getByRole("button", { name: "DELETE", exact: true })
+      .click();
+    const deletePrompt = page.locator("#training-pack-prompt");
+    assert.deepEqual(await deletePrompt.getByRole("button").allTextContents(), [
+      "CANCEL",
+      "DELETE LOCAL COPY",
+      "UNPUBLISH AND DELETE",
+    ]);
+    await deletePrompt.getByRole("button", { name: "CANCEL", exact: true }).click();
+    await deletePrompt.waitFor({ state: "hidden" });
     await page
       .locator(".training-pack-row")
       .getByRole("button", { name: "UNPUBLISH", exact: true })

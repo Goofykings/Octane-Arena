@@ -36,7 +36,7 @@ const { staticGame } = require("./static-game.cjs");
               {
                 id: "legacy",
                 name: "Legacy",
-                body: "cargo",
+                body: "boxy",
                 blue: "#36cedd",
                 orange: "#f89a49",
                 wheels: "glow",

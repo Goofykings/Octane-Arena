@@ -67,6 +67,7 @@ export class Simulation {
       c.applyBoostRule();
     });
     this.ballCollider.setRadius(this.physics.ball.radius);
+    this.ballCarCollider.setRadius(this.physics.ball.radius);
     this.ballCollider.setMass(this.physics.ball.mass);
     this.ballCollider.setRestitution(this.physics.ball.restitution);
     this.ball.recomputeMassPropertiesFromColliders();
@@ -128,7 +129,54 @@ export class Simulation {
   world: RAPIER.World;
   cars: Car[];
   ball: RAPIER.RigidBody;
+  /** World-facing ball material (arena, posts, rims, nets, tiles). */
   ballCollider: RAPIER.Collider;
+  /** Car-facing ball shell with RL's car-ball material: restitution 0, friction 2.
+   * It shares the ball body and radius, carries no mass, and only touches cars;
+   * the world-facing collider never touches cars. Its interaction follows the
+   * world-facing collider's groups, so disabling the ball disables both. */
+  ballCarCollider: RAPIER.Collider;
+  // The hook runs inside world.step(), where Rapier objects must not be
+  // queried: it reads only handles and interaction groups cached beforehand.
+  private carGroups = new Map<number, number>();
+  private ballGroups = 0xffffffff;
+  private ballEnabled = true;
+  private ballHandle = -1;
+  private shellHandle = -1;
+  private interacts(a: number, b: number) {
+    return ((a >>> 16) & b & 0xffff) !== 0 && ((b >>> 16) & a & 0xffff) !== 0;
+  }
+  readonly hooks: RAPIER.PhysicsHooks = {
+    filterContactPair: (first, second) => {
+      const ball = this.ballHandle,
+        shell = this.shellHandle;
+      const self = first === ball || first === shell ? first : second,
+        other = self === first ? second : first;
+      // Rapier still pairs a disabled body's colliders; never let them act.
+      if (!this.ballEnabled) return null;
+      const car = this.carGroups.get(other);
+      if (self === ball)
+        return car === undefined ? RAPIER.SolverFlags.COMPUTE_IMPULSE : null;
+      if (self !== shell) return RAPIER.SolverFlags.COMPUTE_IMPULSE;
+      return car !== undefined && this.interacts(this.ballGroups, car)
+        ? RAPIER.SolverFlags.COMPUTE_IMPULSE
+        : null;
+    },
+    filterIntersectionPair: () => true,
+  };
+  /** Refresh the hook's cached handles and groups before each step. */
+  private trackContacts() {
+    this.ballHandle = this.ballCollider.handle;
+    this.shellHandle = this.ballCarCollider.handle;
+    this.ballGroups = this.ballCollider.collisionGroups();
+    this.ballEnabled = this.ball.isEnabled();
+    this.carGroups.clear();
+    for (const c of this.cars)
+      this.carGroups.set(
+        c.collider.handle,
+        c.body.isEnabled() ? c.collider.collisionGroups() : 0,
+      );
+  }
   ballPose: Pose;
   readonly ballGround: BallGroundContact;
   events = new RAPIER.EventQueue(true);
@@ -248,9 +296,22 @@ export class Simulation {
         .setFriction(P.ball.friction)
         .setRestitution(P.ball.restitution)
         .setRestitutionCombineRule(RAPIER.CoefficientCombineRule.Max)
+        .setActiveHooks(RAPIER.ActiveHooks.FILTER_CONTACT_PAIRS)
         .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS),
       this.ball,
     );
+    this.ballCarCollider = this.world.createCollider(
+      RAPIER.ColliderDesc.ball(this.physics.ball.radius)
+        .setDensity(0)
+        .setFriction(P.hit.friction)
+        .setFrictionCombineRule(RAPIER.CoefficientCombineRule.Max)
+        .setRestitution(P.hit.restitution)
+        .setRestitutionCombineRule(RAPIER.CoefficientCombineRule.Min)
+        .setActiveHooks(RAPIER.ActiveHooks.FILTER_CONTACT_PAIRS)
+        .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS),
+      this.ball,
+    );
+    this.trackContacts();
     this.ballPose = new Pose(this.ball);
     this.ballGround = new BallGroundContact(
       this.world,
@@ -258,7 +319,8 @@ export class Simulation {
       arenaSurface,
     );
     this.reset();
-    this.world.step();
+    this.trackContacts();
+    this.world.step(undefined, this.hooks);
     this.cars.forEach((c) => c.pose.snap());
     this.ballPose.snap();
   }
@@ -391,6 +453,7 @@ export class Simulation {
     this.velocities = this.cars.map(() => new Vector3());
     this.relative = this.cars.map(() => new Vector3());
     this.ballContacts = this.cars.map(() => new CarBallContact());
+    this.trackContacts();
     this.configureMutators(this.mutators);
     this.reset();
   }
@@ -497,7 +560,8 @@ export class Simulation {
     // Sample the actual pre-solver velocity, including this tick's homing force.
     this.cars.forEach((c, i) => this.ballContacts[i].sample(c, this.ball));
     const statBefore = this.ballSample();
-    this.world.step(this.events);
+    this.trackContacts();
+    this.world.step(this.events, this.hooks);
     // The ball's global MAX restitution rule otherwise overrides the soft net material.
     // Cap only the generated normal rebound on actual net contacts; retain tangential
     // velocity, spin, and the ordinary rim/car/arena material responses.
@@ -541,14 +605,11 @@ export class Simulation {
         );
         return;
       }
-      if (
-        !started ||
-        (a !== this.ballCollider.handle && b !== this.ballCollider.handle)
-      )
-        return;
-      const carIndex = this.cars.findIndex(
-        (c) => c.collider.handle === (a === this.ballCollider.handle ? b : a),
-      );
+      const isBall = (h: number) =>
+        h === this.ballCollider.handle || h === this.ballCarCollider.handle;
+      if (!started || (!isBall(a) && !isBall(b))) return;
+      const other = isBall(a) ? b : a;
+      const carIndex = this.cars.findIndex((c) => c.collider.handle === other);
       if (carIndex >= 0) {
         this.recordTouch(this.cars[carIndex].id);
       } else {
@@ -568,7 +629,7 @@ export class Simulation {
             relative: new Vector3(),
             impulse: new Vector3(),
             strength: Math.min(speed, 20),
-            kind: this.hoopRims.has(a === this.ballCollider.handle ? b : a)
+            kind: this.hoopRims.has(other)
               ? "rim"
               : undefined,
             age: 0,
@@ -585,7 +646,7 @@ export class Simulation {
       if (car.body.isEnabled() && this.ball.isEnabled())
         this.world.contactPair(
           car.collider,
-          this.ballCollider,
+          this.ballCarCollider,
           (manifold, flipped) => {
             if (manifold.numSolverContacts() === 0) return;
             const normal = new Vector3()

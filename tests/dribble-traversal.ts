@@ -70,7 +70,9 @@ for (const level of dribbleLevels) {
         wallDistance >= 0 &&
         c.jumpSupported;
       if (jumpWall) jumped.add(-wallIndex - 1);
-      if (jump || jumpWall) jumpHold = 24;
+      // A 0.13 s held jump: the full 0.2 s RL hold overshoots level 12's
+      // short double-gap section and lands on the next edge.
+      if (jump || jumpWall) jumpHold = 16;
       // Wait for the lower arms to leave a visible chassis-height opening.
       const spinner = p.course.obstacles.find(
         (o) => o.piece.kind === "spinner",

@@ -232,7 +232,10 @@ function flip(
 const normal = flip(0, 1),
   immediate = flip(0, 1, P.dt),
   later = flip(0, 1, 0.1);
-assert.ok(Math.abs(normal[3].pitch) > 6.9, "normal forward flip changed");
+assert.ok(
+  Math.abs(normal[3].pitch) > P.jump.flipMaxAngular - 0.1,
+  "normal forward flip reaches the RL angular cap",
+);
 assert.ok(
   Math.abs(immediate[3].pitch) > 0.5 &&
     Math.abs(immediate[3].pitch) < Math.abs(normal[3].pitch),

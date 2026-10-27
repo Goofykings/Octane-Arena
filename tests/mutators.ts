@@ -178,7 +178,8 @@ for (const mode of mutatorOptions.boostAmount) {
     close(c.boost, stopped, 1e-6);
     step(s, 120);
     close(c.boost, stopped + M.recharge[mode], 1e-5);
-    step(s, 1, { ...n, boost: true });
+    // RL keeps a boost tap alive for its minimum burst; release after it ends.
+    step(s, Math.ceil(P.car.boostMinTime / P.dt), { ...n, boost: true });
     const checkpoint = c.capturePrediction();
     const used = c.boost;
     step(s, 120);
@@ -211,9 +212,10 @@ for (const strength of mutatorOptions.boostStrength) {
     c = s.cars[0];
   c.reset(0, 0, 0, 12);
   step(s, 24, { ...n, boost: true });
+  // RL: boosting forces wheel throttle only; air throttle follows the stick.
   close(
     c.body.linvel().z,
-    -(P.car.boostAir * M.boostStrength[strength] + P.car.airThrottle) * 0.2,
+    -P.car.boostAir * M.boostStrength[strength] * 0.2,
     0.02,
   );
   close(
@@ -221,7 +223,6 @@ for (const strength of mutatorOptions.boostStrength) {
     P.car.maxSpeed * Math.sqrt(M.boostStrength[strength]),
   );
   assert.equal(c.physics.car.brake, P.car.brake);
-  assert.equal(c.physics.car.grip, P.car.grip);
   s.dispose();
 }
 for (const gravity of mutatorOptions.gravity) {

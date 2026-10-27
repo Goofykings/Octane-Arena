@@ -52,7 +52,9 @@ for (const body of ["ion", "vector"] as const) {
             n,
           ]);
           const q = new Quaternion().copy(c.body.rotation());
-          assert.ok(previous.angleTo(q) < 0.13, `orientation snap: ${label}`);
+          // One tick of a physical edge impact may exceed the 5.5 rad/s cap
+          // (solve, integrate, then cap, as in RL); a pose snap would be larger.
+          assert.ok(previous.angleTo(q) < 0.16, `orientation snap: ${label}`);
           previous = q;
           if (c.contacts && first < 0) first = i;
           if (first >= 0 && !c.stableContact && c.contacts) {

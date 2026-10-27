@@ -1,6 +1,6 @@
 import { reveal } from "../ui/motion";
 import * as T from "three";
-import { GameCamera } from "./camera";
+import { GameCamera, verticalFov } from "./camera";
 import type { MouseLook } from "./mouse-look";
 import type { Input } from "../input/input";
 import type { Simulation } from "../physics/simulation";
@@ -159,7 +159,7 @@ export class SpectatorCamera {
           );
         this.camera.position.lerp(destination, 1 - Math.exp(-dt * 12));
         this.camera.lookAt(ball.position);
-        this.camera.fov = settings.fov;
+        this.camera.fov = verticalFov(settings.fov, this.camera.aspect);
       } else {
         const e = new T.Euler().setFromQuaternion(this.freeRotation, "YXZ");
         e.y -= dx + stickX * dt * 2;
@@ -185,7 +185,7 @@ export class SpectatorCamera {
         this.freePosition.add(movement);
         this.camera.position.copy(this.freePosition);
         this.camera.quaternion.copy(this.freeRotation);
-        this.camera.fov = settings.fov;
+        this.camera.fov = verticalFov(settings.fov, this.camera.aspect);
       }
     }
     if (this.transition < SPECTATOR.transition) {

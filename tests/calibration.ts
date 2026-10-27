@@ -8,6 +8,7 @@ import { Match } from "../src/game/match";
 import { Pads } from "../src/game/pads";
 import { Opponent } from "../src/ai/opponent";
 import { writeFileSync, mkdirSync } from "node:fs";
+import { DEFAULT_MUTATORS, MUTATOR_TUNING } from "../shared/mutators";
 await RAPIER.init();
 const results: { name: string; value: unknown; pass: boolean }[] = [];
 function record(name: string, value: unknown, pass: boolean) {
@@ -102,7 +103,7 @@ record(
   record(
     "boost consumption over 2s",
     s.cars[0].boost,
-    Math.abs(s.cars[0].boost - 33.4) < 0.02,
+    Math.abs(s.cars[0].boost - (100 - 2 * P.car.boostUse)) < 0.02,
   );
   s.dispose();
 }
@@ -126,7 +127,7 @@ record(
       break;
     }
   }
-  record("calmer ball bounce restitution", ratio, ratio > 0.45 && ratio < 0.51);
+  record("RL ball bounce restitution", ratio, ratio > 0.56 && ratio < 0.63);
   s.dispose();
 }
 for (const v of [2, 10, 20])
@@ -317,7 +318,8 @@ for (const dir of [
   record(
     "three-second kickoff holds match clock",
     { phase: m.phase, countdown: m.countdown, clock: m.remaining },
-    m.phase === "countdown" && m.remaining === 300,
+    m.phase === "countdown" &&
+      m.remaining === MUTATOR_TUNING.duration[DEFAULT_MUTATORS.matchLength],
   );
   m.pause();
   const held = m.countdown;
@@ -457,7 +459,7 @@ for (const dir of [
     }
   }
   record(
-    "complete 5-minute live simulation",
+    "complete default-length live simulation",
     { seconds: steps / 120, score: m.score, phase: m.phase, escaped },
     !escaped && m.phase === "finished",
   );

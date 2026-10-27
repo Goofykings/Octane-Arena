@@ -144,8 +144,9 @@ export class HomeLobby {
           for (const material of Array.isArray(o.material)
             ? o.material
             : [o.material]) {
-            material.transparent = d.opacity < 0.995;
-            material.opacity = d.opacity;
+            material.transparent =
+              Boolean(material.userData.baseTransparent) || d.opacity < 0.995;
+            material.opacity = (material.userData.baseOpacity ?? 1) * d.opacity;
           }
       });
       const p = d.model.position

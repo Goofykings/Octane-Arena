@@ -113,7 +113,7 @@ export class Match {
   resetSequence = 0;
   phase: Phase = "home";
   score = [0, 0];
-  remaining = 300;
+  remaining = M.duration[DEFAULT_MUTATORS.matchLength] ?? 0;
   freeze = 0;
   countdown = 3;
   goTime = 0;

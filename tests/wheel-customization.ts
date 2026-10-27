@@ -26,7 +26,7 @@ assert.equal(
   10,
 );
 const silhouettes = new Set<string>();
-for (const body of Object.keys(bodies) as BodyId[])
+for (const { id: body } of inventory.body)
   for (const { id } of inventory.wheels) {
     const model = carModel(0x23cada, body, id);
     try {
@@ -86,7 +86,7 @@ for (const body of Object.keys(bodies) as BodyId[])
           meshData.push(o.geometry.getAttribute("position").count);
         }
       });
-      if (body === "ion") silhouettes.add(JSON.stringify(meshData));
+      if (body === "boxy") silhouettes.add(JSON.stringify(meshData));
       const start = wheel.rotation.x;
       animateWheels(model, 9, 0.4, 1 / 60);
       assert.ok(

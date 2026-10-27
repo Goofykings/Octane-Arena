@@ -269,7 +269,7 @@ const path = require("node:path");
     await page.keyboard.press("Escape");
     await page.waitForTimeout(200);
     assert(
-      (await page.locator("#clock").textContent()) === "5:00",
+      (await page.locator("#clock").textContent()) === "3:00",
       "Pausing freezes the kickoff clock",
     );
     await page.screenshot({ path: "docs/pause.png" });

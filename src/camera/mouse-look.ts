@@ -13,7 +13,7 @@ export const MOUSE_LOOK = {
   orbitMaxSpeed: 8,
   controllerYaw: Math.PI * 0.8,
   controllerPitch: 0.9,
-  controllerResponse: 24,
+  controllerResponse: 24, // At Swivel Speed 5 (RL default); scales with swivel.
 };
 const up = new T.Vector3(0, 1, 0);
 
@@ -189,7 +189,7 @@ export class MouseLook {
       return;
     }
     const rate = this.controllerDriven
-      ? MOUSE_LOOK.controllerResponse
+      ? (MOUSE_LOOK.controllerResponse * settings.swivel) / 5
       : this.dragging
         ? settings.swivel * 8
         : settings.transition * 5;

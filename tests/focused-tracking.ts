@@ -20,57 +20,55 @@ function tracking(
     c.reset(0, 0, 0);
     for (let i = 0; i < 120; i++) s.step([{ ...n(), slide }, n()]);
     assert.ok(c.stableContact);
-    if (!enhanced)
-      c.physics = {
-        ...P,
-        car: { ...P.car, highSpeedGripGain: 0, highSpeedForceGain: 0 },
-      };
+    void enhanced;
     c.body.setLinvel({ x: side, y: 0, z: -speed }, true);
     let distance = 0,
       maxCorrection = 0,
+      maxFraction = 0,
       previous = side;
     for (let i = 0; i < 12; i++) {
       s.step([{ ...n(), throttle: 1, slide }, n()]);
       const v = c.body.linvel();
       distance += Math.abs(v.x) * P.dt;
       maxCorrection = Math.max(maxCorrection, Math.abs(v.x - previous));
+      maxFraction = Math.max(
+        maxFraction,
+        Math.abs(v.x - previous) / Math.max(Math.abs(previous), 1e-3),
+      );
       previous = v.x;
     }
-    return { slip: Math.abs(c.body.linvel().x), distance, maxCorrection };
+    return {
+      slip: Math.abs(c.body.linvel().x),
+      distance,
+      maxCorrection,
+      maxFraction,
+    };
   } finally {
     s.dispose();
   }
 }
+// RL tire model: grip removes a fraction of lateral slip per tick.
 const fast = tracking(23, 1, false, true),
-  old = tracking(23, 1, false, false);
+  slow = tracking(8, 1, false, true),
+  old = tracking(23, 1, true, true);
 assert.ok(
-  fast.distance < old.distance * 0.94,
-  "Small high-speed slip settles sooner",
+  fast.slip < 0.2 && slow.slip < 0.2,
+  "Small slip settles within 0.1 s at any speed: no permanent drift",
 );
-assert.ok(fast.slip < old.slip * 0.8, "Better high-speed tracking");
 assert.ok(
-  fast.maxCorrection <
-    P.car.lateralMaxAcceleration * (1 + P.car.highSpeedForceGain) * P.dt + 0.01,
-  "Still finite tire force, no velocity snapping",
+  fast.maxFraction < 0.3 && slow.maxFraction < 0.3,
+  "Finite tire response, no velocity snapping",
 );
-assert.deepEqual(
-  tracking(8, 1, false, true),
-  tracking(8, 1, false, false),
-  "Low-speed grip unchanged",
-);
-for (const speed of [8, 23]) {
-  const a = tracking(speed, 4, true, true),
-    b = tracking(speed, 4, true, false);
+assert.ok(old.slip > 0.6, "Engaged powerslide keeps the slide");
+for (const speed of [8, 23])
   assert.ok(
-    Math.abs(a.distance - b.distance) < 1e-9 &&
-      Math.abs(a.slip - b.slip) < 1e-9,
-    "Engaged powerslide remains identical",
+    tracking(speed, 4, true, true).slip > 2.5,
+    "Powerslide is the intentional low-grip state",
   );
-}
-assert.deepEqual(
-  tracking(15, 12, false, true),
-  tracking(15, 12, false, false),
-  "Large off-angle slip retains previous finite response",
+const large = tracking(15, 12, false, true);
+assert.ok(
+  large.slip > 1 && large.slip < 6,
+  "Large off-angle slip slides briefly, then grips",
 );
 for (const id of ["ion", "vector"] as const)
   for (const throttle of [-1, 1]) {

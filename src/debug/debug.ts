@@ -1,6 +1,8 @@
 import * as T from "three";
 import type { Simulation } from "../physics/simulation";
 import type { GameCamera } from "../camera/camera";
+import { WHEEL_NAMES } from "../car/suspension";
+import { curvature } from "../config/physics";
 export class DebugView {
   enabled = false;
   private group = new T.Group();
@@ -38,41 +40,54 @@ export class DebugView {
       av = c.body.angvel(),
       b = s.ball,
       mag = (v: { x: number; y: number; z: number }) =>
-        Math.hypot(v.x, v.y, v.z).toFixed(2);
-    this.element.textContent = `Slip ${c.lateralSlip.toFixed(2)} / rear ${c.wheelContact.slice(2).map(Number).join(" ")} / skid ${c.skidIntensity.toFixed(2)}\nSupersonic ${c.supersonic} / demo eligible ${c.supersonic && c.demolitionState === "active"}\nDemo ${c.demolitionState} / respawn ${c.respawnTimer.toFixed(2)}\nPHYSICS / 120 Hz\nFPS ${fps.toFixed(0)} · ticks/s ${ticks}\nSpeed ${mag(v)} m/s · forward ${c.forwardSpeed.toFixed(2)}\nVertical ${v.y.toFixed(2)} · boost ${c.boost.toFixed(1)}\nContact ${c.contactState} / support ${c.grounded} · wheels ${c.contacts}/4\nFirst jump ${c.jump.used ? "performed" : "unused"} / aerial ${c.jump.second ? "used" : c.jump.available ? "available" : "expired"}\nJump age ${c.jump.age.toFixed(2)} · dodge ${c.jump.flipLeft.toFixed(2)}\nBall speed ${mag(b.linvel())} · angular ${mag(b.angvel())}\nCar angular ${mag(av)}\nNormal ${c.normal
-      .toArray()
-      .map((n) => n.toFixed(2))
-      .join(
-        ", ",
-      )}\nGreen: rays/normal · white: colliders\nYellow: relative velocity · magenta: extra hit impulse`;
-    this.element.textContent += `\nCONTACT ${c.supportState} / ${c.surfaceType}\nFL ${Number(c.wheelContact[0])} FR ${Number(c.wheelContact[1])} RL ${Number(c.wheelContact[2])} RR ${Number(c.wheelContact[3])}\nLoaded wheel support ${c.supportContacts}/4\nLanding assist ${c.landing.rate > 0 ? "ON" : "OFF"} / COM Y ${c.body.localCom().y.toFixed(3)}`;
-    const data = s.world.debugRender();
-    const contact = s.ballContacts[0],
-      tuple = (v: T.Vector3) =>
-        v
-          .toArray()
-          .map((x) => x.toFixed(2))
-          .join(",");
-    this.element.textContent += `\nBall contact ${contact.kind} / closing ${contact.closing.toFixed(2)} m/s\nLocal contact ${tuple(contact.local)}\nContact car linear ${tuple(contact.linear)} / angular ${tuple(contact.angular)}\nPoint velocity ${tuple(contact.pointVelocity)} / relative ${tuple(contact.relative)}\nExtra hit impulse ${tuple(contact.impulse)} N·s / roof support ${tuple(contact.roofImpulse)} N·s\nLast impact ${tuple(contact.lastImpulse)} N·s / age ${contact.impactAge.toFixed(2)} s / count ${contact.impactCount}`;
-    this.element.textContent += `\nFlip time ${c.jump.flipAge.toFixed(3)} / remaining ${c.jump.flipLeft.toFixed(3)} / pitch lock ${c.pitchLocked}\nPitch input ${c.pitchInput.toFixed(2)} / angular ${new T.Vector3().copy(av).dot(c.right).toFixed(2)} rad/s\nFlip pitch acceleration ${c.flipPitchAcceleration.toFixed(2)} / cancel braking ${c.flipCancelAcceleration.toFixed(2)} rad/s²`;
-    this.element.textContent += `\nSupport frame ${c.stableContact ? "stable driving" : c.contacts ? "landing / partial" : "air"} / roll angular ${new T.Vector3().copy(av).dot(c.forward).toFixed(2)} rad/s`;
-    this.element.textContent += `\nSupport kind ${c.supportKind} / chassis contacts ${c.chassisContacts} / wheel edges ${c.edgeContacts}\nDriven edge force ${tuple(c.edgeDriveForce)} N`;
-    this.element.textContent += `\nAdhesion ${mag(c.adhesionAcceleration)} m/s² / normal correction ${mag(c.normalCorrectionAcceleration)} m/s²\nPosition correction ${mag(c.contactCorrection)} m\nWheel normals ${c.wheelNormals
-      .map((n) =>
-        n
-          .toArray()
-          .map((v) => v.toFixed(2))
-          .join(","),
+        Math.hypot(v.x, v.y, v.z).toFixed(2),
+      tuple = (v: { x: number; y: number; z: number }) =>
+        [v.x, v.y, v.z].map((x) => x.toFixed(2)).join(",");
+    const speed = Math.hypot(v.x, v.y, v.z);
+    const wheels = c.wheels
+      .map(
+        (w, i) =>
+          `${WHEEL_NAMES[i]} ${w.loaded ? "●" : w.contact ? "◐" : "○"} ${(w.compression * 100).toFixed(1)}cm ${w.force.toFixed(0)}N${w.pushback > 0 ? "+stop" : ""} slip ${w.slip.toFixed(2)} grip ${w.lateralFriction.toFixed(2)}`,
       )
-      .join(" / ")}\nCamera up ${
-      cameraUp
-        ?.toArray()
-        .map((v) => v.toFixed(2))
-        .join(",") ?? "world"
-    }`;
+      .join("\n  ");
+    const comLocal = c.body.localCom(),
+      comWorld = c.body.worldCom();
+    const lines = [
+      `PHYSICS DEBUG · 120 Hz · FPS ${fps.toFixed(0)} · ticks/s ${ticks}`,
+      `Speed ${speed.toFixed(2)} m/s (${(speed * 100).toFixed(0)} uu/s) · forward ${c.forwardSpeed.toFixed(2)} · vertical ${v.y.toFixed(2)} · supersonic ${c.supersonic}`,
+      `State ${c.supportState} · surface ${c.surfaceType} · loaded wheels ${c.contacts}/4 · coherent ${c.supportContacts} · chassis ${c.chassisContacts}`,
+      `Wheels (● loaded ◐ ray only ○ none):\n  ${wheels}`,
+      `Surface normal ${tuple(c.normal)} · sticky ${mag(c.adhesionAcceleration)} m/s² · suspension ${mag(c.normalCorrectionAcceleration)} m/s²`,
+      `COM local ${tuple(comLocal)} · world ${tuple(comWorld)}`,
+      `Angular ${tuple(av)} · |ω| ${mag(av)} / cap ${c.angularLimit.toFixed(1)} rad/s`,
+      `Steering wheel angle ${c.steerAngle.toFixed(3)} rad · path curvature ${c.steeringCurvature.toFixed(4)} · measured ${c.turnCurvature.toFixed(4)} · RL table ${curvature(c.forwardSpeed).toFixed(4)} 1/m`,
+      `Powerslide ${c.handbrake.toFixed(2)} · lateral slip ${c.lateralSlip.toFixed(2)} m/s · skid ${c.skidIntensity.toFixed(2)} · boost ${c.boost.toFixed(1)}${c.boosting ? " BOOSTING" : ""}`,
+      `Jump ${c.jump.used ? "used" : "ready"}${c.jump.holding ? " (holding)" : ""} · aerial ${c.jump.second ? "used" : c.jump.available ? "available" : "expired"} · age ${c.jump.age.toFixed(2)} · flip ${c.jump.flipLeft.toFixed(2)} · pitch lock ${c.pitchLocked}`,
+      `Flip pitch accel ${c.flipPitchAcceleration.toFixed(1)} · cancel ${c.flipCancelAcceleration.toFixed(2)} rad/s² · landing assist ${c.landing.rate > 0 ? "ON" : "off"} · recovery ${c.recovering}`,
+      `Demo ${c.demolitionState} / respawn ${c.respawnTimer.toFixed(2)}`,
+    ];
+    const contact = s.ballContacts[0];
+    lines.push(
+      `BALL speed ${mag(b.linvel())} · spin ${mag(b.angvel())} · contact ${contact.kind} · closing ${contact.closing.toFixed(2)} m/s (rotational ${contact.rotationalClosing.toFixed(2)})`,
+      `  Contact point v+ω×r ${tuple(contact.pointVelocity)} · relative ${tuple(contact.relative)}`,
+      `  Extra RL impulse ${tuple(contact.impulse)} N·s · last ${mag(contact.lastImpulse)} N·s / ${contact.impactAge.toFixed(2)} s ago · count ${contact.impactCount}`,
+    );
     if (rig) {
-      this.element.textContent += `\nCAMERA ${rig.debug.mode} / blocked ${rig.clearance.blocked} / framing safe ${rig.debug.safe}\nPivot ${tuple(rig.pivot)}\nDesired ${tuple(rig.desiredPosition)} / actual ${tuple(rig.camera.position)}\nSurface reference ${tuple(rig.clearance.surfaceUp)} / horizon up ${tuple(rig.referenceUp)}\nLook ${tuple(rig.lookDirection)} / pole fallback ${rig.debug.singularity}\nCar screen ${tuple(rig.framing.carScreen)} / ball screen ${tuple(rig.framing.ballScreen)}\nFOV ${rig.camera.fov.toFixed(1)} / adjustment ${rig.debug.fovAdjustment.toFixed(1)}`;
-    }
+      const d = rig.debug;
+      lines.push(
+        `CAMERA DEBUG · ${d.mode} · blend ${d.blend.toFixed(2)}${rig.transitioning ? " (transition)" : ""}`,
+        `  FOV ${d.fov}° (vertical ${d.verticalFov.toFixed(1)}°) · distance ${d.distance} · height ${d.height} · angle ${d.angle}°`,
+        `  stiffness ${d.stiffness.toFixed(2)} · swivel ${d.swivel.toFixed(1)} · transition ${d.transition.toFixed(1)} · shake ${d.shake > 0 ? d.shake.toFixed(2) : "off"}`,
+        `  lag ${d.lag.toFixed(2)} m · blocked ${rig.clearance.blocked} · pole ${d.singularity}`,
+        `  reference up ${tuple(rig.referenceUp)} · surface ${tuple(rig.clearance.surfaceUp)}`,
+        `  look ${tuple(rig.lookDirection)} · car screen ${tuple(rig.framing.carScreen)} · ball screen ${tuple(rig.framing.ballScreen)}`,
+      );
+    } else if (cameraUp) lines.push(`Camera up ${tuple(cameraUp)}`);
+    lines.push(
+      "Green: wheel rays/normals · white: colliders · yellow: velocity · pink: angular · magenta: extra hit impulse",
+    );
+    this.element.textContent = lines.join("\n");
+    const data = s.world.debugRender();
     let offset = Math.min(data.vertices.length, this.positions.length - 300);
     this.positions.set(data.vertices.subarray(0, offset));
     for (let i = 0; i < offset / 3; i++)

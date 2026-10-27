@@ -76,8 +76,8 @@ function surface(kind: "floor" | "wall" | "ceiling", long = false) {
   }
   const collider = s.world.createCollider(shape);
   s.world.step();
-  // Full driving support now requires three coherent physics samples.
-  tick(s, {}, Math.ceil(P.car.stableContactTime / P.dt));
+  // RL: three or four touching wheels ground the car on the first sample.
+  tick(s, {}, 1);
   assert.ok(
     c.contacts >= 3 && c.grounded,
     kind + " initial stable surface contact",
@@ -112,7 +112,10 @@ for (const held of [false, true])
         }
       }
       assert.ok(recovered);
-      assert.equal(triggers, 1);
+      // RL air control stays live on the roof (no wheel contact), so held
+      // pitch can roll the car over before the roof recovery needs to fire.
+      if (held) assert.ok(triggers <= 1);
+      else assert.equal(triggers, 1);
       s.dispose();
       return { triggers, recovered };
     },
@@ -266,13 +269,14 @@ check("single-wheel landing retains aerial pitch and physical rotation", () => {
   return samples;
 });
 check(
-  "contact debounce tolerates a lost tick, while jump restores air input promptly",
+  "losing every wheel gives air control at once (RL), and jump restores air input promptly",
   () => {
     const { s, c, collider } = surface("floor");
     s.world.removeCollider(collider, true);
+    tick(s, { pitch: 1 }); // Rapier refreshes scene queries during this step.
     tick(s, { pitch: 1 });
-    assert.equal(c.contactState, "transition");
-    assert.equal(c.aerialControl, 0);
+    assert.equal(c.contactState, "air");
+    assert.equal(c.aerialControl, 1);
     tick(s, { pitch: 1 }, 12);
     assert.equal(c.contactState, "air");
     assert.equal(c.aerialControl, 1);
@@ -280,7 +284,8 @@ check(
     s.dispose();
     const next = surface("floor");
     tick(next.s, { jump: true });
-    tick(next.s, { pitch: 1 });
+    // RL: the extending wheels keep touching for ~3 ticks (~25 ms) after a jump.
+    tick(next.s, { pitch: 1 }, 4);
     assert.equal(next.c.aerialControl, 1);
     assert.ok(Math.abs(next.c.body.angvel().x) > 0.05);
     next.s.dispose();

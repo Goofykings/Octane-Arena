@@ -1,67 +1,76 @@
 # Gameplay camera rig
 
-This update changes only the gameplay camera and its diagnostics/tests. SHA-256 comparisons against the start-of-task snapshot confirm that car, ball, arena, physics configuration, input definitions and shared settings/network sources are unchanged. Existing local and snapshot-rendered network matches use the same `GameCamera` implementation.
+`GameCamera` (`src/camera/camera.ts`) is the one gameplay camera for local,
+replay, spectator and snapshot-rendered network matches. It follows Rocket
+League's camera model: a fixed boom and FOV defined by the camera settings, a
+view that rolls with the surface under the wheels, and Car Cam / Ball Cam as two
+aims of the same rig. It replaces the earlier level-horizon rig with adaptive
+FOV zoom and framing-driven boom changes.
 
-## What was replaced
+## Settings
 
-The former controller mixed raw physics velocity, orbit tracking, wall-tangent side selection, two collision corrections, separate wall damping and late FOV estimation. Those stages could disagree about the final view. Translation, orientation and framing were not evaluated as one render-frame problem.
+| Setting | Default (RL) | Effect |
+| --- | --- | --- |
+| FOV | 110° | Horizontal at 16:9; wider screens keep that vertical FOV, narrower ones keep the horizontal FOV down to 4:3 |
+| Distance / Height | 270 / 100 uu | Boom behind and above the car, in the reference frame |
+| Angle | −3° | Car Cam look pitch |
+| Stiffness | 0.40 | Positional lag of the pivot (0.05 s at 0, rigid at 1) and Car Cam heading follow rate |
+| Swivel | 5.0 | Free-look response |
+| Transition | 1.3 | Car ↔ Ball Cam blend speed (0.55 s at 1.0), both directions |
+| Shake | Off | Optional impact/supersonic shake |
 
-The old wall blend/timer, alternative-camera candidates, post-smoothing wall-normal push and raw-body velocity reads have been removed.
+Older saved camera blocks are reset to these defaults by the settings migration.
 
-## Pipeline
+## Pipeline (one rendered frame)
 
-1. Read interpolated car position/quaternion and interpolated ball position. Derive motion from those render samples, never 120 Hz body transforms.
-2. Set the pivot to the rendered car. Survey static arena geometry with six reusable rays; blend the resulting surface reference with spherical exponential damping. Arena gravity defines a separate, level horizon.
-3. Blend Ball/Car target priorities through one transition state. The horizontal ball-bearing dead zone retains orbit near the car; an unwrapped bearing and remembered turn direction handle the antipode.
-4. Solve an ideal boom using camera Distance/Height settings, the continuous surface frame, and whole-boom geometric constraints. Two-subject projection determines extra distance. Evaluate both the desired and catching-up orbit; a short render-motion forecast reserves framing distance before fast passes reach the edge. The actual aim always follows the actual rendered ball.
-5. Damp boom direction and length independently of orientation. Car translation feeds through immediately. Position stiffness uses exponential damping; radial change is bounded in metres per second. Swivel controls orbit response; the surface frame reduces orbit rate continuously at walls.
-6. Apply final collision clearance with a 0.20 m swept sphere. This stage only shortens the boom. It never selects another orbit or pushes the final camera sideways. Clearance recovers exponentially. The cast may leave an initial tiny overlap at a resting roof pivot, but cannot move farther into an obstacle.
-7. Frame car and ball as angular subjects, weighted slightly toward the ball. Include a car control envelope and full ball radius. Preserve a polar basis explicitly instead of calling `lookAt`: retain prior yaw at near-vertical looks, smoothly resume the horizontal bearing, and bound pitch inside the readable hemisphere. The camera has zero roll even when the car air-rolls.
-8. Before drawing, project both subjects from the actual damped, collision-corrected view. Aim constraints take the smallest correction toward a feasible view, bounded by delta time and swivel response. FOV expansion uses the 85% target/90% reserve, caps at 120 degrees, and returns smoothly to the user's FOV. Narrow viewports receive a projection-derived distance budget. Debug state is measured again after committing the final projection.
-
-Car Cam uses the same pivot, reference frame, boom, smoothing, collision and transition stages. Only targeting priorities change. Switching either direction does not reset the rig. Goal celebrations retain the existing goal-focus target after the ball is disabled. Home and garage controllers remain mutually exclusive with the gameplay controller.
-
-All existing camera settings remain supported: FOV, Distance, Height, Angle, Stiffness, Swivel and Transition. No schema, settings UI or keybind changes were required.
+1. **Render poses only.** Car and ball come from interpolated render transforms;
+   physics supplies arena queries and whether the ball is enabled.
+2. **Reference up.** A ray along the car's down axis finds the surface under the
+   wheels (≤ 0.7 m). When the car is wheels-down on it for 0.1 s, and its up is
+   not turning relative to that surface's normal faster than 3 rad/s (low-passed,
+   so curve facets don't count but tumbling past a wall does), the reference up
+   eases to that normal (7/s); otherwise to world up (2.6/s). Roll is capped at
+   6 rad/s. Headings are parallel-transported with the frame, so walls and the
+   ceiling roll the view as in RL and the view never rolls off its own up.
+3. **Car Cam heading.** The nose on a surface, the travel direction in the air;
+   rate 9 + 9 × stiffness per s, capped at 4.5 rad/s.
+4. **Ball Cam bearing.** Behind the car, opposite the ball. Near overhead the
+   bearing's authority fades smoothly out, so there is no singularity flip.
+5. **Transition.** One continuous blend at the Transition Speed rate in both
+   directions. It starts from the current rendered transform and both targets
+   keep updating while blending. The rendered view turns at most
+   3.5 × Transition rad/s while switching and 8 rad/s otherwise, so nothing snaps.
+6. **Boom.** Fixed length √(Distance² + Height²) along the blended heading.
+7. **Aim.** Car Cam looks along the heading at Angle. Ball Cam aims at the ball,
+   with pitch and yaw clamped so the car stays inside 80% of the half-FOV. A very
+   high ball pitches the view up only that far and may leave the top edge, as in
+   RL. A hard readability bound keeps the car's centre inside ±0.84 of the frame
+   even while the view lags.
+8. **Free look.** The right stick or mouse sets a position-based yaw/pitch target
+   (small deadzone, smoothing by Swivel). The boom orbits the car itself, keeping
+   its length, and returns exactly on release.
+9. **Collision.** The arena shell is see-through and never shortens the boom.
+   Floor clearance raises the boom while preserving its length, and the final
+   look is re-aimed so the car stays readable. Only hard blockers (goal frames,
+   extra-mode obstacles) shorten the boom, via a swept sphere that reopens
+   smoothly, so there are no jumps.
 
 ## Diagnostics
 
-Press **F3** in a local or network match. The existing diagnostic overlay now includes camera mode, pivot, desired/actual position, smoothed surface reference, horizon up, look direction, polar fallback, car/ball screen coordinates with depth, FOV adjustment, framing safety and collision state. Orange/purple lines show desired/actual booms; white shows viewing direction. Camera math vectors, quaternions, rays and the swept sphere are reused.
+**F3** shows camera mode and blend, settings, reference up, pivot, desired and
+actual boom, look direction, singularity, car/ball screen positions, framing
+safety and collision state, with booms and view direction drawn in the world.
 
 ## Verification
 
-Run `npm run test:camera` for camera regression, two-subject framing, the new rig torture suite and the existing real-physics ramp matrix. The rig suite runs A–P plus a 60 m/s close ball pass at 30/60/144 FPS across 16:9, 4:3, 9:16 and 21:9: **204 trajectory runs**. It checks subject extents every enabled Ball Cam frame, car visibility through both toggle directions, horizon stability, angular continuity, camera-to-pivot obstruction, and minimum boom clearance.
+`npm run test:camera` and the camera files in `npm test`:
 
-| Test   | Coverage                                                                    |
-| ------ | --------------------------------------------------------------------------- |
-| A      | Normal Ball Cam driving                                                     |
-| B      | Full-speed powerslide trajectory around the ball                            |
-| C / D  | Low-speed and fast floor-to-wall curves                                     |
-| E      | Vertical wall with midfield ball                                            |
-| F / G  | Direct overhead and near-ceiling ball                                       |
-| H / H1 | Behind-car orbit and fast close front-to-back passes                        |
-| I      | Close ball with noisy horizontal bearing                                    |
-| J / K  | Continuous air-roll and aerial overhead crossing                            |
-| L / M  | Wall-to-air and wall-to-floor                                               |
-| N      | Inverted car; additional actual resting-roof physics checks for both bodies |
-| O      | Goal focus with disabled ball                                               |
-| P      | Rapid toggles, including intermediate Ball Cam frames                       |
-
-Trajectories isolate the camera against the real collision shell. The separate unchanged ramp tests supply 144 actual physics driving runs across both bodies, arena sides, travel directions, speeds and diagonal entries. Existing arena tests cover real wall departure, goal curves and upside-down recovery. Additional tests prove identical render samples produce identical camera transforms despite different raw physics poses/velocities, noisy wheel normals and car air roll. Polar tests cover look directions nearly parallel to up and down.
-
-Measurements are in `camera-rig.json`, `camera-stability.json` and the existing ramp/arena test output. Full `npm test`, production build and automated browser suites are run for this change; current results are reported with the update.
-
-Final verification:
-
-- [x] `npm test`: entire final regression suite passed.
-- [x] `npm run test:camera`: 204 rig trajectories, polar/render-isolation/roof checks and 144 real-physics ramp runs passed.
-- [x] Focused transition tests: both toggle directions respond to Transition Speed; both Free Play and bot goal-focus checks passed.
-- [x] `npm run build`: TypeScript and production Vite build passed.
-- [x] `npm --prefix server test`: all seven server tests passed.
-- [x] `tests/browser-smoke.cjs`: single-player, Free Play, VS Bot, settings, garage and UI checks passed.
-- [x] `tests/contact-browser.cjs`: live overhead/wall/ceiling/curve framing, both toggle directions and no browser/shader errors passed; overhead and wall screenshots inspected.
-- [x] `tests/network-browser.cjs`: both snapshot-rendered cameras frame car/ball with level horizons; F3 camera diagnostics, two/four-player matches, goals and reconnects passed.
-- [x] Physics/car/arena/config/shared source hashes match the task baseline.
-
-## Limits
-
-Screen framing does not render through opaque goal geometry or other objects. A fully obstructed boom, physically overlapping subjects, an instantaneous teleport or an extremely narrow viewport can make both subjects impossible to frame from a continuous, collision-safe pose within the FOV limit. Debug framing safety reports that limitation rather than silently claiming visibility. In tight portrait views, extreme near passes can widen the safety FOV quickly; standard gameplay returns to the configured view smoothly. No camera code changes gameplay physics to fix a view.
+- `camera-rig.ts`: 204 torture trajectories (A–P plus fast passes, at 30/60/144
+  FPS and 16:9, 4:3, 9:16 and 21:9). Checks a readable car and no roll off the
+  reference up in every frame, the ball framed whenever it is within 35° of the
+  reference plane, the view rate ≤ 8 rad/s, no blocker crossing and a full boom.
+- `framing.ts`, `camera-stability.ts`, `camera-boundary.ts` and `ramp-quality.ts`:
+  overhead, wall and ceiling framing, wall↔ceiling transitions, and 144 real-physics
+  ramp runs with Ball Cam.
+- `arena-collision.ts`: view-turn and roll steps per tick through real wall,
+  corner and goal-curve driving.

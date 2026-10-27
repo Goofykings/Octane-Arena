@@ -1,6 +1,12 @@
 import { z } from "zod";
 export const mutatorOptions = {
-  matchLength: ["5 MINUTES", "10 MINUTES", "20 MINUTES", "UNLIMITED"],
+  matchLength: [
+    "3 MINUTES",
+    "5 MINUTES",
+    "10 MINUTES",
+    "20 MINUTES",
+    "UNLIMITED",
+  ],
   boostAmount: [
     "DEFAULT",
     "NO BOOST",
@@ -33,7 +39,7 @@ export const mutatorLabels: Record<MutatorKey, string> = {
   ballBounciness: "BALL BOUNCINESS",
 };
 export const DEFAULT_MUTATORS: MatchMutators = Object.freeze({
-  matchLength: "5 MINUTES",
+  matchLength: "3 MINUTES",
   boostAmount: "DEFAULT",
   boostStrength: "1X",
   gravity: "DEFAULT",
@@ -61,6 +67,7 @@ export const matchMutators = (raw: unknown = DEFAULT_MUTATORS): MatchMutators =>
 /** Original tuning ratios, not a claim of Rocket League's internal physics values. */
 export const MUTATOR_TUNING = {
   duration: {
+    "3 MINUTES": 180,
     "5 MINUTES": 300,
     "10 MINUTES": 600,
     "20 MINUTES": 1200,

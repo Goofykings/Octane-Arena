@@ -1,5 +1,8 @@
 import { CustomTrainingSession } from "./extra/training/custom-session";
 import { TrainingEditorPanel } from "./ui/training-editor-panel";
+import { ARENA_CARS, loadArenaCars } from "./render/arena-car-model";
+// Bots cycle through the polished GLB lineup.
+const BOT_BODIES = Object.keys(ARENA_CARS) as (keyof typeof ARENA_CARS)[];
 import { FirebaseTrainingPacks } from "./network/firebase-training";
 import {
   CustomTrainingLibrary,
@@ -101,7 +104,8 @@ import type { RumbleItem } from "../shared/rumble";
 import { controllerName } from "../shared/controller";
 
 async function boot() {
-  await RAPIER.init();
+  // The car GLB loads alongside physics init; on failure cars use the procedural body.
+  await Promise.all([RAPIER.init(), loadArenaCars()]);
   const settings = new Settings(),
     garage = new Garage(),
     ui = new UI(),
@@ -462,7 +466,7 @@ async function boot() {
       jobs.push({
         name: "Cars and effects",
         run: () => {
-          const body = i % 2 ? "vector" : "ion",
+          const body = BOT_BODIES[i % BOT_BODIES.length],
             color = roster[i].team === 0 ? 0x5ccce5 : 0xfa9c3e;
           if (i >= cars.length) {
             const model = carModel(color, body),

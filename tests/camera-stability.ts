@@ -69,6 +69,9 @@ check("overhead ball retains orbit", () => {
   assert.ok(movement < 0.1, `near-overhead orbit moved ${movement} m`);
   return { movement };
 });
+// RL boom: Distance 270 uu and Height 100 uu (2.88 m), stretched only by the
+// stiffness lag at speed.
+const boom = Math.hypot(2.7, 1);
 check("high speed car retains camera distance", () => {
   const { simulation, car, ball, camera, control } = fixture();
   control.ballMode = false;
@@ -77,7 +80,10 @@ check("high speed car retains camera distance", () => {
     car.position.z = 30 - (23 * i) / 60;
     control.update(car, ball, simulation, 1 / 60, false, i / 60);
     const distance = camera.position.distanceTo(car.position);
-    assert.ok(distance > 3 && distance < 9, `camera distance ${distance}`);
+    assert.ok(
+      distance > boom * 0.95 && distance < boom + 1.6,
+      `camera distance ${distance}`,
+    );
   }
   simulation.dispose();
   return { distance: camera.position.distanceTo(car.position) };
@@ -93,7 +99,7 @@ for (const fps of [30, 60, 144])
       control.update(car, ball, simulation, 1 / fps, false, angle);
       if (i > fps)
         maxTurn = Math.max(maxTurn, rotation.angleTo(camera.quaternion) * fps);
-      assert.ok(camera.position.distanceTo(car.position) > 4);
+      assert.ok(camera.position.distanceTo(car.position) > boom * 0.95);
     }
     simulation.dispose();
     assert.ok(maxTurn < 1.5, `bearing wrap caused ${maxTurn} rad/s`);
@@ -151,7 +157,23 @@ for (const sign of [-1, 1])
               camera.position.distanceTo(car.position),
             );
           }
-          assert.ok(Math.abs(camera.rotation.z) < 1e-8);
+          // The camera's own reference up (surface normal on the wall, as in
+          // RL) defines the horizon; the view never rolls relative to it.
+          assert.ok(
+            Math.abs(
+              new Vector3(1, 0, 0)
+                .applyQuaternion(camera.quaternion)
+                .dot(control.referenceUp),
+            ) < 1e-6,
+          );
+          // World-space roll never exceeds the tilt of the surface under the car.
+          const roll = Math.asin(
+            Math.min(
+              1,
+              Math.abs(new Vector3(1, 0, 0).applyQuaternion(camera.quaternion).y),
+            ),
+          );
+          assert.ok(roll <= angle + 0.02, `roll ${roll} beyond surface ${angle}`);
           assert.ok(camera.position.y >= 0.24, "Lens remains above the floor");
           const offset = camera.position.clone().sub(car.position),
             distance = offset.length();
@@ -177,7 +199,7 @@ for (const sign of [-1, 1])
           `camera jump ${maxSpeed} m/s ${JSON.stringify(worst)}`,
         );
         assert.ok(maxTurn < 4, `camera rotation jump ${maxTurn} rad/s`);
-        assert.ok(minDistance > 2.1);
+        assert.ok(minDistance > 2.1, `minimum distance ${minDistance}`);
         return { maxSpeed, maxTurn, minDistance };
       });
 writeFileSync(

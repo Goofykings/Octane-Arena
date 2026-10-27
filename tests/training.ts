@@ -201,9 +201,9 @@ for (const pack of trainingPacks) {
     if (pack.type === "striker") {
       if (run.recorder.pendingGoal) captureTrainingReplay(run);
       if (run.replay) run.skipReplay();
-      // All ten retuned shots are scoreable with ground controls. Some require
-      // lining up behind the ball or choosing approach speed; no ball edits,
-      // boost, jump or scripted impulses.
+      // All ten shots are scoreable with ground controls: line up behind the
+      // (slightly predicted) rolling ball on the goal line, then shoot through
+      // it. No ball edits, boost, jump or scripted impulses.
       for (let index = 0; index < 10; index++) {
         const originalDuration = pack.shots[index].timeLimit;
         pack.shots[index].timeLimit = 36;
@@ -212,34 +212,51 @@ for (const pack of trainingPacks) {
         begin(run);
         for (let i = 0; i < 4350 && !run.outcome; i++) {
           const car = s.cars[0],
-            pos = car.body.translation(),
-            ball = s.ball.translation();
-          const forward = new Vector3(0, 0, -1).applyQuaternion(
-            new Quaternion().copy(car.body.rotation()),
-          );
+            pos = new Vector3().copy(car.body.translation()),
+            ball = new Vector3()
+              .copy(s.ball.translation())
+              .addScaledVector(new Vector3().copy(s.ball.linvel()).setY(0), 0.4);
+          const forward = new Vector3(0, 0, -1)
+            .applyQuaternion(new Quaternion().copy(car.body.rotation()))
+            .setY(0)
+            .normalize();
           const goalDir = new Vector3(
             -ball.x,
             0,
             -P.arena.halfLength - ball.z,
           ).normalize();
-          const relative = new Vector3(pos.x - ball.x, 0, pos.z - ball.z);
+          const toBall = new Vector3(ball.x - pos.x, 0, ball.z - pos.z);
+          const lateral = Math.abs(toBall.x * goalDir.z - toBall.z * goalDir.x);
           const aligned =
-            -relative.dot(goalDir) > 1 &&
-            Math.abs(relative.x * goalDir.z - relative.z * goalDir.x) < 1.2 &&
-            forward.dot(goalDir) > 0.9;
-          const target = new Vector3(ball.x, 0, ball.z);
-          const approach = index === 4 || index === 5;
-          if (approach && !aligned) target.addScaledVector(goalDir, -4);
+            toBall.dot(goalDir) > 0.5 &&
+            lateral < 0.8 &&
+            toBall.clone().normalize().dot(goalDir) > 0.94;
+          const target = ball
+            .clone()
+            .addScaledVector(goalDir, aligned ? 2 : -5 - Math.min(3, lateral));
           const desired = Math.atan2(target.x - pos.x, -(target.z - pos.z)),
             heading = Math.atan2(forward.x, -forward.z);
           const error = Math.atan2(
             Math.sin(desired - heading),
             Math.cos(desired - heading),
           );
-          const throttle = approach ? 0.4 : index === 7 ? 0.8 : 0.65;
+          const speed = new Vector3().copy(car.body.linvel()).dot(forward),
+            want = aligned
+              ? 14
+              : Math.min(
+                  10,
+                  2 + new Vector3(target.x - pos.x, 0, target.z - pos.z).length(),
+                );
           run.step({
             ...n,
-            throttle: Math.abs(error) < 1 ? throttle : 0.15,
+            throttle:
+              Math.abs(error) > 1.2
+                ? 0.3
+                : speed < want
+                  ? 1
+                  : speed > want + 2
+                    ? -0.3
+                    : 0.05,
             steer: Math.max(-1, Math.min(1, error * 3)),
           });
         }

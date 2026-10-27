@@ -53,9 +53,11 @@ for (const [label, speed, offset, roof] of [
           .copy(c.body.linvel())
           .multiplyScalar(c.body.mass())
           .addScaledVector(new Vector3().copy(s.ball.linvel()), s.ball.mass());
+        // Rigid contact conserves pair momentum; RL's extra impulse is a
+        // reported, ball-only velocity change (never hidden energy).
         assert.ok(
-          after.distanceTo(before) < 0.05,
-          "Aerial correction conserves pair linear momentum instead of adding ball-only momentum",
+          after.distanceTo(before.add(contact.impulse)) < 0.05,
+          "Aerial contact conserves pair momentum plus the reported RL extra impulse",
         );
         const recoil = new Vector3().copy(c.body.linvel()).sub(launch).length();
         const ballSpeed = new Vector3().copy(s.ball.linvel()).length();
@@ -87,8 +89,9 @@ for (const [label, speed, offset, roof] of [
       }
     }
     assert.ok(touched, `${label}: actual physical contact`);
-    assert.equal(c.body.mass(), 150);
-    assert.equal(s.ball.mass(), 50);
+    assert.ok(Math.abs(c.body.mass() - P.car.mass) < 1e-3);
+    assert.ok(Math.abs(s.ball.mass() - P.ball.mass) < 1e-3);
+    assert.ok(Math.abs(c.body.mass() / s.ball.mass() - 6) < 1e-3, "RL 6:1 car:ball mass");
   } finally {
     s.dispose();
   }
@@ -99,6 +102,6 @@ assert.ok(
   "Glancing hit stays less explosive than centered hit",
 );
 console.log(
-  "PASS aerial soft/nose/glancing/corner/side/roof coupling, real recoil/rotation, conserved impulse, unchanged 150:50 masses",
+  "PASS aerial soft/nose/glancing/corner/side/roof coupling, real recoil/rotation, conserved rigid impulse plus RL extra, 6:1 masses",
   JSON.stringify(records),
 );

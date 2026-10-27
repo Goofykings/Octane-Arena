@@ -1,4 +1,7 @@
-import type { TrainingShot } from "../../shared/custom-training";
+import {
+  publicationStatus,
+  type TrainingShot,
+} from "../../shared/custom-training";
 import { Euler, Quaternion, Vector3 } from "three";
 import { P } from "../config/physics";
 import { anglesVector, vectorAngles } from "../game/custom-training-editor";
@@ -265,7 +268,14 @@ export class TrainingEditorPanel {
       "custom-menu-return",
     ).dataset.navBack = "";
     if (this.session.editable) {
-      this.button(nav, "PUBLISH", () => this.publish(), "custom-publish");
+      this.button(
+        nav,
+        this.session.draft.pack.publishedDocumentId
+          ? "UPDATE PUBLISHED PACK"
+          : "PUBLISH",
+        () => this.publish(),
+        "custom-publish",
+      );
       this.button(
         nav,
         "SAVE AND EXIT",
@@ -290,12 +300,21 @@ export class TrainingEditorPanel {
       );
     else this.exit();
   }
+  /** Local editing never uploads; this only reports how the draft relates to its public copy. */
+  private publicationLabel() {
+    const { pack, dirty } = this.session.draft;
+    const state = publicationStatus(pack);
+    if (state === "DRAFT") return "DRAFT";
+    return dirty || state !== "PUBLISHED"
+      ? "PUBLISHED • CHANGES NOT PUBLISHED"
+      : "PUBLISHED";
+  }
   private updateDirtyLabel() {
     this.root.querySelector("#custom-edit-mode")!.textContent = this.session
       .editing
-      ? this.session.draft.dirty
-        ? "EDIT MODE / UNSAVED"
-        : "EDIT MODE"
+      ? (this.session.draft.dirty ? "EDIT MODE / UNSAVED" : "EDIT MODE") +
+        " / " +
+        this.publicationLabel()
       : this.session.complete
         ? "PACK COMPLETE"
         : this.session.paused
@@ -838,12 +857,13 @@ export class TrainingEditorPanel {
     if (this.menu.open) this.renderMenu();
   }
   private publish() {
+    const update = !!this.session.draft.pack.publishedDocumentId;
     this.confirmation(
-      "PUBLISH TRAINING PACK?",
+      update ? "UPDATE PUBLISHED PACK?" : "PUBLISH TRAINING PACK?",
       "Only enabled shots will be published. Your current draft is saved locally first.",
       [
         {
-          label: "PUBLISH",
+          label: update ? "UPDATE" : "PUBLISH",
           action: () => {
             void this.upload();
           },
@@ -870,9 +890,16 @@ export class TrainingEditorPanel {
         publishedRevision: saved.publishedRevision,
         version: saved.version,
       });
-      this.message("PUBLISHED SUCCESSFULLY");
+      this.message(
+        cloud.version > 1 ? "PUBLISHED PACK UPDATED" : "PUBLISHED SUCCESSFULLY",
+      );
     } catch (e) {
-      this.message(trainingCloudError(e));
+      // The draft was saved before uploading and nothing is marked published on failure.
+      this.message(
+        "PUBLISH FAILED: " +
+          trainingCloudError(e) +
+          " Your local pack is still saved.",
+      );
     } finally {
       this.busy = false;
       this.session.setLocked(this.menu.open);

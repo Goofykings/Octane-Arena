@@ -90,10 +90,12 @@ for (const id of ["ion", "vector"] as const)
       },
       true,
     );
-    let impulses = 0;
+    let impulses = 0,
+      onRoof = true;
     for (let i = 0; i < 480; i++) {
       s.step([n, n]);
-      if (s.ballContacts[0].impulse.lengthSq()) impulses++;
+      if (s.ballContacts[0].impulse.lengthSq() && onRoof) impulses++;
+      onRoof &&= Math.abs(s.ball.translation().x) < d.halfWidth;
     }
     const p = s.ball.translation();
     records.push({ kind: "dribble", id, x, final: p, impulses });
@@ -102,10 +104,13 @@ for (const id of ["ion", "vector"] as const)
       0,
       "resting dribble receives artificial hit stacking",
     );
+    // The roof is flat (no shaping impulse): an off-centre ball rolls out
+    // only as the suspension tilts the car under its weight.
     if (x === 0)
       assert.ok(Math.abs(p.x) < 0.01 && p.y > 1.4, "centred roof support lost");
-    else assert.ok(p.x > x + 0.5, "off-centre ball does not roll outward");
-    if (x > 0.3) assert.ok(p.y < 1, "edge ball does not fall naturally");
+    else assert.ok(p.x > x + 0.05, "off-centre ball does not roll outward");
+    if (x > 0.3)
+      assert.ok(p.x > d.halfWidth + 0.3, "edge ball does not fall naturally");
     s.dispose();
   }
 const flickSpeeds = new Map<string, number>();
@@ -291,10 +296,15 @@ for (const id of ["ion", "vector"] as const) {
     ]);
     c.pose.render(model, 1);
     animateWheels(model, c.forwardSpeed, c.steerAngle, P.dt, c, model);
+    // Visual suspension: mounts travel only along the chassis Y axis, within
+    // the suspension's rest length.
     mounts.forEach((m, k) =>
       assert.ok(
-        m.position.equals(fixed[k]),
-        "wheel mount moved relative to chassis",
+        m.position.x === fixed[k].x &&
+          m.position.z === fixed[k].z &&
+          m.position.y <= 0.06 + 1e-9 &&
+          m.position.y >= -c.geometry.restLength - 1e-9,
+        "wheel mount left its suspension axis",
       ),
     );
   }

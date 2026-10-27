@@ -93,6 +93,146 @@ export const trainingLibrarySchema = z.object({
   schemaVersion: z.literal(1),
   packs: z.array(customTrainingPackSchema),
 });
+export const PUBLISH_LIMITS = {
+  name: 40,
+  description: 250,
+  authorName: 20,
+  shots: MAX_TRAINING_SHOTS,
+  bytes: 150000,
+} as const;
+const cloudIdSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]{1,80}$/, "Malformed pack or shot ID.");
+const shotNameSchema = z.string().trim().max(40);
+/** Exactly what a published shot carries: playable state only, no editor/runtime data. */
+export const publishedShotSchema = z
+  .object({
+    id: cloudIdSchema,
+    name: shotNameSchema,
+    enabled: z.literal(true),
+    carPosition: trainingShotSchema.shape.carPosition,
+    carRotation: rotationSchema,
+    carVelocity: trainingShotSchema.shape.carVelocity,
+    ballPosition: trainingShotSchema.shape.ballPosition,
+    ballLaunchDirection: trainingShotSchema.shape.ballLaunchDirection,
+    ballLaunchSpeed: trainingShotSchema.shape.ballLaunchSpeed,
+    ballAngularVelocity: trainingShotSchema.shape.ballAngularVelocity,
+    timeLimit: trainingShotSchema.shape.timeLimit,
+  })
+  .strip();
+export type PublishedShot = z.infer<typeof publishedShotSchema>;
+const authorNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Set a profile name before publishing.")
+  .max(PUBLISH_LIMITS.authorName, "Profile name is too long to publish.");
+const descriptionSchema = z
+  .string()
+  .trim()
+  .max(
+    PUBLISH_LIMITS.description,
+    `Use ${PUBLISH_LIMITS.description} characters or fewer for the description.`,
+  );
+/** Client-controlled fields of a published document; the cloud layer adds ownerUid, version and timestamps. */
+export interface PublishedPackPayload {
+  packId: string;
+  authorName: string;
+  name: string;
+  description: string;
+  shotCount: number;
+  shots: PublishedShot[];
+}
+const byteSize = (value: unknown) =>
+  new TextEncoder().encode(JSON.stringify(value)).length;
+/** Validates a local pack and reduces it to the public payload (enabled shots only). */
+export function serializePublishedPack(
+  value: unknown,
+  authorName: string,
+): PublishedPackPayload {
+  const pack = validatePlayablePack(value);
+  const payload: PublishedPackPayload = {
+    packId: cloudIdSchema.parse(pack.id),
+    authorName: authorNameSchema.parse(authorName),
+    name: packNameSchema.parse(pack.name),
+    description: descriptionSchema.parse(pack.description ?? ""),
+    shotCount: pack.shots.length,
+    shots: pack.shots.map((shot) =>
+      publishedShotSchema.parse({ ...shot, enabled: true }),
+    ),
+  };
+  if (byteSize(payload) > PUBLISH_LIMITS.bytes)
+    throw new Error("Pack exceeds the 150 KB size limit.");
+  return payload;
+}
+const millis = (t: unknown) => {
+  if (typeof t === "number" && Number.isFinite(t)) return t;
+  if (t && typeof (t as { toMillis?: unknown }).toMillis === "function") {
+    const ms = (t as { toMillis(): number }).toMillis();
+    if (Number.isFinite(ms)) return ms;
+  }
+  throw new Error("Invalid publication timestamp.");
+};
+const remotePackSchema = z
+  .object({
+    packId: cloudIdSchema,
+    ownerUid: z.string().min(1).max(128),
+    authorName: authorNameSchema,
+    name: packNameSchema,
+    description: descriptionSchema.default(""),
+    version: z.number().int().min(1).max(1000000),
+    shotCount: z.number().int().min(1).max(PUBLISH_LIMITS.shots),
+    shots: z.array(z.unknown()).min(1).max(PUBLISH_LIMITS.shots),
+    published: z.literal(true),
+  })
+  .strip();
+/** Validates downloaded (untrusted) data and converts it to the local playback format.
+ * Anything malformed throws; nothing from the network reaches physics unvalidated. */
+export function parsePublishedPack(
+  value: unknown,
+  documentId: string,
+): CustomTrainingPack {
+  if (!/^[A-Za-z0-9_-]{1,220}$/.test(documentId))
+    throw new Error("Malformed publication ID.");
+  if (!value || typeof value !== "object")
+    throw new Error("Invalid published pack.");
+  const d = value as Record<string, unknown>;
+  const doc = remotePackSchema.parse(d);
+  if (doc.shots.length !== doc.shotCount)
+    throw new Error("Invalid shot count.");
+  const createdAt = millis(d.createdAt),
+    updatedAt = millis(d.updatedAt),
+    publishedAt = millis(d.publishedAt);
+  const shots = doc.shots.map((s) => ({
+    ...publishedShotSchema.parse(s),
+    createdAt: updatedAt,
+    updatedAt,
+  }));
+  return validatePlayablePack({
+    id: doc.packId,
+    name: doc.name,
+    description: doc.description,
+    authorName: doc.authorName,
+    version: doc.version,
+    createdAt,
+    updatedAt,
+    published: true,
+    shots,
+    ownerUid: doc.ownerUid,
+    publishedDocumentId: documentId,
+    publishedAt,
+    publishedVersion: doc.version,
+  });
+}
+export type PublicationStatus =
+  | "DRAFT"
+  | "PUBLISHED"
+  | "PUBLISHED • LOCAL CHANGES";
+export function publicationStatus(pack: CustomTrainingPack): PublicationStatus {
+  if (!pack.publishedDocumentId) return "DRAFT";
+  return pack.publishedRevision === pack.updatedAt
+    ? "PUBLISHED"
+    : "PUBLISHED • LOCAL CHANGES";
+}
 export function validatePlayablePack(value: unknown) {
   const pack = customTrainingPackSchema.parse(value);
   if (!pack.shots.length)

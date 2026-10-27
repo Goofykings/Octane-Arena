@@ -35,8 +35,11 @@ function slideRun(release: boolean) {
     previous = speed;
     if ([119, 359, 719, 959, 2879].includes(i)) samples.push(speed);
   }
+  // RL: a held handbrake bypasses the coasting brake, so a car that has
+  // rotated into its travel direction may keep rolling; the slide itself ends.
+  const slip = Math.abs(new Vector3().copy(c.body.linvel()).dot(c.right));
   s.dispose();
-  return { samples, maxDrop };
+  return { samples, maxDrop, slip };
 }
 check("sideways drift decays and releasing grip stops it faster", () => {
   const held = slideRun(false),
@@ -45,7 +48,7 @@ check("sideways drift decays and releasing grip stops it faster", () => {
   assert.ok(held.samples[0] > 6 && held.samples[0] < 12);
   assert.ok(held.samples[1] < held.samples[0] * 0.8);
   assert.ok(held.samples[3] < 5);
-  assert.ok(held.samples[4] < 0.5);
+  assert.ok(held.slip < 0.5, "The held slide stops sliding sideways");
   assert.ok(released.samples[1] < held.samples[1] * 0.1);
   assert.ok(held.maxDrop < 0.15);
   return { held, released };

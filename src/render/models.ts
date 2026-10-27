@@ -1,12 +1,23 @@
 import * as T from "three";
 import { P } from "../config/physics";
 import { bodies, type BodyId } from "../game/inventory";
-import { wheelMount, wheelMountY } from "../car/wheels";
+import {
+  wheelClearance,
+  wheelMount,
+  wheelMountY,
+  wheelRadius,
+} from "../car/wheels";
 import type { Car } from "../car/car";
 import { bodyStyles } from "./body-styles";
 import { addWheelDesign } from "./wheel-model";
 import { createTopper } from "./toppers";
 import { polishMaterial } from "./material-polish";
+import { createVectorBody, vectorArt } from "./vector-model";
+import {
+  arenaCarAsset,
+  arenaCarShell,
+  arenaCarWheel,
+} from "./arena-car-model";
 export const material = (color: number, metalness = 0.1, roughness = 0.65) =>
   new T.MeshStandardMaterial({ color, metalness, roughness });
 export function box(
@@ -27,163 +38,136 @@ export function box(
 }
 export function carModel(
   color: number,
-  bodyId: BodyId = "ion",
+  bodyId: BodyId = "vector",
   wheels = "apex",
   topper = "none",
 ) {
   const g = new T.Group(),
     d = bodies[bodyId],
     art = bodyStyles[bodyId];
-  const paint = material(color, 0.4, 0.42),
-    dark = material(0x101c25, 0.25, 0.48),
-    glass = material(0x345f73, 0.45, 0.24);
-  [paint, dark, glass].forEach((mat) => polishMaterial(mat, "car"));
   const W = d.halfWidth * 2,
-    L = d.halfLength * 2,
-    roof = art.roof;
-  const shell = new T.Group();
-  shell.name = "body-shell";
-  g.add(shell);
-  shell.add(
-    profileMesh(
-      W - 0.04,
-      [
-        [-L / 2 + 0.02, -0.125],
-        [-L / 2 + 0.02, art.nose],
-        [-L * 0.34, art.hood],
-        [L * 0.35, art.rear],
-        [L / 2 - 0.02, art.rear - 0.03],
-        [L / 2 - 0.02, -0.125],
-      ],
-      paint,
-    ),
-  );
-  shell.add(
-    profileMesh(
-      W * art.roofWidth,
-      [
-        [L * art.cabinFront, art.hood],
-        [L * art.roofFront, roof - 0.025],
-        [L * art.roofBack, roof - 0.025],
-        [L * art.cabinBack, art.rear],
-      ],
-      glass,
-    ),
-  );
-  const roofLength = L * (art.roofBack - art.roofFront),
-    roofZ = (L * (art.roofBack + art.roofFront)) / 2;
-  box(
-    shell,
-    [W * art.roofWidth + 0.025, 0.025, roofLength],
-    [0, roof - 0.0125, roofZ],
-    paint,
-  );
-  // Distinct body structures, with wheel envelopes left open.
-  if (bodyId === "cargo") {
-    for (const side of [-1, 1]) {
-      box(
-        shell,
-        [0.028, roof - art.hood, 0.04],
-        [side * W * 0.435, (roof + art.hood) / 2, L * 0.08],
-        paint,
-      );
-      box(
-        shell,
-        [0.035, 0.055, L * 0.6],
-        [side * W * 0.36, roof - 0.04, L * 0.04],
-        dark,
-      );
-    }
-    box(shell, [W * 0.6, 0.1, 0.025], [0, 0.015, -L / 2], dark);
-  } else if (bodyId === "wraith") {
-    for (const side of [-1, 1]) {
-      const pod = profileMesh(
-        W * 0.16,
+    L = d.halfLength * 2;
+  let roof: number = art.roof,
+    roofZ =
+      bodyId === "vector"
+        ? vectorArt.roofZ
+        : (L * (art.roofBack + art.roofFront)) / 2,
+    exhaust = new T.Vector3(0, -0.025, L / 2 + 0.045);
+  let vectorMaterials: Parameters<typeof addWheelDesign>[4];
+  // GLB bodies use their exported shell when it loaded; otherwise the procedural shells below.
+  const arena = arenaCarAsset(bodyId);
+  if (arena) {
+    g.add(arenaCarShell(arena, color));
+    roof = arena.roofY;
+    roofZ = arena.roofZ;
+    exhaust = arena.exhaust.clone();
+  } else if (bodyId === "vector") {
+    const near = createVectorBody(color);
+    vectorMaterials = near.userData.materials;
+    const far = createVectorBody(color, true, near.userData.materials);
+    far.name = "body-shell-far";
+    far.visible = false;
+    const lod = new T.LOD();
+    lod.name = "vector-body-lod";
+    lod.addLevel(near, 0);
+    lod.addLevel(far, 12, 0.12);
+    g.add(lod);
+  } else {
+    const paint = material(color, 0.4, 0.42),
+      dark = material(0x101c25, 0.25, 0.48),
+      glass = material(0x345f73, 0.45, 0.24);
+    [paint, dark, glass].forEach((mat) => polishMaterial(mat, "car"));
+    const shell = new T.Group();
+    shell.name = "body-shell";
+    g.add(shell);
+    shell.add(
+      profileMesh(
+        W - 0.04,
         [
-          [-L * 0.32, -0.07],
-          [-L * 0.23, 0.17],
-          [L * 0.31, 0.24],
-          [L * 0.44, -0.07],
+          [-L / 2 + 0.02, -0.125],
+          [-L / 2 + 0.02, art.nose],
+          [-L * 0.34, art.hood],
+          [L * 0.35, art.rear],
+          [L / 2 - 0.02, art.rear - 0.03],
+          [L / 2 - 0.02, -0.125],
         ],
         paint,
-      );
-      pod.position.x = side * W * 0.37;
-      shell.add(pod);
-      box(
-        shell,
-        [0.03, 0.012, L * 0.37],
-        [side * W * 0.37, 0.245, L * 0.14],
-        dark,
-      );
-    }
-  } else if (bodyId === "vector") {
-    for (const side of [-1, 1]) {
-      box(shell, [0.03, 0.14, 0.035], [side * W * 0.37, 0.24, L * 0.09], paint);
-      for (const end of [-1, 1]) {
-        const arch = new T.Mesh(
-          new T.TorusGeometry(0.19, 0.015, 4, 12, Math.PI),
-          dark,
-        );
-        arch.rotation.y = Math.PI / 2;
-        arch.position.set(side * (W / 2 - 0.02), -0.07, end * d.axle);
-        shell.add(arch);
-      }
-    }
-  } else if (bodyId === "slicer") {
-    // Split angular nose and raised rear deck distinguish the wedge from Ion.
-    box(shell, [0.05, 0.014, L * 0.26], [0, art.hood + 0.008, -L * 0.3], dark);
-    for (const side of [-1, 1])
-      box(shell, [0.065, 0.05, 0.18], [side * W * 0.32, 0.15, L * 0.32], dark);
-  } else {
+      ),
+    );
+    shell.add(
+      profileMesh(
+        W * art.roofWidth,
+        [
+          [L * art.cabinFront, art.hood],
+          [L * art.roofFront, roof - 0.025],
+          [L * art.roofBack, roof - 0.025],
+          [L * art.cabinBack, art.rear],
+        ],
+        glass,
+      ),
+    );
+    const roofLength = L * (art.roofBack - art.roofFront);
+    box(
+      shell,
+      [W * art.roofWidth + 0.025, 0.025, roofLength],
+      [0, roof - 0.0125, roofZ],
+      paint,
+    );
+    // Hood scoop on every procedural fallback shell.
     box(
       shell,
       [W * 0.36, 0.025, L * 0.21],
       [0, art.hood + 0.012, -L * 0.31],
       dark,
     );
-  }
-  if (art.spoiler) {
-    for (const side of [-1, 1])
+    if (art.spoiler) {
+      for (const side of [-1, 1])
+        box(
+          shell,
+          [0.025, 0.06, 0.035],
+          [side * W * 0.3, art.rear + 0.025, L * art.spoiler],
+          dark,
+        );
       box(
         shell,
-        [0.025, 0.06, 0.035],
-        [side * W * 0.3, art.rear + 0.025, L * art.spoiler],
+        [W * 0.92, 0.025, 0.1],
+        [0, art.rear + 0.065, L * art.spoiler],
+        paint,
+      );
+    }
+    for (const sign of [-1, 1]) {
+      box(
+        shell,
+        [W * 0.22, 0.035, 0.025],
+        [sign * W * 0.3, art.nose - 0.01, -L / 2],
+        new T.MeshBasicMaterial({ color: 0xd4f8ff }),
+      );
+      box(
+        shell,
+        [W * 0.2, 0.03, 0.025],
+        [sign * W * 0.3, art.rear - 0.055, L / 2],
+        new T.MeshBasicMaterial({ color: 0xff4335 }),
+      );
+      box(
+        shell,
+        [0.035, 0.035, L * 0.66],
+        [sign * (W / 2 - 0.01), -0.09, 0],
         dark,
       );
-    box(
-      shell,
-      [W * 0.92, 0.025, 0.1],
-      [0, art.rear + 0.065, L * art.spoiler],
-      paint,
-    );
-  }
-  for (const sign of [-1, 1]) {
-    box(
-      shell,
-      [W * 0.22, 0.035, 0.025],
-      [sign * W * 0.3, art.nose - 0.01, -L / 2],
-      new T.MeshBasicMaterial({ color: 0xd4f8ff }),
-    );
-    box(
-      shell,
-      [W * 0.2, 0.03, 0.025],
-      [sign * W * 0.3, art.rear - 0.055, L / 2],
-      new T.MeshBasicMaterial({ color: 0xff4335 }),
-    );
-    box(
-      shell,
-      [0.035, 0.035, L * 0.66],
-      [sign * (W / 2 - 0.01), -0.09, 0],
-      dark,
-    );
-    box(shell, [0.1, 0.065, 0.06], [sign * 0.21, -0.025, L / 2 + 0.015], dark);
+      box(
+        shell,
+        [0.1, 0.065, 0.06],
+        [sign * 0.21, -0.025, L / 2 + 0.015],
+        dark,
+      );
+    }
   }
   const accessory = createTopper(topper);
   accessory.position.set(0, roof + 0.008, roofZ);
   g.add(accessory);
   g.userData.topper = accessory;
   g.userData.roofY = roof;
-  g.userData.exhaust = new T.Vector3(0, -0.025, L / 2 + 0.045);
+  g.userData.exhaust = exhaust;
   const spins: T.Group[] = [],
     mounts: T.Group[] = [],
     steering: T.Group[] = [];
@@ -195,7 +179,40 @@ export function carModel(
     mounts.push(pivot);
     pivot.add(spin);
     g.add(pivot);
-    addWheelDesign(spin, wheels, i % 2 ? 1 : -1);
+    if (arena) {
+      // Visual wheel sits in the GLB's arch; the pivot keeps steering about the wheel's
+      // own centre and the suspension still drives its height. The physics wheel
+      // (mount, radius, rays) is unchanged; only the drawn tire's contact patch is matched.
+      pivot.position.x = arena.wheelCenters[i].x;
+      pivot.position.z = arena.wheelCenters[i].z;
+      spin.position.y = arena.wheelRadius - wheelRadius;
+      spin.userData.visualRadius = arena.wheelRadius;
+      if (wheels === "apex") spin.add(arenaCarWheel(arena, i));
+      else {
+        addWheelDesign(spin, wheels, i % 2 ? 1 : -1);
+        spin.scale.setScalar(arena.wheelRadius / wheelRadius);
+      }
+    } else if (bodyId === "vector" && i > 0) {
+      // Identical tires/rims share GPU buffers and materials within this car.
+      for (const part of spins[0].children) spin.add(part.clone());
+      spin.userData.designId = spins[0].userData.designId;
+      spin.getObjectByName("wheel-rim")!.rotation.y =
+        ((i % 2 ? 1 : -1) * Math.PI) / 2;
+    } else
+      addWheelDesign(
+        spin,
+        wheels,
+        i % 2 ? 1 : -1,
+        bodyId === "vector",
+        vectorMaterials,
+      );
+    if (bodyId === "vector" && !arena) {
+      spin.scale.setScalar(vectorArt.wheelScale);
+      // Keep the contact patch at the original height with smaller visual tires.
+      // The steering pivot and physical wheel envelope remain unchanged.
+      spin.position.y = -0.18 * (1 - vectorArt.wheelScale);
+      spin.position.x = (i % 2 ? -1 : 1) * vectorArt.wheelInset;
+    }
     spins.push(spin);
     if (i < 2) steering.push(pivot);
   }
@@ -270,23 +287,78 @@ export function animateWheels(
     }
   }
   for (const wheel of model.userData.wheels as T.Group[])
-    wheel.rotation.x -= (spin.speed * dt) / 0.18;
+    wheel.rotation.x -=
+      (spin.speed * dt) / ((wheel.userData.visualRadius as number) ?? 0.18);
   for (const pivot of model.userData.frontWheels as T.Group[])
     pivot.rotation.y = T.MathUtils.lerp(
       pivot.rotation.y,
       steer,
       1 - Math.exp(-dt * 20),
     );
-  // Mounts are part of the rigid chassis. Probes belong to physics, never art.
+  if (car && pose) animateSuspension(model, car, pose, dt);
+}
+const suspensionInverse = new T.Quaternion(),
+  suspensionLocal = new T.Vector3();
+/** Visual suspension: each wheel sits where its physics ray meets the surface
+ * (from wheelHits, so snapshot-rendered cars work too). Compression is shown
+ * immediately; an unloaded wheel droops smoothly to the suspension rest length. */
+function animateSuspension(
+  model: T.Group,
+  car: Car,
+  pose: T.Object3D,
+  dt: number,
+) {
+  const mounts = model.userData.wheelMounts as T.Group[] | undefined;
+  if (!mounts) return;
+  const droop = car.geometry.restLength;
+  const lengths: number[] = (model.userData.suspension ??= mounts.map(
+    (m) => -m.position.y,
+  ));
+  suspensionInverse.copy(pose.quaternion).invert();
+  for (let i = 0; i < mounts.length; i++) {
+    let target = droop;
+    if (car.wheelContact[i]) {
+      suspensionLocal
+        .copy(car.wheelHits[i])
+        .sub(pose.position)
+        .applyQuaternion(suspensionInverse);
+      target = -suspensionLocal.y - wheelRadius;
+      // The centre ray misses a concave curve rising under the tread edges;
+      // the rigid clearance probe keeps the drawn tire on the surface there.
+      const height = wheelClearance(
+        car.world,
+        pose.position,
+        pose.quaternion,
+        car.bodyId,
+        i,
+        car.collider,
+        car.body,
+        i < 2 ? car.steerAngle : 0,
+      );
+      if (Number.isFinite(height))
+        target = Math.min(target, P.car.contactSkin - height);
+      target = T.MathUtils.clamp(target, -0.06, droop);
+    }
+    lengths[i] =
+      target < lengths[i] || dt <= 0
+        ? target
+        : lengths[i] + (target - lengths[i]) * (1 - Math.exp(-dt * 30));
+    mounts[i].position.y = -lengths[i];
+  }
 }
 export function disposeModel(model: T.Object3D) {
+  const geometries = new Set<T.BufferGeometry>();
+  const materials = new Set<T.Material>();
   model.traverse((o) => {
     if (o instanceof T.Mesh || o instanceof T.Points) {
-      o.geometry.dispose();
+      // Loaded-asset buffers are shared by every car instance; never free them per car.
+      if (!o.geometry.userData.shared) geometries.add(o.geometry);
       for (const m of Array.isArray(o.material) ? o.material : [o.material])
-        m.dispose();
+        if (!m.userData.shared) materials.add(m);
     }
   });
+  geometries.forEach((g) => g.dispose());
+  materials.forEach((m) => m.dispose());
 }
 export function ballModel() {
   const g = new T.Group(),

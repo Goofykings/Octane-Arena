@@ -7,7 +7,9 @@ import {
   defaults,
   qualities,
   cameraRanges,
-  type CameraSettings,
+  migrateCamera,
+  SETTINGS_VERSION,
+  type CameraRangeKey,
   type AudioSettings,
 } from "../../shared/settings";
 export * from "../../shared/settings";
@@ -28,15 +30,21 @@ export class Settings {
         typeof v === "number" && Number.isFinite(v)
           ? Math.max(lo, Math.min(hi, v))
           : fallback;
-      for (const key of Object.keys(cameraRanges) as (keyof CameraSettings)[]) {
+      const camera =
+        saved.version >= SETTINGS_VERSION
+          ? (migrateCamera(saved.camera) as Record<string, unknown> | undefined)
+          : undefined;
+      for (const key of Object.keys(cameraRanges) as CameraRangeKey[]) {
         const [lo, hi] = cameraRanges[key];
         this.value.camera[key] = clamp(
-          saved.camera?.[key] ?? (key === "fov" ? saved.fov : undefined),
+          camera?.[key],
           lo,
           hi,
           this.value.camera[key],
         );
       }
+      if (typeof camera?.shake === "boolean")
+        this.value.camera.shake = camera.shake;
       for (const key of Object.keys(
         this.value.audio,
       ) as (keyof AudioSettings)[])
@@ -79,7 +87,7 @@ export class Settings {
     try {
       localStorage.setItem(
         "octane-arena-settings",
-        JSON.stringify({ version: 2, ...this.value }),
+        JSON.stringify({ version: SETTINGS_VERSION, ...this.value }),
       );
     } catch {
       /* Session-only fallback. */

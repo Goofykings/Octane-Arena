@@ -14,8 +14,10 @@ const group = (membership: number, filter: number) =>
   ((membership << 16) | filter) >>> 0;
 export const DRIBBLE_GROUPS = {
   road: group(1, 2),
-  car: group(2, 1 | 4 | 8 | 16),
-  ball: group(4, 2 | 8 | 16),
+  car: group(2, 1 | 8 | 16 | 32),
+  // The world-facing ball never touches the car; its car-material shell does.
+  ball: group(4, 8 | 16),
+  ballShell: group(32, 2),
   obstacle: group(16, 2 | 4),
   // Car support comes from the coplanar road; avoid duplicate car contacts.
   safe: group(8, 4),
@@ -25,6 +27,8 @@ export class DribblePhysics {
   readonly car = new Car(this.world);
   readonly ball: RAPIER.RigidBody;
   readonly ballCollider: RAPIER.Collider;
+  /** RL car-ball material (restitution 0, friction 2), as in the main simulation. */
+  readonly ballCarCollider: RAPIER.Collider;
   readonly ballPose: Pose;
   readonly contact = new CarBallContact();
   readonly obstacles = new Set<number>();
@@ -61,6 +65,16 @@ export class DribblePhysics {
         .setRestitution(P.ball.restitution)
         .setRestitutionCombineRule(RAPIER.CoefficientCombineRule.Max)
         .setCollisionGroups(DRIBBLE_GROUPS.ball),
+      this.ball,
+    );
+    this.ballCarCollider = this.world.createCollider(
+      RAPIER.ColliderDesc.ball(P.ball.radius)
+        .setDensity(0)
+        .setFriction(P.hit.friction)
+        .setFrictionCombineRule(RAPIER.CoefficientCombineRule.Max)
+        .setRestitution(P.hit.restitution)
+        .setRestitutionCombineRule(RAPIER.CoefficientCombineRule.Min)
+        .setCollisionGroups(DRIBBLE_GROUPS.ballShell),
       this.ball,
     );
     this.ballPose = new Pose(this.ball);
@@ -253,12 +267,19 @@ export class DribblePhysics {
     this.car.constrainSurface();
     this.car.updateSupersonic(P.dt);
     this.contact.sample(this.car, this.ball);
+    // Disabling the world-facing ball (groups 0) disables its car shell too.
+    // Only write on change: re-setting groups every tick rebuilds Rapier pairs.
+    const shell = this.ballCollider.collisionGroups()
+      ? DRIBBLE_GROUPS.ballShell
+      : 0;
+    if (this.ballCarCollider.collisionGroups() !== shell)
+      this.ballCarCollider.setCollisionGroups(shell);
     this.world.step();
     let touched = false,
       roof = false;
     this.world.contactPair(
       this.car.collider,
-      this.ballCollider,
+      this.ballCarCollider,
       (manifold, flipped) => {
         if (manifold.numSolverContacts() === 0) return;
         touched = true;

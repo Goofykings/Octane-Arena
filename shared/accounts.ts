@@ -1,12 +1,16 @@
 import { z } from "zod";
 import {
-  bodies,
   inventory,
   palette,
   migratePreset,
   type Preset,
+  type SelectableBodyId,
 } from "./catalog.js";
-import { cameraRanges, type Preferences } from "./settings.js";
+import {
+  cameraRanges,
+  migrateCamera,
+  type Preferences,
+} from "./settings.js";
 import { defaultBindings } from "./controls.js";
 import {
   controllerActions,
@@ -62,7 +66,10 @@ const currentPresetSchema = z
       .max(32)
       .regex(/^[A-Za-z0-9 _-]+$/),
     body: z.enum(
-      Object.keys(bodies) as [keyof typeof bodies, ...(keyof typeof bodies)[]],
+      inventory.body.map((b) => b.id) as [
+        SelectableBodyId,
+        ...SelectableBodyId[],
+      ],
     ),
     blue: z
       .string()
@@ -82,16 +89,20 @@ export const preferencesSchema = z
     infiniteBoost: z.boolean(),
     quickChat: z.enum(["off", "friends", "everyone"]),
     showHitboxes: z.boolean(),
-    camera: z
-      .object(
-        Object.fromEntries(
-          Object.entries(cameraRanges).map(([k, [lo, hi]]) => [
-            k,
-            z.number().finite().min(lo).max(hi),
-          ]),
-        ),
-      )
-      .strict(),
+    camera: z.preprocess(
+      migrateCamera,
+      z
+        .object({
+          ...Object.fromEntries(
+            Object.entries(cameraRanges).map(([k, [lo, hi]]) => [
+              k,
+              z.number().finite().min(lo).max(hi),
+            ]),
+          ),
+          shake: z.boolean(),
+        })
+        .strict(),
+    ),
     bindings: z
       .object(
         Object.fromEntries(

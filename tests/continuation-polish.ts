@@ -79,9 +79,8 @@ assert.ok(
   strong.cruising.every((v) => v > 9 && v < 16.5),
   "Cruise approach stays close to its target",
 );
-assert.ok(
-  P.car.lateralMaxAcceleration > 28 && P.car.lateralMaxAcceleration < 40,
-);
+// RL tire grip: a fraction of the lateral contact impulse per 120 Hz tick.
+assert.ok(P.tire.lateral > 0.05 && P.tire.lateral < 0.2);
 const s = new Simulation(true);
 s.ballCollider.setCollisionGroups(0);
 s.cars[1].collider.setCollisionGroups(0);

@@ -126,11 +126,15 @@ export class CustomTrainingLibrary {
     this.storage.write(packs);
     return pack;
   }
+  /** Clears the cloud link only; the local pack, shots and edits are kept. */
   markUnpublished(id: string) {
     return this.update(id, (p) => {
       p.published = false;
       delete p.publishedDocumentId;
       delete p.publishedRevision;
+      delete p.publishedVersion;
+      delete p.publishedAt;
+      delete p.ownerUid;
     });
   }
   delete(id: string) {

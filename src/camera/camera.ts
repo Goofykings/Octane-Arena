@@ -3,8 +3,8 @@ import RAPIER from "@dimforge/rapier3d-compat";
 import { defaults, type CameraSettings } from "../game/settings";
 import { P } from "../config/physics";
 import { CameraClearance } from "./collision";
-import { CameraFraming, MAX_FRAMING_FOV } from "./framing";
-import { MouseOrbit, type MouseLook } from "./mouse-look";
+import { CameraFraming } from "./framing";
+import type { MouseLook } from "./mouse-look";
 import {
   cameraCollisionPolicy,
   cameraFloorClearance,
@@ -13,33 +13,87 @@ import {
 import type { CameraViewFrame } from "../render/camera-occlusion";
 
 const damp = (rate: number, dt: number) => 1 - Math.exp(-rate * dt);
-const delta = (a: number, b: number) =>
-  Math.atan2(Math.sin(b - a), Math.cos(b - a));
 const worldUp = new T.Vector3(0, 1, 0);
+const DEG = Math.PI / 180;
+/** RL camera units are uu; the rig works in metres. */
+const UU = 0.01;
 export const CAMERA_TRANSITION = {
-  response: 6,
-  angularRate: 3,
-  radialRate: 6,
+  /** Seconds for a full Car Cam ↔ Ball Cam blend at Transition Speed 1. */
+  duration: 0.55,
 } as const;
+export const CAMERA_RIG = {
+  /** Car Cam heading follow rate (1/s) at stiffness 0 and its stiffness gain. */
+  followRate: 9,
+  followStiffnessGain: 9,
+  /** Ball Cam bearing follow rate (1/s). */
+  ballRate: 7,
+  /** Hard ceiling on boom/aim follow speed (rad/s): no snaps. */
+  maxTurnRate: 4.5,
+  /** Rendered view rate while blending modes, per unit Transition Speed (rad/s). */
+  transitionTurnRate: 3.5,
+  /** Rendered view rate otherwise (rad/s): a lagging view never snaps. */
+  maxViewRate: 8,
+  /** Positional lag (s) at stiffness 0; stiffness 1 is rigid. */
+  lag: 0.05,
+  maxLag: 1.5,
+  /** Fraction of the half-FOV that Ball Cam keeps the car inside. */
+  carMargin: 0.8,
+  /** Hard bound (NDC) on the car's centre, even while the view lags. */
+  carReadable: 0.84,
+  /** Reference-up rates (1/s): onto a surface, and back to world up in the air. */
+  surfaceUpRate: 7,
+  airUpRate: 2.6,
+  /** Cap on the view roll rate (rad/s) so a fresh wall/ceiling frame rolls in. */
+  maxRollRate: 6,
+  /** Minimum camera height above the surface under the car (m). */
+  minHeight: 0.25,
+  /** A surface this close along the car's down axis is "under the wheels" (m). */
+  surfaceReach: 0.7,
+  /** ...when held this long (s) with the car's up turning relative to that
+   * surface's normal slower than surfaceSpin (rad/s): a curve keeps the frame,
+   * a car tumbling past a wall does not. */
+  surfaceSettle: 0.1,
+  surfaceSpin: 3,
+  /** Low-pass rate (1/s) of that relative spin. */
+  spinFilter: 10,
+} as const;
+/** RL FOV is horizontal at 16:9. Wider screens keep that vertical FOV (Hor+);
+ * narrower ones keep the horizontal FOV down to 4:3 so the field stays readable. */
+export function verticalFov(horizontal: number, aspect: number) {
+  const reference = T.MathUtils.clamp(aspect, 4 / 3, 16 / 9);
+  return (
+    2 * Math.atan(Math.tan((horizontal * DEG) / 2) / reference) * (180 / Math.PI)
+  );
+}
 /** Camera queries work in both closed arenas and open extra-mode worlds. */
 export interface CameraWorld extends CameraCollisionSpace {
   ball?: { isEnabled(): boolean };
   physics?: { ball: { radius: number } };
   cameraObstacles?: (collider: RAPIER.Collider) => boolean;
 }
+/** Signed angle from a to b about axis (both already perpendicular to it). */
+function signedAngle(a: T.Vector3, b: T.Vector3, axis: T.Vector3) {
+  return Math.atan2(
+    axis.x * (a.y * b.z - a.z * b.y) +
+      axis.y * (a.z * b.x - a.x * b.z) +
+      axis.z * (a.x * b.y - a.y * b.x),
+    a.dot(b),
+  );
+}
 
 /** One gameplay rig, shared by local and snapshot-rendered network matches.
  * All spatial inputs are render poses; physics supplies only arena queries and
- * whether the ball is enabled. Body rotation never defines the camera's up. */
+ * whether the ball is enabled. The camera keeps its own reference up: the
+ * surface under a wheel-down car (walls and ceiling roll the view, as in RL)
+ * or world up in the air, so body rotation and air roll never roll the view. */
 export class GameCamera {
   reverseHeld = false;
   private reverseApplied = false;
   private normalPosition = new T.Vector3();
   private normalRotation = new T.Quaternion();
-  private normalFov = 110;
+  private normalFov = 77;
   private reverseOffset = new T.Vector3();
   mouseLook?: MouseLook;
-  private mouseOrbit = new MouseOrbit(-1, true);
   private viewFrame: CameraViewFrame = {
     car: new T.Vector3(),
     ball: new T.Vector3(),
@@ -49,9 +103,13 @@ export class GameCamera {
   };
   settings: CameraSettings = defaults().camera;
   ballMode = true;
+  /** Smoothed camera up (world up in the air, surface normal on walls/ceiling). */
   readonly referenceUp = new T.Vector3(0, 1, 0);
+  /** Lagged follow point (stiffness), the boom origin. */
   readonly pivot = new T.Vector3();
+  /** Automatic boom position before collision and free look. */
   readonly desiredPosition = new T.Vector3();
+  /** Automatic aim, independent of manual free look. */
   readonly lookDirection = new T.Vector3(0, 0, -1);
   readonly framing = new CameraFraming();
   readonly clearance = new CameraClearance();
@@ -60,52 +118,68 @@ export class GameCamera {
     fovAdjustment: 0,
     singularity: false,
     safe: true,
+    blend: 1,
+    fov: 0,
+    verticalFov: 0,
+    distance: 0,
+    height: 0,
+    angle: 0,
+    stiffness: 0,
+    swivel: 0,
+    transition: 0,
+    shake: 0,
+    lag: 0,
   };
+  /** True while the Car Cam ↔ Ball Cam blend is moving. */
   transitioning = false;
-  private lastTracking = true;
-  private solved = new T.PerspectiveCamera();
-  private transitionOffset = new T.Vector3();
-  private transitionTarget = new T.Vector3();
-  private transitionRotation = new T.Quaternion();
-  private transitionEuler = new T.Euler(0, 0, 0, "YXZ");
-  private transitionTargetEuler = new T.Euler(0, 0, 0, "YXZ");
-  private transitionFov = 110;
   private ready = false;
-  private heading = 0;
-  private orbit = 0;
-  private turnSign = 1;
-  private yaw = 0;
-  private pitch = 0;
   private modeBlend = 1;
-  private zoom = 0;
+  private carDir = new T.Vector3(0, 0, -1);
+  private ballDir = new T.Vector3(0, 0, -1);
+  /** Rendered boom heading and aim; they follow the blended targets at a capped rate. */
+  private boomDir = new T.Vector3(0, 0, -1);
+  private aimDir = new T.Vector3(0, 0, -1);
+  private aimAxis = new T.Vector3();
+  private underRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
+  /** Car up minus the normal under it, last frame (valid when hadUnder). */
+  private previousTilt = new T.Vector3();
+  private previousCarUp = new T.Vector3(0, 1, 0);
+  private tilt = new T.Vector3();
+  private hadUnder = false;
+  private relativeSpin = 0;
+  private identity = new T.Quaternion();
+  private surfaceTime = 0;
+  private ballSign = 1;
+  private blendSign = 1;
+  private aimYaw = 0;
+  private aimPitch = 0;
   private previousCar = new T.Vector3();
   private velocity = new T.Vector3();
-  private nose = new T.Vector3();
-  private renderUp = new T.Vector3();
+  private shakeEnergy = 0;
+  private previousVelocity = new T.Vector3();
+  private carPosition = new T.Vector3();
   private subject = new T.Vector3();
-  private previousSubject = new T.Vector3();
-  private subjectVelocity = new T.Vector3();
-  private anticipatedSubject = new T.Vector3();
-  private carSubject = new T.Vector3();
-  private carTarget = new T.Vector3();
-  private offset = new T.Vector3();
-  private framingOffset = new T.Vector3();
-  private framingPosition = new T.Vector3();
-  private smoothedOffset = new T.Vector3();
-  private forward = new T.Vector3();
-  private ballLook = new T.Vector3();
-  private carLook = new T.Vector3();
-  private targetLook = new T.Vector3();
-  private right = new T.Vector3(1, 0, 0);
-  private basisUp = new T.Vector3(0, 1, 0);
+  private nose = new T.Vector3();
+  private carUp = new T.Vector3();
+  private target = new T.Vector3();
+  private dir = new T.Vector3();
   private back = new T.Vector3();
+  private side = new T.Vector3();
+  private offset = new T.Vector3();
+  private look = new T.Vector3();
+  private carLook = new T.Vector3();
+  private ballLook = new T.Vector3();
+  private toward = new T.Vector3();
   private basis = new T.Matrix4();
-  private desiredRotation = new T.Quaternion();
-  private orbitRotation = new T.Quaternion();
-  private identity = new T.Quaternion();
-  private targetYaw = 0;
-  private targetPitch = 0;
-  private constraintEuler = new T.Euler(0, 0, 0, "YXZ");
+  private axisRight = new T.Vector3(1, 0, 0);
+  private axisUp = new T.Vector3(0, 1, 0);
+  private axisBack = new T.Vector3(0, 0, 1);
+  private previousUp = new T.Vector3(0, 1, 0);
+  private turn = new T.Quaternion();
+  private lastRight = new T.Vector3(1, 0, 0);
+  private orbitDir = new T.Vector3();
+  private shakeRotation = new T.Quaternion();
+  private shakeEuler = new T.Euler();
 
   constructor(public camera: T.PerspectiveCamera) {}
   get baseFov() {
@@ -118,7 +192,6 @@ export class GameCamera {
     this.restoreNormal();
     this.ready = false;
     this.transitioning = false;
-    this.zoom = 0;
     this.clearance.reset();
   }
   private restoreNormal() {
@@ -137,199 +210,127 @@ export class GameCamera {
     this.reverseOffset
       .set(0, 0, -1)
       .applyQuaternion(car.quaternion)
-      .normalize();
-    this.reverseOffset
-      .multiplyScalar(this.settings.distance)
-      .addScaledVector(worldUp, this.settings.height);
+      .addScaledVector(this.referenceUp, -this.reverseOffset.dot(this.referenceUp))
+      .normalize()
+      .multiplyScalar(this.settings.distance * UU)
+      .addScaledVector(this.referenceUp, this.settings.height * UU);
     if (policy.outsideArena)
       cameraFloorClearance(this.reverseOffset, car.position);
-    const cast = () =>
-      simulation.world.castRay(
-        new RAPIER.Ray(car.position, this.reverseOffset.clone().normalize()),
-        this.reverseOffset.length(),
-        true,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        policy.blockers,
-      );
-    let hit = cast();
-    if (hit && hit.timeOfImpact < 1) {
-      this.reverseOffset
-        .set(-Math.sin(this.heading), 0, -Math.cos(this.heading))
-        .multiplyScalar(this.settings.distance)
-        .addScaledVector(worldUp, this.settings.height);
-      hit = cast();
-    }
+    const hit = simulation.world.castRay(
+      new RAPIER.Ray(car.position, this.reverseOffset.clone().normalize()),
+      this.reverseOffset.length(),
+      true,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      policy.blockers,
+    );
     if (hit)
       this.reverseOffset.setLength(Math.max(0.1, hit.timeOfImpact - 0.2));
     c.position.copy(car.position).add(this.reverseOffset);
-    const look = car.position
-      .clone()
-      .addScaledVector(worldUp, 0.3)
+    this.look
+      .copy(car.position)
+      .addScaledVector(this.referenceUp, 0.3)
       .sub(c.position)
       .normalize();
-    const horizontal = Math.hypot(look.x, look.z);
-    const yaw =
-      horizontal > 0.03 ? Math.atan2(-look.x, -look.z) : this.heading + Math.PI;
-    c.rotation.set(
-      T.MathUtils.clamp(Math.atan2(look.y, horizontal), -1.48, 1.48),
-      yaw,
-      0,
-      "YXZ",
-    );
-    c.fov = this.settings.fov;
+    this.orientation(this.look, c.quaternion);
+    c.fov = verticalFov(this.settings.fov, c.aspect);
     c.updateProjectionMatrix();
     c.updateMatrixWorld(true);
-    this.lookDirection.set(0, 0, -1).applyQuaternion(c.quaternion);
     this.debug.mode = "Reverse Cam";
     this.reverseApplied = true;
   }
-
-  private continuousAngle(from: number, to: number) {
-    const difference = delta(from, to);
-    // At the antipode tiny bearing noise must not change the chosen path.
-    if (Math.abs(difference) > Math.PI - 0.12)
-      return this.turnSign * Math.abs(difference);
-    if (Math.abs(difference) > 0.1) this.turnSign = Math.sign(difference);
-    return difference;
-  }
-
-  /** Explicit horizon basis. Keep the previous right at the polar singularity;
-   * yaw continuity is retained and pitch stays inside the readable hemisphere. */
-  private orientation(
-    look: T.Vector3,
-    result: T.Quaternion,
-    yawFallback: number,
-  ) {
-    const horizontal = Math.hypot(look.x, look.z);
-    this.debug.singularity = horizontal < 0.03;
-    const yaw =
-      yawFallback +
-      delta(yawFallback, Math.atan2(-look.x, -look.z)) *
-        T.MathUtils.smoothstep(horizontal, 0.03, 0.15);
-    const pitch = T.MathUtils.clamp(
-      Math.atan2(look.y, horizontal),
-      -1.48,
-      1.48,
-    );
-    this.right.set(Math.cos(yaw), 0, -Math.sin(yaw));
-    this.back.set(
-      Math.sin(yaw) * Math.cos(pitch),
-      -Math.sin(pitch),
-      Math.cos(yaw) * Math.cos(pitch),
-    );
-    this.basisUp.crossVectors(this.back, this.right).normalize();
-    this.basis.makeBasis(this.right, this.basisUp, this.back);
+  /** Explicit basis from a look direction and the reference up. At the pole the
+   * previous right vector is kept, so the frame can never flip. */
+  private orientation(look: T.Vector3, result: T.Quaternion, _fallback = 0) {
+    this.axisBack.copy(look).negate().normalize();
+    this.axisRight.crossVectors(this.referenceUp, this.axisBack);
+    const length = this.axisRight.length();
+    this.debug.singularity = length < 0.05;
+    if (length < 1e-4) this.axisRight.copy(this.lastRight);
+    else {
+      this.axisRight.multiplyScalar(1 / length);
+      if (length < 0.05)
+        this.axisRight
+          .lerp(this.lastRight, 1 - length / 0.05)
+          .addScaledVector(this.axisBack, -this.axisRight.dot(this.axisBack))
+          .normalize();
+    }
+    this.lastRight.copy(this.axisRight);
+    this.axisUp.crossVectors(this.axisBack, this.axisRight).normalize();
+    this.basis.makeBasis(this.axisRight, this.axisUp, this.axisBack);
     result.setFromRotationMatrix(this.basis);
-    this.targetYaw = yaw;
-    this.targetPitch = pitch;
   }
-
-  private commit(c: T.PerspectiveCamera) {
-    this.camera.position.copy(c.position);
-    this.camera.rotation.order = c.rotation.order;
-    this.camera.quaternion.copy(c.quaternion);
-    this.camera.up.copy(c.up);
-    this.camera.fov = c.fov;
-    this.camera.updateProjectionMatrix();
-    this.camera.updateMatrixWorld(true);
-  }
-  private transitionView(
-    c: T.PerspectiveCamera,
-    simulation: CameraWorld,
-    dt: number,
+  /** A rate-limited view can trail a fast boom swing (a ball whipping overhead),
+   * and floor clearance can swing the lens after aiming. Turn `look` just far
+   * enough that the car's centre stays readable from `eye`. */
+  private keepCarReadable(
+    look: T.Vector3,
+    eye: T.Vector3,
+    vHalf: number,
+    hHalf: number,
   ) {
-    let alpha = damp(
-      Math.max(0, this.settings.transition) * CAMERA_TRANSITION.response,
-      dt,
-    );
-    this.transitionTarget.copy(c.position).sub(this.pivot);
-    const targetFov = c.fov;
-    this.desiredRotation.copy(c.quaternion);
-    const radius = this.transitionOffset.length(),
-      targetRadius = this.transitionTarget.length();
-    const startYaw = Math.atan2(
-      this.transitionOffset.x,
-      this.transitionOffset.z,
-    );
-    const endYaw = Math.atan2(this.transitionTarget.x, this.transitionTarget.z);
-    this.transitionEuler.setFromQuaternion(this.transitionRotation, "YXZ");
-    this.transitionTargetEuler.setFromQuaternion(c.quaternion, "YXZ");
-    const startAim = delta(startYaw, this.transitionEuler.y),
-      endAim = delta(endYaw, this.transitionTargetEuler.y);
-    const yawStep = this.continuousAngle(startYaw, endYaw);
-    const viewTravel = Math.hypot(
-      yawStep + delta(startAim, endAim),
-      this.transitionTargetEuler.x - this.transitionEuler.x,
-    );
-    // Rate limits are part of this one solver and scale with the user's speed.
-    alpha = Math.min(
-      alpha,
-      (this.settings.transition * CAMERA_TRANSITION.angularRate * dt) /
-        Math.max(viewTravel, 1e-6),
-      (this.settings.transition * CAMERA_TRANSITION.radialRate * dt) /
-        Math.max(Math.abs(targetRadius - radius), 1e-6),
-    );
-    const yaw = startYaw + yawStep * alpha;
-    const pitch = T.MathUtils.lerp(
-      Math.asin(
-        T.MathUtils.clamp(
-          this.transitionOffset.y / Math.max(radius, 1e-6),
-          -1,
-          1,
-        ),
-      ),
-      Math.asin(
-        T.MathUtils.clamp(
-          this.transitionTarget.y / Math.max(targetRadius, 1e-6),
-          -1,
-          1,
-        ),
-      ),
-      alpha,
-    );
-    const length = T.MathUtils.lerp(radius, targetRadius, alpha);
-    this.transitionOffset.set(
-      Math.sin(yaw) * Math.cos(pitch) * length,
-      Math.sin(pitch) * length,
-      Math.cos(yaw) * Math.cos(pitch) * length,
-    );
-    c.position.copy(this.pivot).add(this.transitionOffset);
-    this.transitionEuler.set(
-      T.MathUtils.lerp(
-        this.transitionEuler.x,
-        this.transitionTargetEuler.x,
-        alpha,
-      ),
-      yaw + startAim + delta(startAim, endAim) * alpha,
-      0,
-      "YXZ",
-    );
-    c.quaternion.setFromEuler(this.transitionEuler);
-    this.transitionFov = T.MathUtils.lerp(this.transitionFov, targetFov, alpha);
-    c.fov = this.transitionFov;
-    // Hard blockers are resolved once after the transition; the arena shell
-    // remains visual-only as in the working wall-camera policy.
-    this.offset.copy(c.position).sub(this.pivot);
-    this.clearance.resolve(
-      simulation.world,
-      this.pivot,
-      this.offset,
-      c.position,
-      dt,
-      false,
-      true,
-    );
-    this.transitionOffset.copy(c.position).sub(this.pivot);
-    this.transitionRotation.copy(c.quaternion);
-    if (
-      this.transitionOffset.distanceTo(this.transitionTarget) < 0.002 &&
-      c.quaternion.angleTo(this.desiredRotation) < 0.002 &&
-      Math.abs(c.fov - targetFov) < 0.05
-    )
-      this.transitioning = false;
+    const limit = CAMERA_RIG.carReadable,
+      maxX = Math.tan(hHalf) * limit,
+      maxY = Math.tan(vHalf) * limit;
+    // The view basis is re-derived roll-free from the reference up, which
+    // shifts a steeply pitched correction, so refine it a few times.
+    for (let pass = 0; pass < 4; pass++) {
+      this.axisBack.copy(look).negate();
+      this.axisRight.crossVectors(this.referenceUp, this.axisBack);
+      if (this.axisRight.lengthSq() < 1e-8) this.axisRight.copy(this.lastRight);
+      this.axisRight.normalize();
+      this.axisUp.crossVectors(this.axisBack, this.axisRight).normalize();
+      this.toward.copy(this.carPosition).sub(eye);
+      const depth = -this.toward.dot(this.axisBack),
+        x = this.toward.dot(this.axisRight),
+        y = this.toward.dot(this.axisUp);
+      if (depth > 1e-3 && Math.abs(x) <= maxX * depth && Math.abs(y) <= maxY * depth)
+        return;
+      const u = depth > 1e-3 ? T.MathUtils.clamp(x / depth, -maxX, maxX) : Math.sign(x) * maxX,
+        v = depth > 1e-3 ? T.MathUtils.clamp(y / depth, -maxY, maxY) : Math.sign(y) * maxY;
+      // Where the car should appear, and the turn that puts it there.
+      this.aimAxis
+        .copy(this.axisRight)
+        .multiplyScalar(u)
+        .addScaledVector(this.axisUp, v)
+        .sub(this.axisBack)
+        .normalize();
+      this.turn.setFromUnitVectors(this.aimAxis, this.toward.normalize());
+      look.applyQuaternion(this.turn).normalize();
+    }
+  }
+  /** Rotate a reference-plane direction toward a target by a rate-limited step. */
+  private follow(
+    direction: T.Vector3,
+    targetDir: T.Vector3,
+    alpha: number,
+    maxStep: number,
+    continuity?: "ball" | "blend",
+  ) {
+    let angle = signedAngle(direction, targetDir, this.referenceUp);
+    if (continuity) {
+      // At the antipode tiny bearing noise must not flip the chosen path.
+      const sign = continuity === "ball" ? this.ballSign : this.blendSign;
+      // Keep the remembered direction: the long way round is angle - 2π·sign.
+      if (Math.abs(angle) > Math.PI - 0.15 && Math.sign(angle) !== sign)
+        angle -= 2 * Math.PI * Math.sign(angle);
+      else if (Math.abs(angle) > 0.1) {
+        if (continuity === "ball") this.ballSign = Math.sign(angle);
+        else this.blendSign = Math.sign(angle);
+      }
+    }
+    const step = T.MathUtils.clamp(angle * alpha, -maxStep, maxStep);
+    direction.applyAxisAngle(this.referenceUp, step).normalize();
+    return angle;
+  }
+  /** Project onto the reference plane; returns the projected length. */
+  private flatten(v: T.Vector3, out: T.Vector3) {
+    out.copy(v).addScaledVector(this.referenceUp, -v.dot(this.referenceUp));
+    const length = out.length();
+    if (length > 1e-6) out.multiplyScalar(1 / length);
+    return length;
   }
   update(
     car: T.Object3D,
@@ -340,463 +341,387 @@ export class GameCamera {
     time: number,
     goalFocus?: { x: number; y: number; z: number } | null,
   ) {
-    const c = this.solved,
-      p = this.settings;
+    const c = this.camera,
+      p = this.settings,
+      r = CAMERA_RIG;
     this.restoreNormal();
-    c.position.copy(this.camera.position);
-    c.quaternion.copy(this.camera.quaternion);
-    c.up.copy(this.camera.up);
-    c.fov = this.camera.fov;
-    c.aspect = this.camera.aspect;
-    c.near = this.camera.near;
-    c.far = this.camera.far;
+    c.rotation.order = "YXZ";
     dt = T.MathUtils.clamp(dt, 0, 0.1);
     if (home) {
       delete c.userData.cameraView;
+      this.referenceUp.copy(worldUp);
       c.position.set(9 + Math.sin(time * 0.06) * 1.5, 2.7, 19);
-      this.targetLook.set(5, 0.6, 10).sub(c.position).normalize();
-      this.orientation(this.targetLook, c.quaternion, this.yaw);
-      c.fov = p.fov;
+      this.look.set(5, 0.6, 10).sub(c.position).normalize();
+      this.orientation(this.look, c.quaternion);
+      c.fov = verticalFov(p.fov, c.aspect);
       c.updateProjectionMatrix();
+      c.updateMatrixWorld(true);
       this.reset();
-      this.commit(c);
       return;
     }
     const first = !this.ready;
-    this.pivot.copy(car.position);
+    const policy = cameraCollisionPolicy(simulation);
+    this.carPosition.copy(car.position);
     this.velocity
       .copy(car.position)
       .sub(this.previousCar)
       .divideScalar(Math.max(dt, 1e-6));
     if (first) this.velocity.set(0, 0, 0);
     this.previousCar.copy(car.position);
-    const speed = Math.min(60, this.velocity.length());
-    const policy = cameraCollisionPolicy(simulation);
+    const distance = p.distance * UU,
+      height = p.height * UU;
+
+    // ---- Reference up: surface under a wheel-down car, else world up -----
     this.clearance.survey(
       simulation.world,
-      this.pivot,
-      p.distance + 4,
+      this.carPosition,
+      distance + 4,
       dt,
       first,
       policy.surfaces,
       policy.blockers,
       policy.outsideArena,
     );
-    // Surface orientation guides the boom, while arena gravity owns the horizon.
-    // This deliberately does not read individual wheel normals or physics poses.
-    this.referenceUp.copy(worldUp);
+    this.carUp.set(0, 1, 0).applyQuaternion(car.quaternion);
     this.nose.set(0, 0, -1).applyQuaternion(car.quaternion);
-    if (first) this.heading = Math.atan2(-this.nose.x, -this.nose.z);
-    this.renderUp.copy(worldUp).applyQuaternion(car.quaternion);
-    const groundWeight =
-      T.MathUtils.smoothstep(this.clearance.surfaceUp.y, 0.85, 0.98) *
-      (1 - T.MathUtils.smoothstep(this.clearance.nearestSurface, 0.7, 1.4)) *
-      T.MathUtils.smoothstep(
-        this.renderUp.dot(this.clearance.surfaceUp),
-        0.7,
-        0.95,
+    // The surface actually under the wheels (render pose ray along the car's
+    // down axis), never a nearby wall: a wheels-down car on a wall or ceiling
+    // rolls the view as in RL; anything else keeps world up.
+    Object.assign(this.underRay.origin, this.carPosition);
+    this.underRay.dir.x = -this.carUp.x;
+    this.underRay.dir.y = -this.carUp.y;
+    this.underRay.dir.z = -this.carUp.z;
+    const under = simulation.world.castRayAndGetNormal(
+      this.underRay,
+      r.surfaceReach,
+      true,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      policy.surfaces,
+    );
+    // Wheels-down must also be stable: a tumbling car whose underside swings
+    // past a wall is not driving on it. Measure the car's up relative to the
+    // surface under it, so driving through a curve (both turn together) and
+    // yawing on a wall (up unchanged) keep the surface frame.
+    if (under)
+      this.tilt.set(
+        this.carUp.x - under.normal.x,
+        this.carUp.y - under.normal.y,
+        this.carUp.z - under.normal.z,
       );
-    this.forward.copy(this.nose).setY(0);
-    if (this.forward.lengthSq() > 0.15)
-      this.heading +=
-        delta(this.heading, Math.atan2(-this.forward.x, -this.forward.z)) *
-        damp(12, dt) *
-        groundWeight;
-    this.forward.copy(this.velocity).setY(0);
-    if (this.forward.lengthSq() > 4)
-      this.heading +=
-        delta(this.heading, Math.atan2(-this.forward.x, -this.forward.z)) *
-        damp(5, dt) *
-        (1 - groundWeight);
+    // Filtered, so a step between faceted curve normals is not a tumble.
+    const spin = first
+      ? 0
+      : (under && this.hadUnder
+          ? this.tilt.distanceTo(this.previousTilt)
+          : this.carUp.angleTo(this.previousCarUp)) / Math.max(dt, 1e-6);
+    this.relativeSpin = first
+      ? 0
+      : this.relativeSpin + (spin - this.relativeSpin) * damp(r.spinFilter, dt);
+    this.previousTilt.copy(this.tilt);
+    this.previousCarUp.copy(this.carUp);
+    this.hadUnder = !!under;
+    const wheelsDown =
+      !!under &&
+      this.relativeSpin < r.surfaceSpin &&
+      this.carUp.x * under.normal.x +
+        this.carUp.y * under.normal.y +
+        this.carUp.z * under.normal.z >
+        0.8;
+    this.surfaceTime = wheelsDown
+      ? first
+        ? r.surfaceSettle
+        : this.surfaceTime + dt
+      : 0;
+    const onSurface = this.surfaceTime >= r.surfaceSettle ? 1 : 0;
+    if (onSurface) this.target.copy(under!.normal).normalize();
+    else this.target.copy(worldUp);
+    this.previousUp.copy(this.referenceUp);
+    if (first) this.referenceUp.copy(this.target);
+    else {
+      this.turn
+        .setFromUnitVectors(this.referenceUp, this.target)
+        .slerp(
+          this.identity,
+          1 - damp(onSurface > 0.5 ? r.surfaceUpRate : r.airUpRate, dt),
+        );
+      const roll = 2 * Math.acos(Math.min(1, Math.abs(this.turn.w))),
+        maxRoll = r.maxRollRate * dt;
+      if (roll > maxRoll) this.turn.slerp(this.identity, 1 - maxRoll / roll);
+      this.referenceUp.applyQuaternion(this.turn).normalize();
+    }
+    // Parallel-transport both headings with the reference frame.
+    this.turn.setFromUnitVectors(this.previousUp, this.referenceUp);
+    for (const d of [this.carDir, this.ballDir, this.boomDir]) {
+      d.applyQuaternion(this.turn);
+      if (this.flatten(d, d) < 1e-3) this.flatten(this.nose, d);
+      if (d.lengthSq() < 0.5) d.copy(this.axisBack).negate();
+    }
+    this.aimDir.applyQuaternion(this.turn).normalize();
+
+    // ---- Stiffness: positional lag of the follow point ---------------------
+    const lagTime = r.lag * (1 - T.MathUtils.clamp(p.stiffness, 0, 1));
+    if (first || lagTime <= 1e-4) this.pivot.copy(this.carPosition);
+    else {
+      this.pivot.lerp(this.carPosition, 1 - Math.exp(-dt / lagTime));
+      this.offset.copy(this.pivot).sub(this.carPosition);
+      if (this.offset.length() > r.maxLag)
+        this.pivot.copy(this.carPosition).add(this.offset.setLength(r.maxLag));
+    }
+
+    // ---- Car Cam heading: nose on a surface, travel direction in the air ---
+    const noseLength = this.flatten(this.nose, this.toward);
+    const followAlpha = damp(r.followRate + r.followStiffnessGain * p.stiffness, dt);
+    const maxStep = r.maxTurnRate * dt;
+    if (first) {
+      if (noseLength > 0.2) this.carDir.copy(this.toward);
+      else this.carDir.set(0, 0, -1);
+    } else {
+      const travel = this.flatten(this.velocity, this.target);
+      if (onSurface > 0.5 && noseLength > 0.2)
+        this.follow(this.carDir, this.toward, followAlpha, maxStep);
+      else if (travel > 4)
+        this.follow(this.carDir, this.target, damp(5, dt), maxStep);
+      else if (noseLength > 0.6)
+        this.follow(this.carDir, this.toward, damp(4, dt), maxStep);
+    }
+
+    // ---- Ball Cam bearing: behind the car, opposite the ball ---------------
     this.subject.copy(goalFocus ?? ball?.position ?? car.position);
-    this.subjectVelocity
-      .copy(this.subject)
-      .sub(this.previousSubject)
-      .divideScalar(Math.max(dt, 1e-6))
-      .clampLength(0, 60);
-    if (first || goalFocus) this.subjectVelocity.set(0, 0, 0);
-    this.previousSubject.copy(this.subject);
-    this.anticipatedSubject
-      .copy(this.subject)
-      .addScaledVector(this.subjectVelocity, 0.28);
-    this.carSubject.copy(car.position);
     const tracking =
       this.ballMode && (!!simulation.ball?.isEnabled() || !!goalFocus);
-    if (this.ready && tracking !== this.lastTracking) {
-      // The visible pose, including manual orbit, is the only valid start.
-      this.transitioning = true;
-      this.transitionOffset.copy(this.camera.position).sub(this.pivot);
-      this.transitionRotation.copy(this.camera.quaternion);
-      this.transitionFov = this.camera.fov;
-    }
-    this.lastTracking = tracking;
-    const switching = this.transitioning;
-    this.modeBlend =
-      first || switching
-        ? Number(tracking)
-        : T.MathUtils.lerp(
-            this.modeBlend,
-            Number(tracking),
-            damp(p.transition * 5, dt),
-          );
-    this.forward.copy(this.subject).sub(this.pivot).setY(0);
-    const bearingWeight = T.MathUtils.smoothstep(this.forward.length(), 1.2, 3);
-    if (first)
-      this.orbit =
-        tracking && bearingWeight > 0.99
-          ? Math.atan2(-this.forward.x, -this.forward.z)
-          : this.heading;
-    const targetTurn =
-      delta(this.orbit, this.heading) * (1 - this.modeBlend) +
-      this.continuousAngle(
-        this.orbit,
-        Math.atan2(-this.forward.x, -this.forward.z),
-      ) *
-        bearingWeight *
-        this.modeBlend;
-    if (switching) this.orbit += targetTurn;
-    else
-      this.orbit += T.MathUtils.clamp(
-        targetTurn * damp(p.transition * 10, dt),
-        -p.swivel * dt,
-        p.swivel * dt,
+    this.toward.copy(this.subject).sub(this.carPosition);
+    const subjectHeight = this.toward.dot(this.referenceUp);
+    const horizontal = this.flatten(this.toward, this.target);
+    // Overhead: the bearing is undefined, so its authority fades smoothly out.
+    const bearing =
+      T.MathUtils.smoothstep(horizontal, 0.6, 3) *
+      T.MathUtils.smoothstep(horizontal / Math.max(Math.abs(subjectHeight), 1e-3), 0.12, 0.6);
+    this.debug.singularity = bearing < 0.5;
+    if (first) this.ballDir.copy(bearing > 0.5 ? this.target : this.carDir);
+    else if (bearing > 0)
+      this.follow(
+        this.ballDir,
+        this.target,
+        damp(r.ballRate * bearing, dt),
+        maxStep,
+        "ball",
       );
-    this.forward.set(-Math.sin(this.orbit), 0, -Math.cos(this.orbit));
 
-    // Solve desired framing on the ideal boom. Extra distance is driven by
-    // subject projection, not a separate overhead/wall camera mode.
-    let requiredZoom = 0;
-    const zoomLimit = p.distance * Math.max(1, 1 / (c.aspect * c.aspect));
-    // Preserve horizontal room in portrait viewports; distance remains the
-    // user's base boom length, scaled by the projection's narrower aperture.
-    const baseDistance =
-      (p.distance + speed * 0.025) * Math.max(1, 1 / Math.sqrt(c.aspect));
-    for (let i = 0; i < 5; i++) {
-      this.offset
-        .copy(this.forward)
-        .multiplyScalar(-(baseDistance + requiredZoom))
-        .addScaledVector(worldUp, p.height);
-      this.clearance.plan(
-        this.offset,
-        baseDistance + requiredZoom,
-        this.smoothedOffset,
-      );
-      this.desiredPosition.copy(this.pivot).add(this.offset);
-      this.framing.aim(
-        this.desiredPosition,
-        this.carSubject,
-        this.subject,
-        this.ballLook,
-      );
-      this.orientation(this.ballLook, this.desiredRotation, this.yaw);
-      let need = this.framing.evaluate(
-        this.desiredPosition,
-        this.desiredRotation,
-        this.carSubject,
-        this.subject,
-        goalFocus ? 0.2 : (simulation.physics?.ball.radius ?? P.ball.radius),
-        c.aspect,
-        p.fov,
-      );
-      if (!first && tracking) {
-        // Framing must also account for the current orbit while it catches a
-        // fast bearing change; a perfectly framed future orbit is insufficient.
-        this.framingOffset
-          .copy(this.smoothedOffset)
-          .normalize()
-          .multiplyScalar(Math.hypot(baseDistance + requiredZoom, p.height));
-        this.clearance.plan(
-          this.framingOffset,
-          baseDistance + requiredZoom,
-          this.smoothedOffset,
-        );
-        this.framingPosition.copy(this.pivot).add(this.framingOffset);
-        this.framing.aim(
-          this.framingPosition,
-          this.carSubject,
-          this.subject,
-          this.ballLook,
-        );
-        this.orientation(this.ballLook, this.desiredRotation, this.yaw);
-        need = Math.max(
-          need,
-          this.framing.evaluate(
-            this.framingPosition,
-            this.desiredRotation,
-            this.carSubject,
-            this.subject,
-            goalFocus
-              ? 0.2
-              : (simulation.physics?.ball.radius ?? P.ball.radius),
-            c.aspect,
-            p.fov,
-          ),
-        );
-        this.framing.aim(
-          this.framingPosition,
-          this.carSubject,
-          this.anticipatedSubject,
-          this.ballLook,
-        );
-        this.orientation(this.ballLook, this.desiredRotation, this.yaw);
-        need = Math.max(
-          need,
-          this.framing.evaluate(
-            this.framingPosition,
-            this.desiredRotation,
-            this.carSubject,
-            this.anticipatedSubject,
-            goalFocus
-              ? 0.2
-              : (simulation.physics?.ball.radius ?? P.ball.radius),
-            c.aspect,
-            p.fov,
-          ),
-        );
-      }
-      if (need < p.fov + 10 || requiredZoom >= zoomLimit) break;
-      requiredZoom = Math.min(
-        zoomLimit,
-        requiredZoom + (need - p.fov - 10) * 0.12,
-      );
-    }
-    this.zoom =
-      first || switching
-        ? requiredZoom
-        : T.MathUtils.lerp(this.zoom, requiredZoom, damp(5, dt));
-    this.offset
-      .copy(this.forward)
-      .multiplyScalar(-(baseDistance + this.zoom * this.modeBlend))
-      .addScaledVector(worldUp, p.height);
-    this.clearance.plan(
-      this.offset,
-      baseDistance + this.zoom * this.modeBlend,
-      this.smoothedOffset,
-    );
-    this.desiredPosition.copy(this.pivot).add(this.offset);
-    if (first || switching) this.smoothedOffset.copy(this.offset);
+    // ---- Transition: one continuous blend, same rate both directions -------
+    const goal = Number(tracking);
+    if (first) this.modeBlend = goal;
     else {
-      // Spherical boom damping cannot cut through the car during a mode change.
-      const length = this.smoothedOffset.length(),
-        targetLength = this.offset.length();
-      this.smoothedOffset.divideScalar(Math.max(length, 1e-6));
-      this.offset.divideScalar(Math.max(targetLength, 1e-6));
-      const angle = this.smoothedOffset.angleTo(this.offset);
-      this.orbitRotation.setFromUnitVectors(this.smoothedOffset, this.offset);
-      const amount = Math.min(
-        damp(6 + p.stiffness * 18, dt),
-        (T.MathUtils.lerp(
-          p.swivel,
-          Math.min(2, p.swivel),
-          T.MathUtils.smoothstep(
-            1 - Math.abs(this.clearance.surfaceUp.y),
-            0.02,
-            0.7,
-          ),
-        ) *
-          dt) /
-          Math.max(angle, 1e-6),
-      );
-      this.orbitRotation.slerp(this.identity, 1 - amount);
-      this.smoothedOffset
-        .applyQuaternion(this.orbitRotation)
-        .multiplyScalar(
-          length +
-            T.MathUtils.clamp(
-              (targetLength - length) * damp(6 + 18 * p.stiffness, dt),
-              -6 * dt,
-              6 * dt,
-            ),
-        );
+      const rate = Math.max(0.05, p.transition) / CAMERA_TRANSITION.duration;
+      this.modeBlend =
+        goal > this.modeBlend
+          ? Math.min(goal, this.modeBlend + rate * dt)
+          : Math.max(goal, this.modeBlend - rate * dt);
     }
-    // Express the damped boom in the current smoothed arena frame as well.
-    // Otherwise the previous frame's safe direction can lag behind a fast
-    // curved-surface transition and collapse the final collision boom.
-    this.clearance.plan(
-      this.smoothedOffset,
-      baseDistance + this.zoom * this.modeBlend,
-      this.smoothedOffset,
+    this.transitioning = this.modeBlend !== goal;
+    const m = T.MathUtils.smootherstep(this.modeBlend, 0, 1);
+
+    // ---- Boom: blended heading, Ball Cam may lower to look up --------------
+    this.dir.copy(this.carDir);
+    const between = signedAngle(this.carDir, this.ballDir, this.referenceUp);
+    let angle = between;
+    if (
+      Math.abs(between) > Math.PI - 0.15 &&
+      Math.sign(between) !== this.blendSign
+    )
+      angle -= 2 * Math.PI * Math.sign(between);
+    else if (Math.abs(between) > 0.1) this.blendSign = Math.sign(between);
+    this.dir.applyAxisAngle(this.referenceUp, angle * m).normalize();
+    // One rendered view: transitions swing at a rate set by Transition Speed.
+    const viewStep =
+      (this.transitioning
+        ? r.transitionTurnRate * Math.max(0.05, p.transition)
+        : r.maxViewRate) * dt;
+    if (first) this.boomDir.copy(this.dir);
+    else this.follow(this.boomDir, this.dir, 1, viewStep);
+    this.dir.copy(this.boomDir);
+    const boomLength = Math.hypot(distance, height),
+      boomPitch = Math.atan2(height, distance);
+    this.back.copy(this.dir).negate();
+    this.offset
+      .copy(this.back)
+      .multiplyScalar(Math.cos(boomPitch) * boomLength)
+      .addScaledVector(this.referenceUp, Math.sin(boomPitch) * boomLength);
+    this.desiredPosition.copy(this.pivot).add(this.offset);
+
+    // ---- Aim -----------------------------------------------------------------
+    const vHalf = (verticalFov(p.fov, c.aspect) * DEG) / 2,
+      hHalf = Math.atan(Math.tan(vHalf) * c.aspect);
+    this.carLook
+      .copy(this.dir)
+      .multiplyScalar(Math.cos(p.angle * DEG))
+      .addScaledVector(this.referenceUp, Math.sin(p.angle * DEG));
+    this.side.crossVectors(this.dir, this.referenceUp).normalize();
+    // Car direction from the boom, in boom yaw/pitch.
+    this.toward.copy(this.carPosition).sub(this.desiredPosition).normalize();
+    const carPitch = Math.asin(T.MathUtils.clamp(this.toward.dot(this.referenceUp), -1, 1));
+    const carYaw = Math.atan2(this.toward.dot(this.side), this.toward.dot(this.dir));
+    this.toward.copy(this.subject).sub(this.desiredPosition).normalize();
+    const ballPitch = Math.asin(T.MathUtils.clamp(this.toward.dot(this.referenceUp), -1, 1));
+    const ballYaw =
+      Math.atan2(this.toward.dot(this.side), this.toward.dot(this.dir)) * bearing;
+    const pitchLimit = carPitch + vHalf * r.carMargin;
+    const targetPitch = T.MathUtils.clamp(
+      ballPitch,
+      carPitch - vHalf * r.carMargin,
+      Math.min(pitchLimit, 80 * DEG),
     );
+    const targetYaw = T.MathUtils.clamp(
+      ballYaw,
+      carYaw - hHalf * r.carMargin,
+      carYaw + hHalf * r.carMargin,
+    );
+    // RL keeps the boom fixed: a very high ball only pitches the view, up to
+    // the limit that keeps the car readable at the bottom of the frame.
+    if (first) {
+      this.aimYaw = targetYaw;
+      this.aimPitch = targetPitch;
+    } else {
+      const a = damp(9, dt);
+      this.aimYaw += T.MathUtils.clamp((targetYaw - this.aimYaw) * a, -maxStep, maxStep);
+      this.aimPitch += T.MathUtils.clamp(
+        (targetPitch - this.aimPitch) * a,
+        -maxStep,
+        maxStep,
+      );
+    }
+    this.ballLook
+      .copy(this.dir)
+      .applyAxisAngle(this.referenceUp, -this.aimYaw)
+      .multiplyScalar(Math.cos(this.aimPitch))
+      .addScaledVector(this.referenceUp, Math.sin(this.aimPitch))
+      .normalize();
+    this.lookDirection.copy(this.carLook).lerp(this.ballLook, m).normalize();
+    if (first) this.aimDir.copy(this.lookDirection);
+    else {
+      const turn = this.aimDir.angleTo(this.lookDirection);
+      if (turn > viewStep) {
+        this.aimAxis.crossVectors(this.aimDir, this.lookDirection);
+        if (this.aimAxis.lengthSq() < 1e-12) this.aimAxis.copy(this.referenceUp);
+        this.aimDir.applyAxisAngle(this.aimAxis.normalize(), viewStep);
+      } else this.aimDir.copy(this.lookDirection);
+    }
+    this.keepCarReadable(this.aimDir, this.desiredPosition, vHalf, hHalf);
+    this.lookDirection.copy(this.aimDir);
+
+    // ---- Free look: position-based orbit around the car --------------------
+    const look = this.mouseLook,
+      yaw = look ? look.yaw : 0,
+      pitch = look ? look.pitch : 0;
+    // The orbit turns the boom about the car itself (not the lagged pivot), so
+    // its length to the car is preserved and releasing returns exactly.
+    this.offset.copy(this.desiredPosition).sub(this.carPosition);
+    this.look.copy(this.lookDirection);
+    if (yaw || pitch) {
+      this.offset.applyAxisAngle(this.referenceUp, -yaw);
+      this.look.applyAxisAngle(this.referenceUp, -yaw);
+      this.orbitDir.copy(this.offset);
+      const length = this.orbitDir.length();
+      const elevation = Math.asin(
+        T.MathUtils.clamp(this.orbitDir.dot(this.referenceUp) / Math.max(length, 1e-6), -1, 1),
+      );
+      const raised = T.MathUtils.clamp(elevation + pitch, -0.35, 1.2);
+      this.flatten(this.orbitDir, this.orbitDir);
+      this.side.crossVectors(this.orbitDir, this.referenceUp).normalize();
+      this.offset
+        .copy(this.orbitDir)
+        .multiplyScalar(Math.cos(raised) * length)
+        .addScaledVector(this.referenceUp, Math.sin(raised) * length);
+      this.look.applyAxisAngle(this.side, raised - elevation).normalize();
+    }
+
+    // ---- Collision: the arena shell is see-through; hard blockers shorten ---
+    // Keep the lens above the surface under a wheel-down car (whose origin rides
+    // P.car.contactHeight up) by raising the boom, preserving its length.
+    const floor = r.minHeight - P.car.contactHeight,
+      above = this.offset.dot(this.referenceUp);
+    if (onSurface > 0.5 && above < floor) {
+      const length = this.offset.length(),
+        lift = Math.min(floor, length * 0.99);
+      this.flatten(this.offset, this.orbitDir);
+      this.offset
+        .copy(this.orbitDir)
+        .multiplyScalar(Math.sqrt(Math.max(0, length * length - lift * lift)))
+        .addScaledVector(this.referenceUp, lift);
+    }
     this.clearance.resolve(
       simulation.world,
-      this.pivot,
-      this.smoothedOffset,
+      this.carPosition,
+      this.offset,
       c.position,
       dt,
       first,
+      true,
     );
+    this.keepCarReadable(this.look, c.position, vHalf, hHalf);
+    this.orientation(this.look, c.quaternion);
 
-    this.carTarget
-      .copy(this.pivot)
-      .addScaledVector(this.forward, 3)
-      .addScaledVector(
-        worldUp,
-        p.height + Math.tan(T.MathUtils.degToRad(p.angle)) * (p.distance + 3),
-      );
-    this.carLook.copy(this.carTarget).sub(c.position).normalize();
-    this.framing.aim(c.position, this.carSubject, this.subject, this.ballLook);
-    this.targetLook
-      .copy(this.carLook)
-      .lerp(this.ballLook, this.modeBlend)
-      .normalize();
-    this.orientation(this.targetLook, this.desiredRotation, this.yaw);
-    const rate = 10 + p.stiffness * 14;
-    const previousYaw = this.yaw,
-      previousPitch = this.pitch;
-    this.yaw =
-      first || switching
-        ? this.targetYaw
-        : this.yaw + delta(this.yaw, this.targetYaw) * damp(rate, dt);
-    this.targetPitch += this.modeBlend * T.MathUtils.degToRad(p.angle) * 0.15;
-    this.pitch =
-      first || switching
-        ? this.targetPitch
-        : T.MathUtils.lerp(this.pitch, this.targetPitch, damp(rate, dt));
-    c.rotation.set(this.pitch, this.yaw, 0, "YXZ");
-    // Feedback is measured from the ACTUAL smoothed, collision-corrected pose.
-    // Fast expansion keeps a safety reserve; return to user FOV is damped.
-    let needed = this.framing.evaluate(
-      c.position,
-      c.quaternion,
-      this.carSubject,
-      this.subject,
-      goalFocus ? 0.2 : (simulation.physics?.ball.radius ?? P.ball.radius),
-      c.aspect,
-      c.fov,
+    // ---- Optional camera shake (off by default) ----------------------------
+    const impact = first
+      ? 0
+      : this.velocity.distanceTo(this.previousVelocity) / Math.max(dt, 1e-3);
+    this.previousVelocity.copy(this.velocity);
+    const speed = this.velocity.length();
+    this.shakeEnergy = Math.max(
+      this.shakeEnergy * Math.exp(-6 * dt),
+      T.MathUtils.smoothstep(impact, 60, 400),
     );
-    if (tracking && needed > MAX_FRAMING_FOV - 12) {
-      // Project the damped orientation into the feasible two-subject cone.
-      // Take only the minimum correction needed; normal following still uses
-      // independent damping. This prevents a narrow viewport or a fast ramp
-      // from requiring an impossible FOV while a valid nearby aim exists.
-      this.orientation(this.ballLook, this.desiredRotation, this.yaw);
-      const best = this.framing.evaluate(
-        c.position,
-        this.desiredRotation,
-        this.carSubject,
-        this.subject,
-        goalFocus ? 0.2 : (simulation.physics?.ball.radius ?? P.ball.radius),
-        c.aspect,
-        c.fov,
-        0.9,
+    const shake = p.shake
+      ? Math.min(1, this.shakeEnergy + 0.35 * T.MathUtils.smoothstep(speed, 21, 23))
+      : 0;
+    if (shake > 0) {
+      const amount = 0.0045 * shake;
+      this.shakeEuler.set(
+        Math.sin(time * 47.3) * amount + Math.sin(time * 71.1) * amount * 0.5,
+        Math.sin(time * 53.7 + 1.3) * amount,
+        Math.sin(time * 39.1 + 2.1) * amount * 0.4,
       );
-      if (best <= MAX_FRAMING_FOV - 2) {
-        const coneFov = Math.max(MAX_FRAMING_FOV - 12, best + 1);
-        const yawStep = delta(this.yaw, this.targetYaw),
-          pitchStep = this.targetPitch - this.pitch;
-        let low = 0,
-          high = 1;
-        for (let i = 0; i < 8; i++) {
-          const fraction = (low + high) / 2;
-          this.constraintEuler.set(
-            this.pitch + pitchStep * fraction,
-            this.yaw + yawStep * fraction,
-            0,
-            "YXZ",
-          );
-          this.desiredRotation.setFromEuler(this.constraintEuler);
-          const requirement = this.framing.evaluate(
-            c.position,
-            this.desiredRotation,
-            this.carSubject,
-            this.subject,
-            goalFocus
-              ? 0.2
-              : (simulation.physics?.ball.radius ?? P.ball.radius),
-            c.aspect,
-            c.fov,
-            0.9,
-          );
-          if (requirement > coneFov) low = fraction;
-          else high = fraction;
-        }
-        this.yaw += yawStep * high;
-        this.pitch += pitchStep * high;
-        c.rotation.set(this.pitch, this.yaw, 0, "YXZ");
-        needed = this.framing.evaluate(
-          c.position,
-          c.quaternion,
-          this.carSubject,
-          this.subject,
-          goalFocus ? 0.2 : (simulation.physics?.ball.radius ?? P.ball.radius),
-          c.aspect,
-          c.fov,
-          0.9,
-        );
-      }
+      c.quaternion.multiply(this.shakeRotation.setFromEuler(this.shakeEuler));
     }
-    if (!first && !switching) {
-      const yawStep = delta(previousYaw, this.yaw),
-        pitchStep = this.pitch - previousPitch;
-      const fraction = Math.min(
-        1,
-        (Math.max(3, p.swivel) * Math.max(1, 1 / c.aspect) * dt) /
-          Math.max(1e-6, Math.hypot(yawStep, pitchStep)),
-      );
-      this.yaw = previousYaw + yawStep * fraction;
-      this.pitch = previousPitch + pitchStep * fraction;
-      c.rotation.set(this.pitch, this.yaw, 0, "YXZ");
-      needed = this.framing.evaluate(
-        c.position,
-        c.quaternion,
-        this.carSubject,
-        this.subject,
-        goalFocus ? 0.2 : (simulation.physics?.ball.radius ?? P.ball.radius),
-        c.aspect,
-        c.fov,
-      );
-    }
-    const framingFov = T.MathUtils.lerp(
-      p.fov,
-      Math.max(p.fov, needed),
-      this.modeBlend,
-    );
-    const targetFov = Math.min(MAX_FRAMING_FOV, framingFov);
-    c.fov =
-      first || switching
-        ? targetFov
-        : T.MathUtils.lerp(
-            c.fov,
-            targetFov,
-            damp(targetFov > c.fov ? 35 : 5, dt),
-          );
-    // The safety bound is already inside the screen; spending that reserve
-    // avoids a frame of clipping while a fast-moving subject is being tracked.
-    if (tracking) {
-      const reserveFov =
-        needed < 180
-          ? T.MathUtils.radToDeg(
-              2 *
-                Math.atan(
-                  (Math.tan(T.MathUtils.degToRad(needed / 2)) * 0.85) / 0.9,
-                ),
-            )
-          : MAX_FRAMING_FOV;
-      c.fov = Math.max(c.fov, Math.min(MAX_FRAMING_FOV, reserveFov));
-    }
+
+    c.fov = verticalFov(p.fov, c.aspect);
     c.updateProjectionMatrix();
     c.updateMatrixWorld(true);
-    this.lookDirection.set(0, 0, -1).applyQuaternion(c.quaternion);
     this.framing.evaluate(
       c.position,
       c.quaternion,
-      this.carSubject,
+      this.carPosition,
       this.subject,
       goalFocus ? 0.2 : (simulation.physics?.ball.radius ?? P.ball.radius),
       c.aspect,
       c.fov,
       0.9,
     );
-    this.debug.mode = tracking ? "Ball Cam" : "Car Cam";
-    this.debug.fovAdjustment = c.fov - p.fov;
-    this.debug.safe =
-      this.framing.feasible && c.fov >= this.framing.requiredFov - 0.001;
+    this.debug.mode = this.transitioning
+      ? tracking
+        ? "Car → Ball Cam"
+        : "Ball → Car Cam"
+      : tracking
+        ? "Ball Cam"
+        : "Car Cam";
+    this.debug.fovAdjustment = 0;
+    this.debug.safe = this.framing.feasible;
+    this.debug.blend = this.modeBlend;
+    this.debug.fov = p.fov;
+    this.debug.verticalFov = c.fov;
+    this.debug.distance = p.distance;
+    this.debug.height = p.height;
+    this.debug.angle = p.angle;
+    this.debug.stiffness = p.stiffness;
+    this.debug.swivel = p.swivel;
+    this.debug.transition = p.transition;
+    this.debug.shake = shake;
+    this.debug.lag = this.pivot.distanceTo(this.carPosition);
     this.ready = true;
-    this.mouseOrbit.apply(c, this.pivot, this.mouseLook, dt, simulation);
-    if (switching) this.transitionView(c, simulation, dt);
-    this.commit(c);
     if (this.reverseHeld) this.reverseView(car, simulation);
-    this.viewFrame.car.copy(this.pivot);
+    this.viewFrame.car.copy(this.carPosition);
     this.viewFrame.ball.copy(this.subject);
     this.viewFrame.ballEnabled = !!simulation.ball?.isEnabled();
     this.viewFrame.position.copy(this.camera.position);

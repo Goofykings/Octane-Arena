@@ -1,7 +1,8 @@
 import {
   Settings,
   cameraRanges,
-  type CameraSettings,
+  cameraDefaults,
+  type CameraRangeKey,
   type AudioSettings,
 } from "../game/settings";
 import {
@@ -157,7 +158,7 @@ export class SettingsPanel {
         this.save();
       };
     } else if (this.tab === "camera") {
-      const labels = {
+      const labels: Record<CameraRangeKey, string> = {
         fov: "Field of view",
         distance: "Distance",
         height: "Height",
@@ -166,23 +167,36 @@ export class SettingsPanel {
         swivel: "Swivel speed",
         transition: "Transition speed",
       };
-      host.innerHTML = (Object.keys(cameraRanges) as (keyof CameraSettings)[])
-        .map((k) =>
-          range(
-            k,
-            labels[k],
-            p.camera[k],
-            ...cameraRanges[k],
-            k === "fov" || k === "angle" ? "°" : "",
-          ),
-        )
-        .join("");
-      for (const key of Object.keys(cameraRanges) as (keyof CameraSettings)[])
+      const units: Partial<Record<CameraRangeKey, string>> = {
+        fov: "°",
+        angle: "°",
+        distance: " uu",
+        height: " uu",
+      };
+      host.innerHTML =
+        (Object.keys(cameraRanges) as CameraRangeKey[])
+          .map((k) =>
+            range(k, labels[k], p.camera[k], ...cameraRanges[k], units[k]),
+          )
+          .join("") +
+        toggle("camera-shake", "Camera shake", p.camera.shake) +
+        '<p class="field-note">Rocket League units: horizontal FOV at 16:9, distance and height in uu (100 uu = 1 m).</p>' +
+        '<div class="binding-resets"><button id="reset-camera" class="small-button">RESET CAMERA</button></div>';
+      for (const key of Object.keys(cameraRanges) as CameraRangeKey[])
         host.querySelector<HTMLInputElement>(`#${key}`)!.oninput = (e) => {
           p.camera[key] = Number((e.target as HTMLInputElement).value);
           this.rangeOutput(e);
           this.save();
         };
+      host.querySelector<HTMLInputElement>("#camera-shake")!.onchange = (e) => {
+        p.camera.shake = (e.target as HTMLInputElement).checked;
+        this.save();
+      };
+      host.querySelector<HTMLButtonElement>("#reset-camera")!.onclick = () => {
+        Object.assign(p.camera, cameraDefaults());
+        this.save();
+        this.render();
+      };
     } else if (this.tab === "controls") {
       host.innerHTML = `<p id="controller-status" class="field-note" role="status"></p>
       ${range("controller-deadzone", "Stick deadzone", p.controller.deadzone, 0.05, 0.3, 0.01)}

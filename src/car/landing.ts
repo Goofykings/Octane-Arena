@@ -10,9 +10,11 @@ const predictionKeys = [
   "remaining",
   "rate",
   "approachAge",
+  "rearmAir",
 ] as const;
 
-/** Brief energy absorption after a real coherent wheel-side touchdown, never a pose target. */
+/** Brief surface-tangent spin damping after a real coherent 3-4 wheel touchdown;
+ * never a pose target, never active in the air or for partial/roof/nose contact. */
 export class LandingContact {
   private air = 0;
   private sinceAir = 1;
@@ -20,6 +22,8 @@ export class LandingContact {
   private remaining = 0;
   rate = 0;
   private approachAge = 1;
+  /** Flight time needed to re-arm; longer after a dirty (chassis/tilted) touchdown. */
+  private rearmAir = 0;
   predictionValues() {
     return captureValues(this, predictionKeys);
   }
@@ -32,6 +36,7 @@ export class LandingContact {
     this.sinceAir = 1;
     this.armed = false;
     this.remaining = this.rate = 0;
+    this.rearmAir = 0;
   }
   step(
     airborne: boolean,
@@ -40,14 +45,26 @@ export class LandingContact {
     rate: number,
     duration: number,
     approaching = true,
+    minAir = 0.025,
+    clean = true,
   ) {
     this.approachAge = approaching ? 0 : this.approachAge + dt;
     if (airborne) {
       this.air += dt;
       this.sinceAir = 0;
       this.remaining = 0;
-      if (this.air >= 0.025) this.armed = true;
+      if (this.air >= Math.max(minAir, this.rearmAir)) {
+        this.armed = true;
+        this.rearmAir = 0;
+      }
     } else {
+      // A touchdown whose first contact is the chassis or a badly tilted
+      // wheel pair is a bad landing; it stays unassisted until the next flight.
+      // A short bounce off that bad contact cannot launder it into a clean one.
+      if (this.sinceAir === 0 && !clean) {
+        this.armed = false;
+        this.rearmAir = 0.3;
+      }
       this.air = 0;
       this.sinceAir += dt;
       this.remaining = Math.max(0, this.remaining - dt);

@@ -33,12 +33,17 @@ const { staticGame } = require("./static-game.cjs");
     await page.waitForFunction(() => window.__arena);
     await page.locator("#garage-open").click();
     await page.locator("#customize-car").click();
-    const ids = ["vector", "ion", "cargo", "slicer", "wraith"];
+    const ids = [
+      "vector",
+      "lowflat",
+      "boxy",
+      "wedge",
+    ];
     for (const body of ids) {
       await page.locator('[data-category="body"]').click();
       assert.equal(
         await page.locator(".inventory-grid [data-item]").count(),
-        5,
+        4,
       );
       await page.locator('[data-item="' + body + '"]').click();
       assert.ok(
@@ -126,12 +131,12 @@ const { staticGame } = require("./static-game.cjs");
         const p = __arena.garage.current;
         return [p.body, p.topper, p.boost];
       }),
-      ["wraith", "ufo", "dust"],
+      ["wedge", "ufo", "dust"],
     );
     // Home/party lineup uses the same saved model and topper, keyed by player ID.
     await page.waitForFunction(() =>
       [...__arena.homeLobby.displays.values()].some(
-        (d) => d.model.userData.bodyId === "wraith",
+        (d) => d.model.userData.bodyId === "wedge",
       ),
     );
     assert.ok(
@@ -205,14 +210,14 @@ const { staticGame } = require("./static-game.cjs");
     assert.ok(
       await page.evaluate(
         () =>
-          __arena.visuals[0].userData.bodyId === "wraith" &&
+          __arena.visuals[0].userData.bodyId === "wedge" &&
           __arena.visuals[0].userData.topper.name === "topper-ufo",
       ),
     );
     await page.screenshot({ path: ".tools/cosmetic-replay.png" });
     assert.deepEqual(errors, []);
     console.log(
-      "PASS real garage selection of five bodies/55 toppers/ten continuous distinct boosts, saved reload, home lineup and all five in gameplay; no browser errors",
+      "PASS real garage selection of four bodies/44 toppers/ten continuous distinct boosts, saved reload, home lineup and all four in gameplay; no browser errors",
     );
   } finally {
     await browser?.close();

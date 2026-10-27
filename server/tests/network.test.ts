@@ -167,7 +167,11 @@ test("snapshots publish double-jump visuals, skip first jumps and clear at kicko
     for (let i = 0; i < 60; i++) game.simulation.step([neutral]);
     game.simulation.step([{ ...neutral, jump: true }]);
     assert.equal(game.snapshot().cars[0].normalJump?.sequence, 0);
-    game.simulation.step([neutral]);
+    // RL: the wheels stay down through the 0.025 s minimum jump; the second
+    // press double-jumps once the car is airborne.
+    for (let i = 0; i < 12 && car.grounded; i++)
+      game.simulation.step([neutral]);
+    assert.equal(car.grounded, false);
     game.simulation.step([{ ...neutral, jump: true }]);
     const event = JSON.parse(JSON.stringify(game.snapshot())).cars[0]
       .normalJump;

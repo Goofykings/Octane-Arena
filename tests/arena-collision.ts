@@ -522,7 +522,8 @@ check(
   () => {
     let oneWheel = 0,
       maxNormalStep = 0,
-      maxCameraAngle = 0;
+      maxCameraAngle = 0,
+      maxRollStep = 0;
     for (const side of [-1, 1])
       for (const speed of [5, 23])
         for (let repeat = 0; repeat < 3; repeat++) {
@@ -559,13 +560,19 @@ check(
             if (p.y > a.height - 1) upper = true;
             if (upper && !c.grounded && p.y < a.height - 1) detached = true;
             c.pose.render(car, 1);
-            const q = camera.quaternion.clone();
+            const q = camera.quaternion.clone(),
+              up = cam.referenceUp.clone();
             cam.update(car, ball, s, P.dt, false, i * P.dt);
-            if (i > 10)
+            // RL rolls the view with the surface: bound the roll and the view
+            // turn within that rolling frame separately.
+            if (i > 10) {
+              const roll = up.angleTo(cam.referenceUp);
+              maxRollStep = Math.max(maxRollStep, roll);
               maxCameraAngle = Math.max(
                 maxCameraAngle,
-                q.angleTo(camera.quaternion),
+                q.angleTo(camera.quaternion) - roll,
               );
+            }
             if (detached) break;
           }
           assert.ok(wall > 10, `no meaningful wall driving ${speed}`);
@@ -575,7 +582,8 @@ check(
     assert.ok(oneWheel < 6, `one-wheel jitter ${oneWheel}`);
     assert.ok(maxNormalStep < 0.2, `normal jitter ${maxNormalStep}`);
     assert.ok(maxCameraAngle < 0.12, `camera rotation jump ${maxCameraAngle}`);
-    return { oneWheel, maxNormalStep, maxCameraAngle };
+    assert.ok(maxRollStep < 0.12, `camera roll jump ${maxRollStep}`);
+    return { oneWheel, maxNormalStep, maxCameraAngle, maxRollStep };
   },
 );
 check(
@@ -612,6 +620,7 @@ check("diagonal corner driving and goal-curve camera/contact stability", () => {
   let cases = 0,
     longestOneWheel = 0,
     maxCameraTurn = 0,
+    maxRollStep = 0,
     worst: unknown;
   for (const goal of [false, true])
     for (const side of [-1, 1])
@@ -665,13 +674,17 @@ check("diagonal corner driving and goal-curve camera/contact stability", () => {
             }
             if (c.contacts >= 2 && c.normal.y < 0.9) curved++;
             c.pose.render(model, 1);
-            const before = camera.quaternion.clone();
+            const before = camera.quaternion.clone(),
+              up = control.referenceUp.clone();
             control.update(model, ball, s, P.dt, false, i * P.dt);
-            if (i > 10)
+            if (i > 10) {
+              const roll = up.angleTo(control.referenceUp);
+              maxRollStep = Math.max(maxRollStep, roll);
               maxCameraTurn = Math.max(
                 maxCameraTurn,
-                before.angleTo(camera.quaternion),
+                before.angleTo(camera.quaternion) - roll,
               );
+            }
             const ceiling = goal ? a.goalHeight : a.height;
             if (c.body.translation().y > ceiling - 1) reachedUpper = true;
             // Measure driving through the curve, not a later tilted aerial landing.
@@ -691,7 +704,8 @@ check("diagonal corner driving and goal-curve camera/contact stability", () => {
     `sustained one-wheel balance ${longestOneWheel} ticks ${JSON.stringify(worst)} camera=${maxCameraTurn}`,
   );
   assert.ok(maxCameraTurn < 0.12, `goal/corner camera jump ${maxCameraTurn}`);
-  return { cases, longestOneWheel, maxCameraTurn };
+  assert.ok(maxRollStep < 0.12, `goal/corner camera roll jump ${maxRollStep}`);
+  return { cases, longestOneWheel, maxCameraTurn, maxRollStep };
 });
 
 check("upside-down goal slope can recover using normal controls", () => {

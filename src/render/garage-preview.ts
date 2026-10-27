@@ -1,5 +1,6 @@
 import * as T from "three";
 import { carModel, ballModel, disposeModel, material } from "./models";
+import { isArenaCarBody } from "./arena-car-model";
 import type { Preset, Team } from "../game/inventory";
 import { VehicleEffects } from "../effects/vehicle-effects";
 import { GoalExplosion } from "../effects/goal-explosion";
@@ -174,7 +175,10 @@ export class GaragePreview {
       topper.position.y =
         this.topperY +
         (!reduced && category === "topper" ? 0.08 * (1 - ease) : 0);
-    this.car.rotation.y = this.angle + (reduced ? 0 : (1 - ease) * 0.08);
+    this.car.rotation.y =
+      this.angle +
+      (isArenaCarBody(this.car.userData.bodyId) ? Math.PI : 0) +
+      (reduced ? 0 : (1 - ease) * 0.08);
     this.boostEffects?.previewBoost(this.time, category === "boost");
     if (category === "explosion") {
       if (this.previewAge >= 0) {

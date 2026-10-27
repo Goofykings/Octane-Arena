@@ -11,7 +11,7 @@
     "name": "roof recovery with throttle held before touchdown",
     "pass": true,
     "data": {
-      "triggers": 1,
+      "triggers": 0,
       "recovered": true
     }
   },
@@ -95,8 +95,8 @@
     "pass": true,
     "data": {
       "supported": 90,
-      "maxPitch": 0,
-      "speed": 8.602665901184082
+      "maxPitch": 8.49384917955831e-8,
+      "speed": 8.325314522250046
     }
   },
   {
@@ -104,17 +104,17 @@
     "pass": true,
     "data": {
       "supported": 90,
-      "maxPitch": 0.01788398118695526,
-      "speed": 8.602664904937043
+      "maxPitch": 5.879867546035883e-7,
+      "speed": 8.285550160458397
     }
   },
   {
     "name": "ceiling contact uses drive forces without aerial pitch",
     "pass": true,
     "data": {
-      "supported": 28,
-      "maxPitch": 0,
-      "speed": -2.5189750952025376
+      "supported": 17,
+      "maxPitch": 3.874820232181908e-32,
+      "speed": -4.962945088424032
     }
   },
   {
@@ -125,24 +125,24 @@
         "contacts": 1,
         "air": 1,
         "omega": {
-          "x": 1,
-          "y": 0.28937166929244995,
-          "z": 0.10000000149011612
+          "x": 0.9708279371261597,
+          "y": 0.2790241241455078,
+          "z": 0.06500840932130814
         }
       },
       {
         "contacts": 1,
         "air": 1,
         "omega": {
-          "x": 0.887930691242218,
-          "y": 0.26164525747299194,
-          "z": 0.09292028844356537
+          "x": 0.8701934814453125,
+          "y": 0.25412678718566895,
+          "z": 0.058651067316532135
         }
       }
     ]
   },
   {
-    "name": "contact debounce tolerates a lost tick, while jump restores air input promptly",
+    "name": "losing every wheel gives air control at once (RL), and jump restores air input promptly",
     "pass": true
   },
   {
@@ -210,12 +210,12 @@
     "name": "goal -1 upper -1 curved mouth remains driveable",
     "pass": true,
     "data": {
-      "supported": 30,
-      "maxAngular": 2.707174934947668,
+      "supported": 39,
+      "maxAngular": 0.5607591857991894,
       "final": {
-        "x": -8.043059349060059,
-        "y": 4.050605297088623,
-        "z": -46.57293701171875
+        "x": -8.553027153015137,
+        "y": 4.452531337738037,
+        "z": -46.66021728515625
       }
     }
   },
@@ -223,12 +223,12 @@
     "name": "goal -1 upper 1 curved mouth remains driveable",
     "pass": true,
     "data": {
-      "supported": 30,
-      "maxAngular": 2.7080633409581587,
+      "supported": 39,
+      "maxAngular": 0.5606955825564524,
       "final": {
-        "x": 8.043028831481934,
-        "y": 4.050561904907227,
-        "z": -46.57293701171875
+        "x": 8.552994728088379,
+        "y": 4.4525370597839355,
+        "z": -46.66021728515625
       }
     }
   },
@@ -236,12 +236,12 @@
     "name": "goal 1 upper -1 curved mouth remains driveable",
     "pass": true,
     "data": {
-      "supported": 30,
-      "maxAngular": 2.707174204275576,
+      "supported": 39,
+      "maxAngular": 0.5607596008141837,
       "final": {
-        "x": -8.043059349060059,
-        "y": 4.050605297088623,
-        "z": 46.57293701171875
+        "x": -8.553027153015137,
+        "y": 4.452530860900879,
+        "z": 46.66021728515625
       }
     }
   },
@@ -249,12 +249,12 @@
     "name": "goal 1 upper 1 curved mouth remains driveable",
     "pass": true,
     "data": {
-      "supported": 30,
-      "maxAngular": 2.7080636997042085,
+      "supported": 39,
+      "maxAngular": 0.5606913645738923,
       "final": {
-        "x": 8.043036460876465,
-        "y": 4.050561904907227,
-        "z": 46.57293701171875
+        "x": 8.552994728088379,
+        "y": 4.452536582946777,
+        "z": 46.660221099853516
       }
     }
   }
