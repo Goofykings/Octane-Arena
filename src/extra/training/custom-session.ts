@@ -86,6 +86,15 @@ export class CustomTrainingSession implements ExtraSession {
   changed?: (fieldsOnly?: boolean) => void;
   requestExit?: () => void;
   private pending = true;
+  private editorOnly = new T.Group();
+  private editorConnected = true;
+  readonly performance = {
+    editorPredictions: 0,
+    editorFrames: 0,
+    physicsSteps: 0,
+    lastSteps: 0,
+    frameMs: 0,
+  };
   private predictionWait = 0;
   private phase = 0;
   private points: T.Vector3[] = [];
@@ -136,9 +145,8 @@ export class CustomTrainingSession implements ExtraSession {
     );
     this.car.add(this.model, this.selectedOutline);
     this.selectedOutline.position.y = 0.12;
-    this.scene.add(
-      this.car,
-      this.ball,
+    this.scene.add(this.car, this.ball, this.editorOnly);
+    this.editorOnly.add(
       this.launcher,
       this.aim,
       this.carArrow,
@@ -176,7 +184,7 @@ export class CustomTrainingSession implements ExtraSession {
     this.dots.instanceMatrix.setUsage(T.DynamicDrawUsage);
     this.dots.frustumCulled = false;
     this.dots.renderOrder = 8;
-    this.scene.add(this.dots);
+    this.editorOnly.add(this.dots);
     this.oldCamera = {
       far: options.camera.far,
       fov: options.camera.fov,
@@ -196,7 +204,7 @@ export class CustomTrainingSession implements ExtraSession {
     this.orbit.target.set(0, 3, 0);
     this.transform = new TransformControls(options.camera, options.domElement!);
     this.transform.setSize(0.85);
-    this.scene.add(this.transform.getHelper());
+    this.editorOnly.add(this.transform.getHelper());
     this.transform.addEventListener("dragging-changed", (event) => {
       if (event.value) this.draft.beginChange();
       else {
@@ -379,6 +387,23 @@ export class CustomTrainingSession implements ExtraSession {
     this.orbit.update();
   }
   private attach() {
+    // Hidden TransformControls still traverses and updates every handle.
+    // Remove its authoring subtree and event handlers while playing a shot.
+    if (this.editing) {
+      this.scene.add(this.editorOnly);
+      if (!this.editorConnected) {
+        this.orbit.connect(this.options.domElement!);
+        this.transform.connect(this.options.domElement!);
+        this.editorConnected = true;
+      }
+    } else {
+      this.editorOnly.removeFromParent();
+      if (this.editorConnected) {
+        this.orbit.disconnect();
+        this.transform.disconnect();
+        this.editorConnected = false;
+      }
+    }
     this.selectedOutline.visible = this.editing && this.selected === "car";
     this.transform.detach();
     const advanced =
@@ -526,6 +551,7 @@ export class CustomTrainingSession implements ExtraSession {
     this.changed?.();
   }
   private predict() {
+    this.performance.editorPredictions++;
     const shot = this.draft.shot;
     const result = predictBallTrajectory(
       {
@@ -621,7 +647,9 @@ export class CustomTrainingSession implements ExtraSession {
     _now: number,
     settings: CameraSettings,
   ) {
+    const frameStarted = performance.now();
     if (this.editing) {
+      this.performance.editorFrames++;
       this.predictionWait -= dt;
       if (this.pending && this.predictionWait <= 0) {
         this.predict();
@@ -637,8 +665,16 @@ export class CustomTrainingSession implements ExtraSession {
         this.orbit.update();
       return;
     }
-    if (!this.paused && !this.complete)
-      this.loop.advance(dt, () => this.run.step(input, this.draft.shot));
+    let alpha = 1;
+    this.performance.lastSteps = 0;
+    if (!this.paused && !this.complete) {
+      const result = this.loop.advance(dt, () =>
+        this.run.step(input, this.draft.shot),
+      );
+      alpha = result.alpha;
+      this.performance.lastSteps = result.steps;
+      this.performance.physicsSteps += result.steps;
+    }
     if (this.goalCelebrating && !this.goalShown && this.run.goalPosition) {
       this.goalShown = true;
       this.goalExplosion.trigger(
@@ -650,8 +686,8 @@ export class CustomTrainingSession implements ExtraSession {
     }
     this.goalExplosion.update(this.paused || this.complete ? 0 : dt);
     this.ball.visible = this.physics.ball.isEnabled();
-    this.vehicle.pose.render(this.car, 1);
-    this.physics.ballPose.render(this.ball, 1);
+    this.vehicle.pose.render(this.car, alpha);
+    this.physics.ballPose.render(this.ball, alpha);
     animateWheels(
       this.model,
       this.vehicle.forwardSpeed,
@@ -684,6 +720,7 @@ export class CustomTrainingSession implements ExtraSession {
         : this.run.delay >= 1.2)
     )
       this.finishShot();
+    this.performance.frameMs = performance.now() - frameStarted;
   }
   dispose() {
     this.interaction.dispose();
@@ -691,6 +728,7 @@ export class CustomTrainingSession implements ExtraSession {
     this.orbit.dispose();
     this.effects.dispose();
     this.goalExplosion.dispose();
+    if (!this.editorOnly.parent) this.scene.add(this.editorOnly);
     disposeDribbleResources(this.scene);
     this.physics.dispose();
     const camera = this.options.camera;

@@ -19,6 +19,7 @@ export type NetPlayer = PlayerEntity & { preset: Preset };
 export interface CarSnapshot {
   id: string;
   inputSequence?: number;
+  inputTick?: number;
   prediction?: import("./prediction").CarPredictionState;
   position: Vec;
   rotation: Rotation;
@@ -56,6 +57,7 @@ export interface MatchSnapshot {
   stats?: PlayerMatchStats[];
   statEvents?: MatchStatEvent[];
   chat?: ChatMessage[];
+  contacts?: import("./network-events").ContactEvent[];
   tick: number;
   time: number;
   reset: number;
@@ -90,7 +92,13 @@ export interface MatchSnapshot {
 }
 export type ClientMessage =
   | { type: "auth"; token: string }
-  | { type: "input"; matchId: string; sequence: number; input: PlayerInput }
+  | {
+      type: "input";
+      matchId: string;
+      sequence: number;
+      input: PlayerInput;
+      commands?: number[][];
+    }
   | { type: "REPLAY_SKIP_REQUEST"; matchId: string; replayId: string }
   | { type: "chat-send"; matchId: string; text: string }
   | { type: "latency-reply"; nonce: string }

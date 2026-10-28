@@ -20,11 +20,12 @@ export class UI {
     | "freeplay"
     | "extras"
     | "training"
+    | "rocket-pass"
     | "garage"
     | "bots" = "home";
   constructor() {
     this.root.innerHTML = `<div id="viewport"></div><div id="home-shade"></div><aside id="training-promo" aria-label="Training pack creator" hidden><button id="training-promo-open" type="button">Try making your own training pack!</button><button id="training-promo-close" type="button" aria-label="Dismiss training pack suggestion">&times;</button></aside><header id="brand"><h1>OCTANE <span>ARENA</span></h1></header>
-    <section id="menu" data-nav-scope="home" data-nav-priority="0" data-nav-default="#play" class="screen"><nav class="home-nav"><button id="play" class="nav-button primary">PLAY <span aria-hidden="true">↗</span></button><button id="garage-open" class="nav-button">GARAGE</button><button id="settings-open" class="nav-button">SETTINGS</button></nav></section>
+    <section id="menu" data-nav-scope="home" data-nav-priority="0" data-nav-default="#play" class="screen"><nav class="home-nav"><button id="play" class="nav-button primary">PLAY <span aria-hidden="true">↗</span></button><button id="garage-open" class="nav-button">GARAGE</button><button id="rocket-pass-open" class="nav-button">ROCKET PASS</button><button id="settings-open" class="nav-button">SETTINGS</button></nav></section>
     <button id="profile" aria-label="Open profile"><div class="avatar">${icon("profile")}</div><div><b id="profile-name">Guest</b><span id="profile-title">Rookie</span></div><div class="level"><small>LEVEL</small><b id="profile-level">1</b></div></button>
     <section id="modes" data-nav-scope="modes" data-nav-priority="0" data-nav-default="#bot-mode" class="screen full-screen" hidden><h2>PLAY</h2><div class="mode-grid"><button id="bot-mode" class="mode-card">${icon("bot")}<strong>AGAINST A BOT</strong></button><button id="freeplay-mode" class="mode-card">${icon("freeplay")}<strong>FREE PLAY</strong></button><button id="friend-mode" class="mode-card">${icon("friend")}<strong>AGAINST A FRIEND</strong></button><button id="extra-mode" class="mode-card">${icon("extras")}<strong>EXTRA MODES</strong></button></div><footer class="screen-footer"><button id="modes-back" data-nav-back class="back-button">← BACK</button></footer></section>
     <section id="extras" data-nav-scope="extras" data-nav-priority="0" class="screen full-screen" hidden><h2>EXTRA MODES</h2><div class="mode-grid extra-grid">${extraModes.map((mode) => `<button id="${mode.id}-mode" class="mode-card">${icon(mode.icon)}<strong>${mode.name}</strong></button>`).join("")}</div><footer class="screen-footer"><button id="extras-back" data-nav-back class="back-button">← BACK</button></footer></section>
@@ -143,6 +144,7 @@ export class UI {
       ["extras", home && this.screen === "extras"],
       ["training-menu", home && this.screen === "training"],
       ["garage-screen", home && this.screen === "garage"],
+      ["rocket-pass-screen", home && this.screen === "rocket-pass"],
       ["hud", !home && m.phase !== "finished" && !m.replayActive],
       ["pause", m.phase === "paused" && !this.leaveConfirmation],
       ["result", m.phase === "finished"],

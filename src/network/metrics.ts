@@ -3,7 +3,31 @@ export class NetworkMetrics {
   private received: { at: number; tick: number; bytes: number }[] = [];
   private sent: { at: number; bytes: number; tick: number }[] = [];
   private frames: number[] = [];
+  private traffic: {
+    at: number;
+    bytes: number;
+    direction: "send" | "receive";
+    type: string;
+  }[] = [];
+  private encoder = new TextEncoder();
+  recordWire(
+    direction: "send" | "receive",
+    packet: unknown,
+    now = performance.now(),
+  ) {
+    const type = (packet as { type?: string })?.type;
+    if (type !== "frame" && type !== "snapshot" && type !== "input") return;
+    this.traffic.push({
+      at: now,
+      direction,
+      type,
+      bytes: this.encoder.encode(JSON.stringify(packet)).byteLength,
+    });
+    while (this.traffic.length > 2048 || this.traffic[0]?.at < now - 3000)
+      this.traffic.shift();
+  }
   correctionDistance = 0;
+  correctionRotation = 0;
   hardCorrections = 0;
   record(
     direction: "send" | "receive",
@@ -29,6 +53,8 @@ export class NetworkMetrics {
     this.received = [];
     this.sent = [];
     this.frames = [];
+    this.traffic = [];
+    this.correctionRotation = 0;
     this.correctionDistance = this.hardCorrections = 0;
   }
   report(now = performance.now()) {
@@ -42,7 +68,20 @@ export class NetworkMetrics {
       intervals = r.slice(1).map((v, i) => v.at - r[i].at),
       average =
         intervals.reduce((a, b) => a + b, 0) / Math.max(1, intervals.length);
+    const traffic = recent(this.traffic);
+    const bandwidth = (direction: "send" | "receive") => {
+      const packets = traffic.filter((p) => p.direction === direction);
+      return (
+        packets.reduce((sum, p) => sum + p.bytes, 0) /
+        Math.max(0.001, Math.min(3, (now - (packets[0]?.at ?? now)) / 1000))
+      );
+    };
     return {
+      inputSendHz: hz(
+        traffic.filter((p) => p.direction === "send" && p.type === "input"),
+      ),
+      gameplaySendBytesPerSecond: bandwidth("send"),
+      gameplayReceiveBytesPerSecond: bandwidth("receive"),
       snapshotSendHz: hz(s),
       snapshotReceiveHz: hz(r),
       averagePacketIntervalMs: average,
@@ -61,6 +100,7 @@ export class NetworkMetrics {
       renderFPS:
         f.length > 1 ? ((f.length - 1) * 1000) / (f.at(-1)! - f[0]) : 0,
       correctionDistance: this.correctionDistance,
+      correctionRotationRadians: this.correctionRotation,
       hardCorrections: this.hardCorrections,
     };
   }

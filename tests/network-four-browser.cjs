@@ -4,6 +4,9 @@
   { staticGame } = require("./static-game.cjs");
 (async () => {
   const server = await staticGame(8286);
+  const signaling = process.env.PEER_TEST_MODULE
+    ? await require("./local-peer-server.cjs").localPeer()
+    : null;
   let browser;
   try {
     browser = await chromium.launch({
@@ -44,6 +47,17 @@
       page.on("pageerror", (e) => errors.push(e.message));
       await page.goto(server.url);
       await page.waitForFunction(() => window.__arena);
+      if (signaling)
+        await page.evaluate((port) => {
+          __arena.party.transport.options = {
+            host: "127.0.0.1",
+            port,
+            path: "/peer",
+            secure: false,
+            debug: 0,
+            config: { iceServers: [] },
+          };
+        }, signaling.port);
       pages.push(page);
     }
     async function action(p, name, data = {}) {
@@ -142,6 +156,7 @@
   } finally {
     await browser?.close();
     await server.close();
+    await signaling?.close();
   }
 })().catch((e) => {
   console.error(e);

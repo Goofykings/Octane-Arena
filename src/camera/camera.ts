@@ -40,11 +40,6 @@ export const CAMERA_RIG = {
   carMargin: 0.8,
   /** Hard bound (NDC) on the car's centre, even while the view lags. */
   carReadable: 0.84,
-  /** Reference-up rates (1/s): onto a surface, and back to world up in the air. */
-  surfaceUpRate: 7,
-  airUpRate: 2.6,
-  /** Cap on the view roll rate (rad/s) so a fresh wall/ceiling frame rolls in. */
-  maxRollRate: 6,
   /** Minimum camera height above the surface under the car (m). */
   minHeight: 0.25,
   /** A surface this close along the car's down axis is "under the wheels" (m). */
@@ -62,7 +57,9 @@ export const CAMERA_RIG = {
 export function verticalFov(horizontal: number, aspect: number) {
   const reference = T.MathUtils.clamp(aspect, 4 / 3, 16 / 9);
   return (
-    2 * Math.atan(Math.tan((horizontal * DEG) / 2) / reference) * (180 / Math.PI)
+    2 *
+    Math.atan(Math.tan((horizontal * DEG) / 2) / reference) *
+    (180 / Math.PI)
   );
 }
 /** Camera queries work in both closed arenas and open extra-mode worlds. */
@@ -84,8 +81,8 @@ function signedAngle(a: T.Vector3, b: T.Vector3, axis: T.Vector3) {
 /** One gameplay rig, shared by local and snapshot-rendered network matches.
  * All spatial inputs are render poses; physics supplies only arena queries and
  * whether the ball is enabled. The camera keeps its own reference up: the
- * surface under a wheel-down car (walls and ceiling roll the view, as in RL)
- * or world up in the air, so body rotation and air roll never roll the view. */
+ * world/gravity up on floors, walls, ceilings and in the air. Body rotation
+ * selects a heading but can never roll the view. */
 export class GameCamera {
   reverseHeld = false;
   private reverseApplied = false;
@@ -103,7 +100,7 @@ export class GameCamera {
   };
   settings: CameraSettings = defaults().camera;
   ballMode = true;
-  /** Smoothed camera up (world up in the air, surface normal on walls/ceiling). */
+  /** Gravity reference: fixed world up in every gameplay orientation. */
   readonly referenceUp = new T.Vector3(0, 1, 0);
   /** Lagged follow point (stiffness), the boom origin. */
   readonly pivot = new T.Vector3();
@@ -140,14 +137,16 @@ export class GameCamera {
   private boomDir = new T.Vector3(0, 0, -1);
   private aimDir = new T.Vector3(0, 0, -1);
   private aimAxis = new T.Vector3();
-  private underRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
+  private underRay = new RAPIER.Ray(
+    { x: 0, y: 0, z: 0 },
+    { x: 0, y: -1, z: 0 },
+  );
   /** Car up minus the normal under it, last frame (valid when hadUnder). */
   private previousTilt = new T.Vector3();
   private previousCarUp = new T.Vector3(0, 1, 0);
   private tilt = new T.Vector3();
   private hadUnder = false;
   private relativeSpin = 0;
-  private identity = new T.Quaternion();
   private surfaceTime = 0;
   private ballSign = 1;
   private blendSign = 1;
@@ -174,7 +173,6 @@ export class GameCamera {
   private axisRight = new T.Vector3(1, 0, 0);
   private axisUp = new T.Vector3(0, 1, 0);
   private axisBack = new T.Vector3(0, 0, 1);
-  private previousUp = new T.Vector3(0, 1, 0);
   private turn = new T.Quaternion();
   private lastRight = new T.Vector3(1, 0, 0);
   private orbitDir = new T.Vector3();
@@ -210,7 +208,13 @@ export class GameCamera {
     this.reverseOffset
       .set(0, 0, -1)
       .applyQuaternion(car.quaternion)
-      .addScaledVector(this.referenceUp, -this.reverseOffset.dot(this.referenceUp))
+      .addScaledVector(
+        this.referenceUp,
+        -this.reverseOffset.dot(this.referenceUp),
+      );
+    if (this.reverseOffset.lengthSq() < 0.04)
+      this.reverseOffset.copy(this.carDir);
+    this.reverseOffset
       .normalize()
       .multiplyScalar(this.settings.distance * UU)
       .addScaledVector(this.referenceUp, this.settings.height * UU);
@@ -248,15 +252,22 @@ export class GameCamera {
     this.axisRight.crossVectors(this.referenceUp, this.axisBack);
     const length = this.axisRight.length();
     this.debug.singularity = length < 0.05;
-    if (length < 1e-4) this.axisRight.copy(this.lastRight);
-    else {
-      this.axisRight.multiplyScalar(1 / length);
-      if (length < 0.05)
-        this.axisRight
-          .lerp(this.lastRight, 1 - length / 0.05)
-          .addScaledVector(this.axisBack, -this.axisRight.dot(this.axisBack))
-          .normalize();
-    }
+    if (length < 0.05) {
+      // Close to a vertical look direction, preserve a stable azimuth. Rebuild
+      // the look vector from that horizontal right axis and its elevation:
+      // projecting right against a tilted look vector would introduce roll.
+      if (length > 1e-8) this.axisRight.multiplyScalar(1 / length);
+      else this.axisRight.copy(this.lastRight);
+      this.axisRight.lerp(this.lastRight, 1 - length / 0.05).setY(0);
+      if (this.axisRight.lengthSq() < 1e-8) this.axisRight.copy(this.lastRight);
+      this.axisRight.normalize();
+      const vertical = this.axisBack.y;
+      this.axisBack
+        .crossVectors(this.axisRight, worldUp)
+        .multiplyScalar(length)
+        .addScaledVector(worldUp, vertical)
+        .normalize();
+    } else this.axisRight.multiplyScalar(1 / length);
     this.lastRight.copy(this.axisRight);
     this.axisUp.crossVectors(this.axisBack, this.axisRight).normalize();
     this.basis.makeBasis(this.axisRight, this.axisUp, this.axisBack);
@@ -286,10 +297,20 @@ export class GameCamera {
       const depth = -this.toward.dot(this.axisBack),
         x = this.toward.dot(this.axisRight),
         y = this.toward.dot(this.axisUp);
-      if (depth > 1e-3 && Math.abs(x) <= maxX * depth && Math.abs(y) <= maxY * depth)
+      if (
+        depth > 1e-3 &&
+        Math.abs(x) <= maxX * depth &&
+        Math.abs(y) <= maxY * depth
+      )
         return;
-      const u = depth > 1e-3 ? T.MathUtils.clamp(x / depth, -maxX, maxX) : Math.sign(x) * maxX,
-        v = depth > 1e-3 ? T.MathUtils.clamp(y / depth, -maxY, maxY) : Math.sign(y) * maxY;
+      const u =
+          depth > 1e-3
+            ? T.MathUtils.clamp(x / depth, -maxX, maxX)
+            : Math.sign(x) * maxX,
+        v =
+          depth > 1e-3
+            ? T.MathUtils.clamp(y / depth, -maxY, maxY)
+            : Math.sign(y) * maxY;
       // Where the car should appear, and the turn that puts it there.
       this.aimAxis
         .copy(this.axisRight)
@@ -371,7 +392,7 @@ export class GameCamera {
     const distance = p.distance * UU,
       height = p.height * UU;
 
-    // ---- Reference up: surface under a wheel-down car, else world up -----
+    // ---- Surface-aware heading; the reference up is always world up -----
     this.clearance.survey(
       simulation.world,
       this.carPosition,
@@ -385,8 +406,8 @@ export class GameCamera {
     this.carUp.set(0, 1, 0).applyQuaternion(car.quaternion);
     this.nose.set(0, 0, -1).applyQuaternion(car.quaternion);
     // The surface actually under the wheels (render pose ray along the car's
-    // down axis), never a nearby wall: a wheels-down car on a wall or ceiling
-    // rolls the view as in RL; anything else keeps world up.
+    // down axis), never a nearby wall. This selects how heading follows a
+    // wheels-down car; it never changes the view's gravity reference.
     Object.assign(this.underRay.origin, this.carPosition);
     this.underRay.dir.x = -this.carUp.x;
     this.underRay.dir.y = -this.carUp.y;
@@ -438,28 +459,8 @@ export class GameCamera {
     const onSurface = this.surfaceTime >= r.surfaceSettle ? 1 : 0;
     if (onSurface) this.target.copy(under!.normal).normalize();
     else this.target.copy(worldUp);
-    this.previousUp.copy(this.referenceUp);
-    if (first) this.referenceUp.copy(this.target);
-    else {
-      this.turn
-        .setFromUnitVectors(this.referenceUp, this.target)
-        .slerp(
-          this.identity,
-          1 - damp(onSurface > 0.5 ? r.surfaceUpRate : r.airUpRate, dt),
-        );
-      const roll = 2 * Math.acos(Math.min(1, Math.abs(this.turn.w))),
-        maxRoll = r.maxRollRate * dt;
-      if (roll > maxRoll) this.turn.slerp(this.identity, 1 - maxRoll / roll);
-      this.referenceUp.applyQuaternion(this.turn).normalize();
-    }
-    // Parallel-transport both headings with the reference frame.
-    this.turn.setFromUnitVectors(this.previousUp, this.referenceUp);
-    for (const d of [this.carDir, this.ballDir, this.boomDir]) {
-      d.applyQuaternion(this.turn);
-      if (this.flatten(d, d) < 1e-3) this.flatten(this.nose, d);
-      if (d.lengthSq() < 0.5) d.copy(this.axisBack).negate();
-    }
-    this.aimDir.applyQuaternion(this.turn).normalize();
+    // Surface normals affect heading only, never the world horizon.
+    this.referenceUp.copy(worldUp);
 
     // ---- Stiffness: positional lag of the follow point ---------------------
     const lagTime = r.lag * (1 - T.MathUtils.clamp(p.stiffness, 0, 1));
@@ -473,7 +474,10 @@ export class GameCamera {
 
     // ---- Car Cam heading: nose on a surface, travel direction in the air ---
     const noseLength = this.flatten(this.nose, this.toward);
-    const followAlpha = damp(r.followRate + r.followStiffnessGain * p.stiffness, dt);
+    const followAlpha = damp(
+      r.followRate + r.followStiffnessGain * p.stiffness,
+      dt,
+    );
     const maxStep = r.maxTurnRate * dt;
     if (first) {
       if (noseLength > 0.2) this.carDir.copy(this.toward);
@@ -498,7 +502,11 @@ export class GameCamera {
     // Overhead: the bearing is undefined, so its authority fades smoothly out.
     const bearing =
       T.MathUtils.smoothstep(horizontal, 0.6, 3) *
-      T.MathUtils.smoothstep(horizontal / Math.max(Math.abs(subjectHeight), 1e-3), 0.12, 0.6);
+      T.MathUtils.smoothstep(
+        horizontal / Math.max(Math.abs(subjectHeight), 1e-3),
+        0.12,
+        0.6,
+      );
     this.debug.singularity = bearing < 0.5;
     if (first) this.ballDir.copy(bearing > 0.5 ? this.target : this.carDir);
     else if (bearing > 0)
@@ -561,12 +569,20 @@ export class GameCamera {
     this.side.crossVectors(this.dir, this.referenceUp).normalize();
     // Car direction from the boom, in boom yaw/pitch.
     this.toward.copy(this.carPosition).sub(this.desiredPosition).normalize();
-    const carPitch = Math.asin(T.MathUtils.clamp(this.toward.dot(this.referenceUp), -1, 1));
-    const carYaw = Math.atan2(this.toward.dot(this.side), this.toward.dot(this.dir));
+    const carPitch = Math.asin(
+      T.MathUtils.clamp(this.toward.dot(this.referenceUp), -1, 1),
+    );
+    const carYaw = Math.atan2(
+      this.toward.dot(this.side),
+      this.toward.dot(this.dir),
+    );
     this.toward.copy(this.subject).sub(this.desiredPosition).normalize();
-    const ballPitch = Math.asin(T.MathUtils.clamp(this.toward.dot(this.referenceUp), -1, 1));
+    const ballPitch = Math.asin(
+      T.MathUtils.clamp(this.toward.dot(this.referenceUp), -1, 1),
+    );
     const ballYaw =
-      Math.atan2(this.toward.dot(this.side), this.toward.dot(this.dir)) * bearing;
+      Math.atan2(this.toward.dot(this.side), this.toward.dot(this.dir)) *
+      bearing;
     const pitchLimit = carPitch + vHalf * r.carMargin;
     const targetPitch = T.MathUtils.clamp(
       ballPitch,
@@ -585,7 +601,11 @@ export class GameCamera {
       this.aimPitch = targetPitch;
     } else {
       const a = damp(9, dt);
-      this.aimYaw += T.MathUtils.clamp((targetYaw - this.aimYaw) * a, -maxStep, maxStep);
+      this.aimYaw += T.MathUtils.clamp(
+        (targetYaw - this.aimYaw) * a,
+        -maxStep,
+        maxStep,
+      );
       this.aimPitch += T.MathUtils.clamp(
         (targetPitch - this.aimPitch) * a,
         -maxStep,
@@ -604,7 +624,8 @@ export class GameCamera {
       const turn = this.aimDir.angleTo(this.lookDirection);
       if (turn > viewStep) {
         this.aimAxis.crossVectors(this.aimDir, this.lookDirection);
-        if (this.aimAxis.lengthSq() < 1e-12) this.aimAxis.copy(this.referenceUp);
+        if (this.aimAxis.lengthSq() < 1e-12)
+          this.aimAxis.copy(this.referenceUp);
         this.aimDir.applyAxisAngle(this.aimAxis.normalize(), viewStep);
       } else this.aimDir.copy(this.lookDirection);
     }
@@ -625,7 +646,11 @@ export class GameCamera {
       this.orbitDir.copy(this.offset);
       const length = this.orbitDir.length();
       const elevation = Math.asin(
-        T.MathUtils.clamp(this.orbitDir.dot(this.referenceUp) / Math.max(length, 1e-6), -1, 1),
+        T.MathUtils.clamp(
+          this.orbitDir.dot(this.referenceUp) / Math.max(length, 1e-6),
+          -1,
+          1,
+        ),
       );
       const raised = T.MathUtils.clamp(elevation + pitch, -0.35, 1.2);
       this.flatten(this.orbitDir, this.orbitDir);
@@ -674,18 +699,25 @@ export class GameCamera {
       T.MathUtils.smoothstep(impact, 60, 400),
     );
     const shake = p.shake
-      ? Math.min(1, this.shakeEnergy + 0.35 * T.MathUtils.smoothstep(speed, 21, 23))
+      ? Math.min(
+          1,
+          this.shakeEnergy + 0.35 * T.MathUtils.smoothstep(speed, 21, 23),
+        )
       : 0;
     if (shake > 0) {
       const amount = 0.0045 * shake;
       this.shakeEuler.set(
         Math.sin(time * 47.3) * amount + Math.sin(time * 71.1) * amount * 0.5,
         Math.sin(time * 53.7 + 1.3) * amount,
-        Math.sin(time * 39.1 + 2.1) * amount * 0.4,
+        0,
       );
       c.quaternion.multiply(this.shakeRotation.setFromEuler(this.shakeEuler));
     }
 
+    // Enforce zero world-relative roll after optional local-axis shake.
+    this.look.set(0, 0, -1).applyQuaternion(c.quaternion);
+    this.orientation(this.look, c.quaternion);
+    c.up.copy(worldUp);
     c.fov = verticalFov(p.fov, c.aspect);
     c.updateProjectionMatrix();
     c.updateMatrixWorld(true);

@@ -18,6 +18,8 @@ enforce the RL references; review them when you deliberately move a target.
 | Powerslide | `powerslide.rise`, `fall`, `lateralFactor`, `longitudinal*` | Handbrake engage/release rates and sliding friction |
 | Suspension | `suspension.stiffness`, `compressionDamping`, `relaxationDamping`, `travel` | Ride, landing absorption and wall-transition compression |
 | Bump stop | `suspension.subtraction`, `pushbackErp`, `splitPushback` | Hard stop depth and strength; split mode makes landings deader but bleeds speed on transitions |
+| Tire envelope bottom stop | `suspension.minWheelLength`, `bottomStopSkin` | Minimum physical wheel length and surface clearance only during extreme bottoming |
+| Wall grip recovery | `wallGrip.*` | Independent speed/slip-dependent lateral grip and powered drive recovery, wall brake smoothing; adds no adhesion |
 | Contact states | `car.groundedWheels`, `loadedTravel`, `coherentNormal`, `suspension.minContactDot` | When a wheel counts as touching and when the car is GROUNDED |
 | Partial contact | `car.partialSticky`, `partialGrip`, `tire.partialEngine` | Sticky/grip/drive with 1–2 wheels (sticky 0 keeps cars from clinging on two wheels) |
 | Wall/ceiling stick | `sticky.base`, `sticky.driving` | 0.5 g + (1 − \|n.y\|) g while driving; a flat ceiling releases |
@@ -46,6 +48,9 @@ Other locations:
 - **src/game/modes.ts**: bot/Free Play rules.
 - **src/config/rumble.ts**: Rumble power impulses and timers ([RUMBLE.md](RUMBLE.md)).
 - **src/render/models.ts**: body and wheel visuals, not driving physics.
+- **src/config/vehicle-visuals.ts**: radius-scaled visible travel, weight-transfer amplitude and damping.
+- **src/render/vehicle-suspension.ts**: cosmetic chassis child and wheel animation; inspect model.userData.suspensionVisual while debugging.
+- [**VEHICLE-REFINEMENT.md**](VEHICLE-REFINEMENT.md): travel limits, wall-grip measurements and steering verification.
 
 Leave `dt` (120 Hz) and `maxSteps` alone: they control simulation timing and
 the RL constants assume 120 Hz.

@@ -188,18 +188,48 @@ export class NetworkMatchView {
       client.inputSequence,
       dt,
       Math.max(0, (performance.now() - client.arrived) / 1000),
+      (input) => client.recordInputTick(input),
     );
     if (this.prediction) {
       client.metrics.correctionDistance = this.prediction.correctionDistance;
+      client.metrics.correctionRotation = this.prediction.correctionRotation;
       client.metrics.hardCorrections = this.prediction.hardCorrections;
     }
     if (this.networkDebug && performance.now() > this.debugAt) {
       this.debugAt = performance.now() + 250;
-      this.networkDebug.textContent = JSON.stringify(
-        client.diagnostics(),
-        null,
-        2,
-      );
+      const d = client.diagnostics(),
+        number = (v: number | null) => (v == null ? "--" : v.toFixed(1));
+      this.networkDebug.textContent = [
+        "RTT / PING  " + number(d.roundTripMs) + " ms",
+        "SEND  " +
+          number(d.snapshotSendHz || d.inputSendHz) +
+          " Hz    RECEIVE  " +
+          number(d.snapshotReceiveHz) +
+          " Hz",
+        "PHYSICS  " +
+          d.physicsTickHz +
+          " Hz    RENDER  " +
+          number(d.renderFPS) +
+          " FPS",
+        "INTERPOLATION  " +
+          d.interpolationDelayMs +
+          " ms    BUFFER  " +
+          d.bufferLength,
+        "DROPPED  " +
+          (d.droppedPackets + d.artificialDrops) +
+          "    OUT OF ORDER  " +
+          d.outOfOrderPackets,
+        "CORRECTION  " +
+          number(d.correctionDistance) +
+          " m / " +
+          number((d.correctionRotationRadians * 180) / Math.PI) +
+          " deg",
+        "GAMEPLAY  " +
+          number(d.gameplaySendBytesPerSecond / 1024) +
+          " / " +
+          number(d.gameplayReceiveBytesPerSecond / 1024) +
+          " KiB/s OUT / IN",
+      ].join("\n");
     }
     if (latest.dropshot && this.simulation.dropshot) {
       this.dropshotView.apply(latest.dropshot);
@@ -297,6 +327,18 @@ export class NetworkMatchView {
       model.position.copy(b.position);
       model.quaternion.copy(b.rotation).normalize();
       model.visible = b.enabled;
+      const proxy = this.prediction?.proxyPose(car.id);
+      const blend = this.prediction?.interactionBlend ?? 0;
+      if (
+        proxy &&
+        blend > 0 &&
+        new T.Vector3()
+          .copy(proxy.position)
+          .distanceTo(this.prediction!.ballFrame.position) < 9
+      ) {
+        model.position.lerp(proxy.position, blend);
+        model.quaternion.slerp(new T.Quaternion().copy(proxy.rotation), blend);
+      }
       car.body.setTranslation(model.position, true);
       car.body.setRotation(model.quaternion, true);
       car.body.setLinvel(b.velocity, true);
@@ -364,6 +406,20 @@ export class NetworkMatchView {
     );
     this.ball.position.copy(ballPose.position);
     this.ball.quaternion.copy(ballPose.rotation).normalize();
+    if (
+      this.prediction &&
+      this.prediction.interactionBlend > 0 &&
+      latest.ball.enabled
+    ) {
+      this.ball.position.lerp(
+        this.prediction.ballFrame.position,
+        this.prediction.interactionBlend,
+      );
+      this.ball.quaternion.slerp(
+        this.prediction.ballFrame.rotation,
+        this.prediction.interactionBlend,
+      );
+    }
     this.ball.visible = latest.ball.enabled;
     this.simulation.ball.setEnabled(latest.ball.enabled);
     this.simulation.ball.setLinvel(ballPose.velocity, true);

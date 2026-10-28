@@ -1,4 +1,5 @@
 import { CustomTrainingSession } from "./extra/training/custom-session";
+import { RocketPassPanel } from "./ui/rocket-pass-panel";
 import { TrainingEditorPanel } from "./ui/training-editor-panel";
 import { ARENA_CARS, loadArenaCars } from "./render/arena-car-model";
 // Bots cycle through the polished GLB lineup.
@@ -357,6 +358,21 @@ async function boot() {
   Object.assign(simulation.players[0], {
     id: accounts.profile.value.localPlayerId,
     localPlayerId: accounts.profile.value.localPlayerId,
+  });
+  const rocketPass = new RocketPassPanel(
+    ui.root,
+    garage,
+    accounts.profile,
+    () => {
+      ui.screen = "home";
+      input.clear();
+    },
+    () => garagePanel.render(false),
+  );
+  ui.on("rocket-pass-open", () => {
+    ui.screen = "rocket-pass";
+    rocketPass.update();
+    input.clear();
   });
   simulation.cars[0].id = simulation.players[0].id;
   const party = new PartyClient(garage),

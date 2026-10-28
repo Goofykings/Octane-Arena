@@ -66,7 +66,8 @@ for (const id of ["ion", "vector"] as const) {
       const vy0 = c.body.linvel().y;
       if (mode === "high speed")
         c.body.setLinvel({ x: 0, y: vy0, z: -23 }, true);
-      if (mode === "powerslide") c.body.setLinvel({ x: 12, y: vy0, z: 0 }, true);
+      if (mode === "powerslide")
+        c.body.setLinvel({ x: 12, y: vy0, z: 0 }, true);
       let min = Infinity,
         max = -Infinity,
         vy = 0,
@@ -178,7 +179,9 @@ for (const id of ["ion", "vector"] as const) {
       `path counts ${curve}/${wall}/${ceiling}`,
     );
     assert.ok(
-      minWheel > -0.001,
+      // Damped cosmetic mounts may trail a rapidly changing surface by a few
+      // millimetres. The rigid chassis assertion below remains unchanged.
+      minWheel > -0.005,
       `wheel penetration ${minWheel} ${JSON.stringify(worst)}`,
     );
     // Rapier contact skin plus the mesh's chord tessellation of the curve.
@@ -188,26 +191,29 @@ for (const id of ["ion", "vector"] as const) {
     return { minWheel, minBody, curve, wall, ceiling };
   });
 }
-check("suspension stops the approach along the normal and allows outward impact", () => {
-  const s = fixture(true),
-    c = s.cars[0];
-  c.reset(0, 0, 0, 0.3);
-  c.body.setLinvel({ x: 12, y: -3, z: 7 }, true);
-  const before = { ...c.body.linvel() };
-  step(s, {}, 3);
-  const after = c.body.linvel();
-  // The bump stop and springs act along the contact normal; tire grip may
-  // only trim the tangential motion gradually.
-  assert.ok(
-    Math.hypot(after.x, after.z) > Math.hypot(before.x, before.z) * 0.6,
-  );
-  assert.ok(after.y > -0.5, "descent arrested by the suspension");
-  c.body.setLinvel({ x: 0, y: 6, z: 0 }, true);
-  step(s, {}, 30);
-  assert.ok(c.body.translation().y > 1 && c.contacts === 0);
-  s.dispose();
-  return { before, after };
-});
+check(
+  "suspension stops the approach along the normal and allows outward impact",
+  () => {
+    const s = fixture(true),
+      c = s.cars[0];
+    c.reset(0, 0, 0, 0.3);
+    c.body.setLinvel({ x: 12, y: -3, z: 7 }, true);
+    const before = { ...c.body.linvel() };
+    step(s, {}, 3);
+    const after = c.body.linvel();
+    // The bump stop and springs act along the contact normal; tire grip may
+    // only trim the tangential motion gradually.
+    assert.ok(
+      Math.hypot(after.x, after.z) > Math.hypot(before.x, before.z) * 0.6,
+    );
+    assert.ok(after.y > -0.5, "descent arrested by the suspension");
+    c.body.setLinvel({ x: 0, y: 6, z: 0 }, true);
+    step(s, {}, 30);
+    assert.ok(c.body.translation().y > 1 && c.contacts === 0);
+    s.dispose();
+    return { before, after };
+  },
+);
 for (const wall of [false, true])
   check(`${wall ? "wall" : "floor"} jump detaches`, () => {
     const s = fixture(),

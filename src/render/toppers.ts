@@ -1,7 +1,23 @@
 import * as T from "three";
 /** Small original primitive sculptures. All bases use local Y=0 so the same
  * roof attachment works on every body. No textures, loaders or extra lights. */
-export function createTopper(id: string) {
+export function createTopper(id: string): T.Group {
+  const variants: Record<string, [string, number]> = {
+    "emerald-hat": ["top-hat", 0x50efb0],
+    "solar-halo": ["halo", 0xffcf56],
+    "frost-crown": ["crown", 0xa2eaff],
+    "violet-ufo": ["ufo", 0xbb8bff],
+  };
+  if (variants[id]) {
+    const [base, color] = variants[id];
+    const variant = createTopper(base);
+    variant.name = "topper-" + id;
+    variant.traverse((o) => {
+      if (o instanceof T.Mesh)
+        (o.material as T.MeshStandardMaterial).color.setHex(color);
+    });
+    return variant;
+  }
   const root = new T.Group();
   root.name = "topper-" + id;
   const mats = new Map<number, T.MeshStandardMaterial>();

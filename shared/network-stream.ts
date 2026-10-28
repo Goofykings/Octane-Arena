@@ -1,4 +1,5 @@
 import type { MatchSnapshot, CarSnapshot } from "./network";
+import { contactEventSchema } from "./network-events";
 import { NETWORK } from "./network-tuning";
 import { predictionStateSchema, type CarPredictionState } from "./prediction";
 export interface MotionFrame {
@@ -8,10 +9,12 @@ export interface MotionFrame {
   time: number;
   reset: number;
   replay?: MatchSnapshot["replay"];
+  contacts?: MatchSnapshot["contacts"];
   cars: {
     id: string;
     motion: number[];
     prediction?: CarPredictionState;
+    inputTick?: number;
     flipReset?: CarSnapshot["flipReset"];
     normalJump?: CarSnapshot["normalJump"];
   }[];
@@ -49,6 +52,7 @@ function pack(c: CarSnapshot, recipient?: string): MotionFrame["cars"][number] {
       c.inputSequence ?? 0,
     ],
     prediction: c.id === recipient ? c.prediction : undefined,
+    inputTick: c.inputTick,
     flipReset: c.flipReset?.sequence ? c.flipReset : undefined,
     normalJump: c.normalJump?.sequence ? c.normalJump : undefined,
   };
@@ -61,6 +65,7 @@ export function motionFrame(s: MatchSnapshot, recipient?: string): MotionFrame {
     time: s.time,
     reset: s.reset,
     replay: s.replay,
+    contacts: s.contacts,
     cars: s.cars.map((c) => pack(c, recipient)),
     ball: [
       ...vec(s.ball.position),
@@ -175,10 +180,26 @@ export function readMotionFrame(
   )
     return null;
   const v = (a: number[], i: number) => ({ x: a[i], y: a[i + 1], z: a[i + 2] });
+  if (
+    f.contacts &&
+    (!Array.isArray(f.contacts) ||
+      f.contacts.length > NETWORK.contactHistorySize ||
+      f.contacts.some(
+        (e) =>
+          !contactEventSchema.safeParse(e).success ||
+          e.tick > f.tick ||
+          Math.abs(e.time - e.tick / NETWORK.physicsHz) > 1e-5 ||
+          new Set(e.cars.map((c) => c.id)).size !== e.cars.length ||
+          e.cars.some((c) => !base.cars.some((b) => b.id === c.id)),
+      ))
+  )
+    return null;
   const cars: CarSnapshot[] = [];
   for (const c of f.cars) {
     const a = c.motion;
     if (
+      (c.inputTick !== undefined &&
+        (!Number.isSafeInteger(c.inputTick) || c.inputTick < 0)) ||
       !base.cars.some((p) => p.id === c.id) ||
       !finite(a, 42) ||
       a[13] < 0 ||
@@ -224,6 +245,7 @@ export function readMotionFrame(
       wheelAngle: a[39],
       wheelSteer: a[40],
       inputSequence: a[41],
+      inputTick: c.inputTick,
       prediction: c.prediction,
       flipReset: c.flipReset,
       normalJump: c.normalJump,
@@ -234,6 +256,7 @@ export function readMotionFrame(
     tick: f.tick,
     time: f.time,
     replay: f.replay ?? base.replay,
+    contacts: f.contacts,
     cars,
     ball: {
       position: v(f.ball, 0),

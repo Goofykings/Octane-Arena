@@ -2,9 +2,11 @@ import { PacketImpairment } from "../network/impairment";
 import { SnapshotBuffer } from "../network/snapshot-buffer";
 import {
   SnapshotPublisher,
+  motionFrame,
   readMotionFrame,
   type MotionFrame,
 } from "../../shared/network-stream";
+import { packInputTick, type InputTick } from "../../shared/network-events";
 import { NETWORK } from "../../shared/network-tuning";
 import { NetworkMetrics } from "../network/metrics";
 import { sameMutators, DEFAULT_MUTATORS } from "../../shared/mutators";
@@ -92,7 +94,7 @@ export class NetworkClient {
   }
   readonly publishers = new Map<string, SnapshotPublisher>();
   get inputSequence() {
-    return this.sequence;
+    return this.commandSequence;
   }
   get playerInput() {
     return this.lastInput;
@@ -122,6 +124,10 @@ export class NetworkClient {
   arrived = 0;
   status = "CONNECTING TO MATCH";
   private sequence = 0;
+  private commandSequence = 0;
+  private localTick = 0;
+  private commands: InputTick[] = [];
+  private metadata: MatchSnapshot | null = null;
   private lastInput = neutralInput();
   private inputTime = 0;
   private desired = "";
@@ -144,8 +150,10 @@ export class NetworkClient {
   private reportedFinished = false;
   constructor(private party: PartyClient) {
     this.rtc = new RtcPeers(party);
-    this.rtc.onData = (id, data) =>
+    this.rtc.onData = (id, data) => {
+      this.metrics.recordWire("receive", data);
       this.testNetwork.receive(data, () => this.peerData(id, data));
+    };
     this.rtc.onClose = (id) => {
       this.readyPeers.delete(id);
       this.sceneReadyPeers.delete(id);
@@ -167,13 +175,22 @@ export class NetworkClient {
     const edge =
       value.jump !== this.lastInput.jump ||
       !!value.usePowerup !== !!this.lastInput.usePowerup;
-    this.sequence++;
     this.lastInput = { ...value };
     this.inputTime = performance.now();
     if (edge) this.sendInput();
   }
+  recordInputTick(input: PlayerInput) {
+    const sequence = ++this.commandSequence;
+    this.commands.push({
+      sequence,
+      tick: ++this.localTick,
+      input: { ...input },
+    });
+    if (this.commands.length > NETWORK.inputBatchSize) this.commands.shift();
+    return sequence;
+  }
   clearInput() {
-    this.sequence++;
+    this.commands = [];
     this.lastInput = neutralInput();
     this.inputTime = 0;
     this.sendInput();
@@ -203,7 +220,9 @@ export class NetworkClient {
       this.peerData(host, message);
       return true;
     }
-    return this.rtc.send(host, message);
+    const sent = this.rtc.send(host, message, message.type === "input");
+    if (sent) this.metrics.recordWire("send", message);
+    return sent;
   }
   private sendInput() {
     if (
@@ -214,7 +233,8 @@ export class NetworkClient {
     this.send({
       type: "input",
       matchId: this.latest.matchId,
-      sequence: this.sequence,
+      sequence: ++this.sequence,
+      commands: this.commands.map(packInputTick),
       input:
         performance.now() - this.inputTime < 150
           ? this.lastInput
@@ -245,7 +265,7 @@ export class NetworkClient {
   private receive(message: ServerMessage | MotionFrame) {
     const raw = message;
     if (message.type === "frame") {
-      const decoded = readMotionFrame(message, this.latest);
+      const decoded = readMotionFrame(message, this.metadata ?? this.latest);
       if (!decoded) return;
       message = decoded;
     }
@@ -280,10 +300,40 @@ export class NetworkClient {
       message.matchId === this.desired
     ) {
       const now = performance.now();
+      if (
+        raw.type === "snapshot" &&
+        (!this.metadata || raw.tick >= this.metadata.tick)
+      ) {
+        this.metadata = raw;
+        // A reliable metadata update may follow a newer unordered motion frame.
+        // Apply its roster/phase/events without rewinding any moving object.
+        if (
+          this.latest &&
+          raw.reset === this.latest.reset &&
+          raw.tick <= this.latest.tick
+        ) {
+          this.latest = {
+            ...raw,
+            tick: this.latest.tick,
+            time: this.latest.time,
+            cars: this.latest.cars,
+            ball: this.latest.ball,
+            contacts: this.latest.contacts,
+          };
+          for (const m of raw.chat ?? []) this.addChat(m);
+          return;
+        }
+      }
       if (!this.buffer.push(message, now)) return;
       this.metrics.record("receive", raw, message.tick, now);
       if (this.latest && message.tick < this.latest.tick) return;
+      if (this.latest && this.latest.reset !== message.reset)
+        this.commands = [];
       this.latest = message;
+      const ack =
+        message.cars.find((c) => c.id === this.party.playerId)?.inputSequence ??
+        0;
+      this.commands = this.commands.filter((c) => c.sequence > ack);
       for (const m of message.chat ?? []) this.addChat(m);
       if (!message.replay) {
         this.replayClip = null;
@@ -338,6 +388,7 @@ export class NetworkClient {
           id,
           sequence: message.sequence,
           input: message.input,
+          commands: message.commands,
         });
       else if (message.type === "REPLAY_SKIP_REQUEST")
         this.command({ type: "skip", id, replayId: message.replayId });
@@ -467,9 +518,15 @@ export class NetworkClient {
                   this.publishers.set(guest.id, publisher);
                 }
                 const packet = publisher.packet(message, guest.id);
-                if (this.rtc.send(guest.id, packet, true))
+                if (packet.type === "snapshot") {
+                  const motion = motionFrame(message, guest.id);
+                  if (this.rtc.send(guest.id, motion, true))
+                    this.metrics.recordWire("send", motion);
+                }
+                if (this.rtc.send(guest.id, packet, packet.type === "frame")) {
                   this.metrics.record("send", packet, message.tick);
-                else publisher.invalidate();
+                  this.metrics.recordWire("send", packet);
+                } else publisher.invalidate();
               }
           if (message.type === "chat-message")
             for (const guest of this.party.state?.members ?? [])
@@ -532,6 +589,9 @@ export class NetworkClient {
     this.readyAt = this.endAt = this.arrived = 0;
     this.reportedFinished = false;
     this.latest = null;
+    this.metadata = null;
+    this.commands = [];
+    this.commandSequence = this.localTick = 0;
     this.sessionMembers = [];
     this.chatLog.length = 0;
     this.chatError = "";

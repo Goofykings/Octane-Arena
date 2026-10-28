@@ -70,6 +70,7 @@ export function wheelClearance(
   body: RAPIER.RigidBody,
   steer = 0,
   surfaceNormal = new Vector3(),
+  treadFraction = 0.8,
 ) {
   const up = new Vector3(0, 1, 0).applyQuaternion(rotation);
   const origin = wheelMount(id, index).applyQuaternion(rotation).add(position);
@@ -108,7 +109,9 @@ export function wheelClearance(
     Math.cos(steer),
   ).applyQuaternion(rotation);
   for (const sign of [-1, 1]) {
-    const offset = tread.clone().multiplyScalar(sign * wheelRadius * 0.8);
+    const offset = tread
+      .clone()
+      .multiplyScalar(sign * wheelRadius * treadFraction);
     const edge = world.castRayAndGetNormal(
       new RAPIER.Ray(origin.clone().add(offset), up.clone().negate()),
       P.car.rayLength + wheelRadius * 2,

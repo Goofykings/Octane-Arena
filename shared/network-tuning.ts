@@ -10,6 +10,14 @@ export const NETWORK = {
   predictionHistory: 120,
   stalePredictionSeconds: 0.25,
   hardCorrection: 6,
+  smallCorrection: 0.03,
+  correctionRate: 12,
+  collisionCorrectionRate: 35,
+  inputBatchSize: 64,
+  contactHistorySeconds: 0.35,
+  contactHistorySize: 12,
+  ballPredictionRange: 7,
+  ballPredictionBlendRate: 18,
 } as const;
 /** Keep the 30 Hz cadence on tick buckets instead of accumulating timer overshoot. */
 export function snapshotBucket(tick: number) {

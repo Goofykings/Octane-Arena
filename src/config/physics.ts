@@ -98,6 +98,9 @@ export const P = {
     compressionDamping: 25,
     relaxationDamping: 40,
     travel: 12 * UU,
+    // Hard stop of the fixed tire envelope; only extreme bottoming reaches it.
+    minWheelLength: 12 * UU,
+    bottomStopSkin: 0.002, // Fixed-tire surface clearance at the hard stop.
     subtraction: 2.5 * UU, // RL ray shortening; also the hard bump-stop depth.
     pushbackErp: 0.2, // Bullet's default positional error reduction for the bump stop.
     // Correct bump-stop depth positionally instead of as velocity. Deader hard
@@ -119,6 +122,23 @@ export const P = {
     coastBrake: 0.15,
     throttleDeadzone: 0.001,
     brakeStop: 0.25, // Per-wheel fraction of forward contact speed removed per tick.
+  },
+  /** Tire recovery on non-floor surfaces; no additional adhesion force. */
+  wallGrip: {
+    lowSpeed: 0.35,
+    highSpeed: 0.83,
+    stableSpeed: 20,
+    slipScale: 0.25,
+    slipStart: 0.1,
+    slipEnd: 0.75,
+    rise: 3.5,
+    fall: 4,
+    reverseSlipSpeed: 2,
+    driveLowSpeed: 0.72, // Enough torque to climb under gravity even from rest.
+    driveHighSpeed: 0.9,
+    driveRise: 3.5,
+    driveFall: 4,
+    wallBrakeReduction: 0.6, // Smooth reversals without affecting flat-floor braking.
   },
   powerslide: {
     // RocketSim handbrake rates and friction curves.

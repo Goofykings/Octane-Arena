@@ -255,9 +255,13 @@ for (const slide of [false, true]) {
   assert.ok(c.contacts >= 2);
   if (slide) assert.ok(slip(s) > 3);
   else {
-    assert.ok(slip(s) < 3, "Finite wall grip remains much stronger than drift");
-    run(s, 0.25, { slide: false, throttle: 0.02 });
-    assert.ok(slip(s) < 1, "Wall slip converges under finite traction");
+    assert.ok(slip(s) > 3, "Tiny throttle does not instantly restore full wall grip");
+    const weakSlip = slip(s), weakGrip = c.wallGrip;
+    run(s, 0.25, { slide: false, throttle: 1 });
+    assert.ok(c.wallGrip > weakGrip && c.wallGrip < 0.85, "Powered wall grip builds within its cap");
+    assert.ok(slip(s) < weakSlip, "Traction recovers progressively");
+    run(s, 0.5, { slide: false, throttle: 1 });
+    assert.ok(slip(s) < 1, "Stable powered wall driving eventually controls slip");
   }
   s.dispose();
 }
@@ -336,14 +340,11 @@ for (const slide of [false, true]) {
           distance >= control.settings.distance * 0.01 * 0.95,
           "Arena walls preserve intended camera distance",
         );
-        // RL: the boom is built in the rolled wall frame, so the lens stays
-        // on the field side of the wall the car drives on.
-        assert.ok(
-          Math.abs(camera.position.x) < P.arena.halfWidth,
-          "Wall camera stays on the field side of the wall",
-        );
+        // World-up follow may pass through the arena boundary without losing
+        // its boom distance. Wall orientation must never roll the horizon.
+        assert.ok(control.referenceUp.distanceTo(new Vector3(0, 1, 0)) < 1e-8);
         assert.ok(camera.position.y >= 0.24, "Lens keeps floor clearance");
-        // RL: a wheels-down car on the wall rolls the view onto the wall.
+        // The rendered camera right axis remains horizontal on walls.
         assert.ok(
           Math.abs(
             new Vector3(1, 0, 0)

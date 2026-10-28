@@ -1,23 +1,15 @@
 import * as T from "three";
 import { P } from "../config/physics";
 import { bodies, type BodyId } from "../game/inventory";
-import {
-  wheelClearance,
-  wheelMount,
-  wheelMountY,
-  wheelRadius,
-} from "../car/wheels";
+import { wheelMount, wheelMountY, wheelRadius } from "../car/wheels";
 import type { Car } from "../car/car";
+import { animateSuspension } from "./vehicle-suspension";
 import { bodyStyles } from "./body-styles";
 import { addWheelDesign } from "./wheel-model";
 import { createTopper } from "./toppers";
 import { polishMaterial } from "./material-polish";
 import { createVectorBody, vectorArt } from "./vector-model";
-import {
-  arenaCarAsset,
-  arenaCarShell,
-  arenaCarWheel,
-} from "./arena-car-model";
+import { arenaCarAsset, arenaCarShell, arenaCarWheel } from "./arena-car-model";
 export const material = (color: number, metalness = 0.1, roughness = 0.65) =>
   new T.MeshStandardMaterial({ color, metalness, roughness });
 export function box(
@@ -168,6 +160,11 @@ export function carModel(
   g.userData.topper = accessory;
   g.userData.roofY = roof;
   g.userData.exhaust = exhaust;
+  const visualChassis = new T.Group();
+  visualChassis.name = "visual-chassis";
+  visualChassis.add(...g.children);
+  g.add(visualChassis);
+  g.userData.visualChassis = visualChassis;
   const spins: T.Group[] = [],
     mounts: T.Group[] = [],
     steering: T.Group[] = [];
@@ -265,6 +262,7 @@ export function animateWheels(
       wheel.rotation.x = recorded.angle;
     for (const pivot of model.userData.frontWheels as T.Group[])
       pivot.rotation.y = recorded.steer;
+    if (car && pose) animateSuspension(model, car, pose, dt);
     return;
   }
   const spin = (model.userData.wheelSpin ??= {
@@ -296,55 +294,6 @@ export function animateWheels(
       1 - Math.exp(-dt * 20),
     );
   if (car && pose) animateSuspension(model, car, pose, dt);
-}
-const suspensionInverse = new T.Quaternion(),
-  suspensionLocal = new T.Vector3();
-/** Visual suspension: each wheel sits where its physics ray meets the surface
- * (from wheelHits, so snapshot-rendered cars work too). Compression is shown
- * immediately; an unloaded wheel droops smoothly to the suspension rest length. */
-function animateSuspension(
-  model: T.Group,
-  car: Car,
-  pose: T.Object3D,
-  dt: number,
-) {
-  const mounts = model.userData.wheelMounts as T.Group[] | undefined;
-  if (!mounts) return;
-  const droop = car.geometry.restLength;
-  const lengths: number[] = (model.userData.suspension ??= mounts.map(
-    (m) => -m.position.y,
-  ));
-  suspensionInverse.copy(pose.quaternion).invert();
-  for (let i = 0; i < mounts.length; i++) {
-    let target = droop;
-    if (car.wheelContact[i]) {
-      suspensionLocal
-        .copy(car.wheelHits[i])
-        .sub(pose.position)
-        .applyQuaternion(suspensionInverse);
-      target = -suspensionLocal.y - wheelRadius;
-      // The centre ray misses a concave curve rising under the tread edges;
-      // the rigid clearance probe keeps the drawn tire on the surface there.
-      const height = wheelClearance(
-        car.world,
-        pose.position,
-        pose.quaternion,
-        car.bodyId,
-        i,
-        car.collider,
-        car.body,
-        i < 2 ? car.steerAngle : 0,
-      );
-      if (Number.isFinite(height))
-        target = Math.min(target, P.car.contactSkin - height);
-      target = T.MathUtils.clamp(target, -0.06, droop);
-    }
-    lengths[i] =
-      target < lengths[i] || dt <= 0
-        ? target
-        : lengths[i] + (target - lengths[i]) * (1 - Math.exp(-dt * 30));
-    mounts[i].position.y = -lengths[i];
-  }
 }
 export function disposeModel(model: T.Object3D) {
   const geometries = new Set<T.BufferGeometry>();

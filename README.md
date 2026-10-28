@@ -185,3 +185,7 @@ See [resume audit](docs/UPDATE-AUDIT.md), [implementation and verification](docs
 Hoops is available in Against Bots and party setup, with Hoops Free Play through the arena selector. It includes a dedicated court, solid exposed rims, ball-only translucent nets and neighborhood scenery, jump-ball kickoffs, mode-aware bots and stats. See [Hoops controls, dimensions, integration and verification](docs/HOOPS.md).
 
 Dropshot is available in the same gamemode carousels (default 3v3) and the Free Play arena picker. Hex Reactor has 140 breakable tiles, charged area damage, boost regeneration, floor goals, Damage stats, mode-aware bots, authoritative multiplayer and late spectators. See [Dropshot rules, tuning and verification](docs/DROPSHOT.md).
+
+The free Season 1 Rocket Pass uses your existing account level and manual reward claims. New profiles start with two car bodies, no toppers, one goal explosion and Plasma boost; existing Garage saves keep claimed rewards and cosmetics used in their saved presets. See [the four-improvement implementation and validation report](docs/FOUR-UPGRADES.md) for the full 25-level reward table, multiplayer architecture, training measurements and world-up camera behavior.
+
+The Garage shows owned items only. Nine additional boosts unlock as Rocket Pass bonus rewards without replacing the original rewards.

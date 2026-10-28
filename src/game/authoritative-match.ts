@@ -1,4 +1,10 @@
-﻿import { DEFAULT_MUTATORS, type MatchMutators } from "../../shared/mutators";
+import { NETWORK } from "../../shared/network-tuning";
+import {
+  readInputTick,
+  type InputTick,
+  type ContactEvent,
+} from "../../shared/network-events";
+import { DEFAULT_MUTATORS, type MatchMutators } from "../../shared/mutators";
 import { z } from "zod";
 import { Simulation, initializeSimulation } from "../physics/simulation";
 import { Match } from "../game/match";
@@ -61,6 +67,11 @@ export class NetworkMatch {
   }
   tick = 0;
   private appliedInputs = new Map<string, number>();
+  private inputTicks = new Map<string, number>();
+  private queues = new Map<string, InputTick[]>();
+  private lastProcessed = new Map<string, PlayerInput>();
+  private contacts: ContactEvent[] = [];
+  private contactSequence = 0;
   private bots = new Map<string, Opponent>();
   private botTeam = new BotTeam("intermediate");
   private disconnected = new Set<string>();
@@ -122,6 +133,7 @@ export class NetworkMatch {
     sequence: number,
     input: unknown,
     now = performance.now(),
+    commands?: number[][],
   ) {
     if (
       !Number.isSafeInteger(sequence) ||
@@ -133,6 +145,35 @@ export class NetworkMatch {
       parsed = networkInputSchema.safeParse(input);
     if (!parsed.success || (previous && sequence <= previous.sequence))
       return false;
+    if (
+      commands !== undefined &&
+      (!Array.isArray(commands) || commands.length > NETWORK.inputBatchSize)
+    )
+      return false;
+    const decoded = commands?.map(readInputTick);
+    if (
+      commands &&
+      (commands.length > NETWORK.inputBatchSize ||
+        !decoded ||
+        decoded.some((c) => !c) ||
+        decoded.some(
+          (c, i) => i > 0 && c!.sequence <= decoded[i - 1]!.sequence,
+        ))
+    )
+      return false;
+    if (decoded) {
+      const queue = this.queues.get(id) ?? [];
+      for (const c of decoded as InputTick[])
+        if (
+          c.sequence > (this.appliedInputs.get(id) ?? -1) &&
+          !queue.some((p) => p.sequence === c.sequence)
+        )
+          queue.push(c);
+      queue.sort((a, b) => a.sequence - b.sequence);
+      if (queue.length > NETWORK.inputBatchSize)
+        queue.splice(0, queue.length - NETWORK.inputBatchSize);
+      this.queues.set(id, queue);
+    }
     this.inputs.set(id, {
       value: parsed.data,
       sequence,
@@ -157,12 +198,19 @@ export class NetworkMatch {
   disconnect(id: string) {
     const reset = this.match.resetSequence;
     this.inputs.delete(id);
+    this.queues.delete(id);
+    this.lastProcessed.delete(id);
     this.disconnected.add(id);
     this.match.setParticipantConnected(id, false);
     this.simulation.rumble?.suspend(id);
     this.ping(id, null);
     this.match.replayDisconnected(id, this.simulation);
-    if (this.match.resetSequence !== reset) this.pads.reset();
+    if (this.match.resetSequence !== reset) {
+      this.pads.reset();
+      this.contacts.length = 0;
+      this.queues.clear();
+      this.lastProcessed.clear();
+    }
   }
   addSpectator(member: MatchParticipant) {
     if (
@@ -179,6 +227,8 @@ export class NetworkMatch {
   connected(id: string) {
     this.simulation.dropshot?.forceFull();
     this.inputs.delete(id);
+    this.queues.delete(id);
+    this.lastProcessed.delete(id);
     this.disconnected.delete(id);
     this.match.setParticipantConnected(id, true);
     this.simulation.rumble?.suspend(id, false);
@@ -193,7 +243,12 @@ export class NetworkMatch {
     const accepted =
       !this.disconnected.has(id) &&
       this.match.skipReplay(id, replayId, this.simulation);
-    if (this.match.resetSequence !== reset) this.pads.reset();
+    if (this.match.resetSequence !== reset) {
+      this.pads.reset();
+      this.contacts.length = 0;
+      this.queues.clear();
+      this.lastProcessed.clear();
+    }
     return accepted;
   }
   step(now = performance.now()) {
@@ -202,7 +257,12 @@ export class NetworkMatch {
       reset = m.resetSequence;
     if (m.phase === "replay") {
       m.tick(s, this.pads);
-      if (m.resetSequence !== reset) this.pads.reset();
+      if (m.resetSequence !== reset) {
+        this.pads.reset();
+        this.contacts.length = 0;
+        this.queues.clear();
+        this.lastProcessed.clear();
+      }
       this.tick++;
       return;
     }
@@ -214,30 +274,84 @@ export class NetworkMatch {
       const car = s.cars.find((c) => c.id === p.id)!,
         bot = this.bots.get(p.id),
         incoming = this.inputs.get(p.id);
+      const command = this.queues.get(p.id)?.shift();
       const input = bot
         ? (botInputs.get(p.id) ?? neutralInput())
-        : incoming && now - incoming.received < 300
-          ? {
-              ...incoming.value,
-              jump: incoming.value.jump || incoming.jump,
-              usePowerup: incoming.powerup,
-            }
-          : neutralInput();
+        : command
+          ? command.input
+          : this.queues.has(p.id)
+            ? incoming && now - incoming.received < 300
+              ? (this.lastProcessed.get(p.id) ?? neutralInput())
+              : neutralInput()
+            : incoming && now - incoming.received < 300
+              ? {
+                  ...incoming.value,
+                  jump: incoming.value.jump || incoming.jump,
+                  usePowerup: incoming.powerup,
+                }
+              : neutralInput();
       if (incoming) {
         incoming.jump = false;
         incoming.powerup = false;
       }
-      if (incoming) this.appliedInputs.set(p.id, incoming.sequence);
+      if (command) {
+        this.lastProcessed.set(p.id, command.input);
+        this.appliedInputs.set(p.id, command.sequence);
+        this.inputTicks.set(p.id, command.tick);
+      } else if (incoming && !this.queues.has(p.id))
+        this.appliedInputs.set(p.id, incoming.sequence);
       inputs.set(p.id, input);
       m.recordInput(p.id, input);
       if (m.phase === "countdown") car.steerAtKickoff(input);
     }
-    if (m.phase === "playing" || m.phase === "goal") s.step(inputs);
+    if (m.phase === "playing" || m.phase === "goal") {
+      const before = s.ball.linvel();
+      s.step(inputs);
+      const after = s.ball.linvel();
+      if (
+        s.statTouches.length ||
+        s.demolitions.some((e) => e.age === 0) ||
+        s.hits.some((h) => h.age === 0) ||
+        Math.hypot(after.x - before.x, after.y - before.y, after.z - before.z) >
+          4
+      ) {
+        const pose = (body: typeof s.ball) => ({
+          position: { ...body.translation() },
+          rotation: { ...body.rotation() },
+          velocity: { ...body.linvel() },
+          angularVelocity: { ...body.angvel() },
+          enabled: body.isEnabled(),
+        });
+        this.contacts.push({
+          sequence: ++this.contactSequence,
+          tick: this.tick + 1,
+          time: (this.tick + 1) * P.dt,
+          ball: pose(s.ball),
+          cars: s.cars.map((c) => ({
+            id: c.id,
+            ...pose(c.body),
+            teleportSequence: c.teleportSequence,
+          })),
+        });
+      }
+    }
+    while (
+      this.contacts.length > NETWORK.contactHistorySize ||
+      (this.contacts.length &&
+        this.contacts[0].time <
+          (this.tick + 1) * P.dt - NETWORK.contactHistorySeconds)
+    )
+      this.contacts.shift();
     if (m.phase === "playing" || m.phase === "goal") this.pads.tick(s.cars);
     m.tick(s, this.pads);
     if (m.replay)
       for (const id of this.disconnected) m.replayDisconnected(id, s);
-    if (m.resetSequence !== reset) this.pads.reset();
+    if (m.resetSequence !== reset) {
+      this.pads.reset();
+      this.contacts.length = 0;
+      this.queues.clear();
+      this.lastProcessed.clear();
+    }
     this.tick++;
   }
   snapshot(): MatchSnapshot {
@@ -258,6 +372,7 @@ export class NetworkMatch {
       chat: this.chat.messages.slice(-8),
       lastGoal: m.lastGoal,
       replay: m.replayState,
+      contacts: this.contacts.slice(),
       tick: this.tick,
       time: this.tick * P.dt,
       reset: m.resetSequence,
@@ -267,6 +382,7 @@ export class NetworkMatch {
       cars: s.cars.map((c, i) => ({
         id: c.id,
         inputSequence: this.appliedInputs.get(c.id) ?? 0,
+        inputTick: this.inputTicks.get(c.id),
         prediction: c.capturePrediction(),
         position: { ...c.body.translation() },
         rotation: { ...c.body.rotation() },

@@ -1,8 +1,11 @@
 import { newLocalPlayerId as newPacketId } from "../../shared/local-profile";
-import { Peer, type DataConnection } from "peerjs";
+import { Peer, type PeerOptions, type DataConnection } from "peerjs";
 import { RtcChunkReceiver, rtcChunks, type RtcChunk } from "../../shared/rtc";
 export interface PeerLink {
   connection: DataConnection;
+  motion?: RTCDataChannel;
+  motionCleanup?: () => void;
+  motionDrops?: number;
   playerId: string | null;
   receiver: RtcChunkReceiver;
   queue: RtcChunk[];
@@ -20,6 +23,7 @@ import { peerErrorMessage } from "../../shared/peer-errors";
 export { peerErrorMessage } from "../../shared/peer-errors";
 /** Sole owner of PeerJS objects. Party and gameplay exchange normal objects. */
 export class PeerTransport {
+  constructor(private options: PeerOptions = { secure: true, debug: 0 }) {}
   peer: Peer | null = null;
   readonly links = new Set<PeerLink>();
   readonly peers = new Map<string, PeerLink>();
@@ -42,8 +46,8 @@ export class PeerTransport {
     this.close();
     this.closed = false;
     const peer = (this.peer = id
-      ? new Peer(id, { secure: true, debug: 0 })
-      : new Peer({ secure: true, debug: 0 }));
+      ? new Peer(id, this.options)
+      : new Peer(this.options));
     peer.on("connection", (conn) => {
       if (this.peer !== peer || this.closed) {
         conn.close();
@@ -112,10 +116,35 @@ export class PeerTransport {
       repliesReceived: 0,
     };
     this.links.add(link);
+    // Keep control/replay reliable. Motion uses a separate unordered, no-retry
+    // SCTP stream on PeerJS's authenticated peer connection.
+    const pc = connection.peerConnection;
+    // PeerJS installs an ondatachannel property handler before bind(). Route
+    // by label here: a later listener cannot reliably precede its handler.
+    const controlChannel = pc?.ondatachannel;
+    const incoming = (event: RTCDataChannelEvent) => {
+      if (event.channel.label === "octane-arena-motion")
+        this.bindMotion(link, event.channel);
+      else controlChannel?.call(pc, event);
+    };
+    if (pc) pc.ondatachannel = incoming;
+    link.motionCleanup = () => {
+      if (pc?.ondatachannel === incoming)
+        pc.ondatachannel = controlChannel ?? null;
+    };
     connection.on("open", () => {
       if (!this.links.has(link)) return;
       this.log("connection opened");
       link.lastSeen = performance.now();
+      if (pc?.localDescription?.type === "offer") {
+        this.bindMotion(
+          link,
+          pc.createDataChannel("octane-arena-motion", {
+            ordered: false,
+            maxRetransmits: 0,
+          }),
+        );
+      }
       this.onOpen(link);
       this.probe(link);
     });
@@ -171,7 +200,45 @@ export class PeerTransport {
     this.peers.set(id, link);
     this.log("player associated");
   }
+  private bindMotion(link: PeerLink, channel: RTCDataChannel) {
+    link.motion?.close();
+    link.motion = channel;
+    channel.onmessage = (event) => {
+      if (
+        !this.links.has(link) ||
+        !link.playerId ||
+        typeof event.data !== "string" ||
+        event.data.length > 64000
+      )
+        return;
+      try {
+        const value = JSON.parse(event.data);
+        if (value?.type !== "frame" && value?.type !== "input") return;
+        link.lastSeen = performance.now();
+        this.onData(link.playerId, value);
+      } catch {
+        /* Malformed motion never changes party/control state. */
+      }
+    };
+  }
   sendLink(link: PeerLink, value: unknown, fast = false) {
+    const type = (value as { type?: string })?.type;
+    if (
+      fast &&
+      (type === "input" || type === "frame") &&
+      link.motion?.readyState === "open"
+    ) {
+      if (link.motion.bufferedAmount > 8000) {
+        link.motionDrops = (link.motionDrops ?? 0) + 1;
+        return false;
+      }
+      try {
+        link.motion.send(JSON.stringify(value));
+        return true;
+      } catch {
+        return false;
+      }
+    }
     if (
       !link.connection.open ||
       link.connection.dataChannel?.bufferedAmount > (fast ? 24000 : 256000)
@@ -241,6 +308,8 @@ export class PeerTransport {
     if (link.playerId && this.peers.get(link.playerId) === link)
       this.peers.delete(link.playerId);
     link.queue = [];
+    link.motionCleanup?.();
+    link.motion?.close();
     link.connection.close();
     this.log("connection closed");
     this.onClose(link.playerId);
@@ -258,9 +327,13 @@ export class PeerTransport {
           p.connection.peerConnection?.connectionState ?? "unknown",
         channels: {
           control: p.connection.open ? "open" : "closed",
-          state: p.connection.open ? "open" : "closed",
+          state: p.motion?.readyState ?? "connecting",
           replay: p.connection.open ? "open" : "closed",
         },
+        motionOrdered: p.motion?.ordered,
+        motionMaxRetransmits: p.motion?.maxRetransmits,
+        motionBufferedBytes: p.motion?.bufferedAmount ?? 0,
+        motionDropped: p.motionDrops ?? 0,
         bidirectionalVerified: p.probesReceived > 0 && p.repliesReceived > 0,
         probesSent: p.probesSent,
         probesReceived: p.probesReceived,

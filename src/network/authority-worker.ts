@@ -22,7 +22,13 @@ export type AuthorityCommand =
     }
   | { type: "ready" }
   | { type: "session-joined"; member: MatchParticipant }
-  | { type: "input"; id: string; sequence: number; input: PlayerInput }
+  | {
+      type: "input";
+      id: string;
+      sequence: number;
+      input: PlayerInput;
+      commands?: number[][];
+    }
   | { type: "connected" | "disconnected" | "session-left"; id: string }
   | { type: "skip"; id: string; replayId: string }
   | { type: "chat"; id: string; text: unknown }
@@ -121,7 +127,13 @@ scope.onmessage = (event) => {
   }
   if (message.type === "session-left") game.removeSessionMember(message.id);
   else if (message.type === "input")
-    game.accept(message.id, message.sequence, message.input);
+    game.accept(
+      message.id,
+      message.sequence,
+      message.input,
+      performance.now(),
+      message.commands,
+    );
   else if (message.type === "connected") game.connected(message.id);
   else if (message.type === "disconnected") game.disconnect(message.id);
   else if (message.type === "skip")

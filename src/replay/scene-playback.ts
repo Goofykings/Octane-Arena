@@ -187,7 +187,7 @@ export class ReplayScenePlayback {
         this.visuals[i],
         c.forwardSpeed,
         c.steerAngle,
-        0,
+        effectDt,
         c,
         model,
         { angle: frame[o + RC.wheelAngle], steer: frame[o + RC.wheelSteer] },

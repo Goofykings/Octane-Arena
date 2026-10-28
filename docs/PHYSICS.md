@@ -6,7 +6,7 @@ The vehicle and ball model follows the public
 seconds and Y-up axes (100 uu = 1 m). `src/config/physics.ts` is the single
 source of live values; this page explains the architecture and the deliberate
 differences from RL. Older update notes in `docs/` (adhesion, alignment torque,
-roof friction switching, rigid wheel constraints, level-horizon camera) describe
+roof friction switching, pose alignment, level-horizon camera) describe
 systems that have since been removed.
 
 ## Public research consulted
@@ -39,10 +39,18 @@ As in RL it is applied only together with a non-zero suspension force, so a
 wheel rebounding fast enough to clamp its spring to zero gets no extra push.
 Grazing hits (contact normal · suspension axis < 0.6) are not tire contacts.
 
+A separate unilateral fixed-tire bottom stop prevents extreme compression below
+0.12 m wheel length (2 mm surface skin). It acts at actual wheel points using
+linear and angular contact velocity, followed by bounded outward correction.
+It cannot pull the car toward a surface or set its orientation. Ordinary ride
+height, ray travel, springs and dampers remain unchanged.
+
 **Contact states.** AIRBORNE (no loaded wheel), PARTIAL_CONTACT (1–2) and
 GROUNDED (3–4 coherent wheels, within 60° of their average normal). Only
-GROUNDED grants full tire grip, steering authority, sticky force, jumping from
-the surface and landing assist. Partial contact keeps reduced grip
+GROUNDED grants full floor tire grip, steering authority, sticky force, jumping
+from the surface and landing assist. Wall/ceiling tire grip remains reduced
+and recovers progressively with throttle, forward speed and low slip.
+Partial contact keeps reduced grip
 (40%/60%, then RL's non-sticky curve on walls/ceilings) and a quarter of engine
 force, so one or two wheels can never hold a car on a wall or ceiling.
 
@@ -50,7 +58,16 @@ force, so one or two wheels can never hold a car on a wall or ceiling.
 roll-influence fix), per-wheel engine (400 uu/s² each) and brake, RL coasting
 and stop logic, speed-dependent steering angle with analog input. Powerslide
 uses RocketSim's handbrake rise/fall (5/2 per s) and lateral factor 0.1; it is
-the sliding mechanic, ordinary high-speed steering keeps full lateral grip.
+the sliding mechanic; ordinary high-speed floor steering keeps full lateral grip.
+On walls, the original passive non-sticky multiplier (0.1 on a vertical wall)
+blends toward a slip- and speed-dependent target. Stable full-throttle recovery
+ranges from 0.35 to 0.83 as forward speed rises to 20 m/s, with high slip reducing
+that target to 25%. Lateral recovery is exponential (3.5/s rise, 4/s fall);
+final vertical-wall lateral grip is capped at 0.847. Longitudinal drive uses a
+separate smooth recovery, with a 0.72-0.90 speed-dependent target, so a slipping
+car can regain enough drive to climb against gravity. Wall braking is softened
+and blended out toward the floor. These change tire impulses, not adhesion. Both
+recovery states are included in prediction checkpoints.
 
 **Sticky force.** 0.5 g toward the surface plus (1 − |n.y|) g while throttling
 or rolling, along the average wheel normal, only while GROUNDED. A flat
@@ -84,6 +101,14 @@ the 12 hull vertices casts along its velocity; a vertex that would cross a
 static surface has its approach limited to arrive exactly there (unilateral,
 normal-only). After the step any residual penetration is corrected positionally
 (≤ 4 cm, no velocity change). It never touches wheels or orientation.
+
+**Visual suspension.** A separate chassis child pitches/rolls from smoothed
+actual local acceleration only during supported driving. Maximum pitch is
+0.028 rad (1.604 deg), roll 0.021 rad (1.203 deg). Total wheel offsets, including
+weight transfer, are clamped to 6.3 mm up / 28.8 mm down from authored mounts.
+When pitch exceeds 0.014 rad, a small visual-only chassis lift preserves wheel-arch clearance.
+The visual code never changes the rigid body, collider or COM. See
+[VEHICLE-REFINEMENT.md](VEHICLE-REFINEMENT.md) for measured steering and validation.
 
 ## Ball and car-ball contact (`src/physics/car-ball.ts`)
 
@@ -122,5 +147,6 @@ From `.tools/rl-probe.ts` and `.tools/ball-probe.ts` (same world and car code as
 - The bump stop is split among the wheels whose rays touch (RL always divides by four).
 - Angular cap adds the surface turn rate on curves (RL is a flat 5.5 rad/s).
 - Ball radius 95 uu (RL 91.25 uu).
-- The chassis guard and the clean-landing anti-tilt damper have no RL equivalent.
+- The chassis guard, fixed-tire hard bottom stop and clean-landing anti-tilt damper have no RL equivalent.
+- Wall tire friction recovers progressively and stays below floor grip.
 - Arena meshes are original approximations of the RL shells.

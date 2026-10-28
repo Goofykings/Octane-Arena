@@ -246,7 +246,13 @@ export class NetworkMatches {
           } else if (message.type === "input") {
             const game = player.code ? this.matches.get(player.code) : null;
             if (game && game.id === message.matchId)
-              game.accept(player.id, message.sequence, message.input, now);
+              game.accept(
+                player.id,
+                message.sequence,
+                message.input,
+                now,
+                message.commands,
+              );
           } else if (message.type === "REPLAY_SKIP_REQUEST") {
             const game = player.code ? this.matches.get(player.code) : null;
             if (

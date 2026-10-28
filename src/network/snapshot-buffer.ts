@@ -26,6 +26,36 @@ export class SnapshotBuffer {
     this.offset = this.lastNow = this.rendered = NaN;
   }
   push(s: MatchSnapshot, now = performance.now()) {
+    const accepted = this.insert(s, now);
+    if (!accepted) return false;
+    // True 120-Hz collision checkpoints preserve trajectory corners between
+    // 30-Hz snapshots, instead of drawing a chord through a car or wall.
+    for (const event of s.contacts ?? []) {
+      if (
+        event.tick >= s.tick ||
+        event.time < s.time - N.contactHistorySeconds ||
+        event.time < this.rendered - 0.05
+      )
+        continue;
+      this.insert(
+        {
+          ...s,
+          tick: event.tick,
+          time: event.time,
+          ball: event.ball,
+          cars: s.cars.map((c) => ({
+            ...c,
+            ...event.cars.find((p) => p.id === c.id),
+          })),
+          contacts: undefined,
+        },
+        now,
+        true,
+      );
+    }
+    return true;
+  }
+  private insert(s: MatchSnapshot, now: number, synthetic = false) {
     const list = this.snapshots,
       last = list.at(-1);
     if (last && (s.reset < last.reset || s.matchId !== last.matchId)) {
@@ -34,11 +64,11 @@ export class SnapshotBuffer {
     }
     if (last && s.reset !== last.reset) this.clear();
     if (list.some((x) => x.tick === s.tick)) {
-      this.duplicates++;
+      if (!synthetic) this.duplicates++;
       return false;
     }
     if (list.length && s.tick < list.at(-1)!.tick) {
-      this.outOfOrder++;
+      if (!synthetic) this.outOfOrder++;
       if (s.time < this.rendered - 0.05) {
         this.dropped++;
         return false;
@@ -47,7 +77,7 @@ export class SnapshotBuffer {
     let i = list.findIndex((x) => x.tick > s.tick);
     if (i < 0) i = list.length;
     list.splice(i, 0, s);
-    if (i === list.length - 1) {
+    if (!synthetic && i === list.length - 1) {
       const measured = s.time - now / 1000;
       if (
         !Number.isFinite(this.offset) ||

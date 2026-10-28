@@ -90,6 +90,10 @@ export const inventory = {
     { id: "halo", name: "Halo Ring" },
     { id: "ufo", name: "Tiny UFO" },
     { id: "pirate", name: "Pirate Hat" },
+    { id: "emerald-hat", name: "Emerald Top Hat" },
+    { id: "solar-halo", name: "Solar Halo" },
+    { id: "frost-crown", name: "Frost Crown" },
+    { id: "violet-ufo", name: "Violet UFO" },
   ],
   explosion: [
     { id: "pulse", name: "Pulse" },

@@ -27,6 +27,7 @@ import { JumpState } from "./dodge";
 import { Pose } from "../physics/pose";
 import { chassisShape } from "./chassis";
 import { ChassisGuard } from "./chassis-guard";
+import { WheelBottomStop } from "./wheel-bottom-stop";
 import { bodies, type BodyId } from "../game/inventory";
 import {
   WheelState,
@@ -69,6 +70,8 @@ const predictionKeys = [
   "flipResetSequence",
   "flipResetAge",
   "grapplePulling",
+  "wallTraction",
+  "wallDrive",
 ] as const;
 const predictionVectors = [
   "normal",
@@ -168,6 +171,11 @@ export class Car {
   /** Front-wheel steering angle (radians, positive = left), for physics and visuals. */
   steerAngle = 0;
   handbrake = 0;
+  /** Recovery memory is checkpointed for deterministic input replay. */
+  wallTraction = 0;
+  wallDrive = 0;
+  wallSlip = 0;
+  wallGrip = 1;
   /** Geometric path curvature of the steered front axle (1/m). */
   steeringCurvature = 0;
   /** Measured yaw rate about the contact normal divided by forward speed (1/m). */
@@ -253,6 +261,7 @@ export class Car {
   private pointVelocity = new Vector3();
   private impulse = new Vector3();
   private suspensionStart = new Vector3();
+  private bottomStop = new WheelBottomStop();
   private positionCorrection = new Vector3();
   private guard = new ChassisGuard();
   constructor(public world: RAPIER.World) {
@@ -273,6 +282,8 @@ export class Car {
   }
   clearSurfaceHistory() {
     this.landing.reset();
+    this.wallTraction = this.wallDrive = this.wallSlip = 0;
+    this.wallGrip = 1;
     this.contacts = this.supportContacts = 0;
     this.grounded = this.stableContact = this.normalReady = false;
     this.jumpSupported = false;
@@ -578,6 +589,55 @@ export class Car {
         lookup(this.normal.y, NON_STICKY_FRICTION_CURVE);
     this.wheelSupport = this.grounded ? 1 : (this.contacts / 4) * partialGrip;
     const impact = this.impactTime > 0 ? 0.3 : 1;
+    const wall = P.wallGrip;
+    const sideways = Math.abs(this.v.dot(this.right));
+    const forward = Math.abs(this.forwardSpeed);
+    const opposed = Math.max(0, -Math.sign(realThrottle) * this.forwardSpeed);
+    this.wallSlip = Math.max(
+      sideways / (forward + sideways + 0.5),
+      opposed / (forward + wall.reverseSlipSpeed),
+    );
+    const slipT = Math.max(
+      0,
+      Math.min(
+        1,
+        (this.wallSlip - wall.slipStart) / (wall.slipEnd - wall.slipStart),
+      ),
+    );
+    const slipBlend = slipT * slipT * (3 - 2 * slipT);
+    const stableGrip =
+      wall.lowSpeed +
+      (wall.highSpeed - wall.lowSpeed) *
+        Math.min(1, forward / wall.stableSpeed);
+    const targetGrip =
+      Math.abs(realThrottle) *
+      stableGrip *
+      (1 - (1 - wall.slipScale) * slipBlend);
+    const targetDrive =
+      Math.abs(realThrottle) *
+      (wall.driveLowSpeed +
+        (wall.driveHighSpeed - wall.driveLowSpeed) *
+          Math.min(1, forward / wall.stableSpeed));
+    if (!this.contacts || this.normal.y > 0.95) {
+      this.wallTraction = 0;
+      this.wallDrive = 0;
+    } else {
+      this.wallTraction +=
+        (targetGrip - this.wallTraction) *
+        (1 -
+          Math.exp(
+            -dt * (targetGrip > this.wallTraction ? wall.rise : wall.fall),
+          ));
+      this.wallDrive +=
+        (targetDrive - this.wallDrive) *
+        (1 -
+          Math.exp(
+            -dt * (targetDrive > this.wallDrive ? wall.driveRise : wall.driveFall),
+          ));
+    }
+    const passiveGrip = lookup(this.normal.y, NON_STICKY_FRICTION_CURVE);
+    this.wallGrip = passiveGrip + (1 - passiveGrip) * this.wallTraction;
+
     const mass = 1 / this.invMass;
     for (let i = 0; i < 4; i++) {
       const wheel = this.wheels[i];
@@ -613,12 +673,12 @@ export class Car {
             this.handbrake +
           1;
       }
-      if (realThrottle === 0) {
-        // RL: an unpowered tire on a wall keeps only a tenth of its grip.
-        const scale = lookup(n.y, NON_STICKY_FRICTION_CURVE);
-        lateral *= scale;
-        longitudinal *= scale;
-      }
+      // Continuous slip-dependent recovery instead of a throttle on/off switch.
+      // Contact-count scaling still applies below; this never pulls toward a wall.
+      const passive = lookup(n.y, NON_STICKY_FRICTION_CURVE);
+      const scale = passive + (1 - passive) * this.wallTraction;
+      lateral *= scale;
+      longitudinal *= passive + (1 - passive) * this.wallDrive;
       wheel.lateralFriction = lateral;
       wheel.longitudinalFriction = longitudinal;
       this.velocityAt(wheel.point, this.pointVelocity);
@@ -635,13 +695,17 @@ export class Car {
       let drive = 0;
       if (engineAccel !== 0) drive = engineAccel * mass * dt * longitudinal;
       else if (brakeAccel > 0) {
-        const limit = brakeAccel * mass * dt;
+        const wallBlend = Math.max(0, Math.min(1, (0.95 - n.y) / 0.25));
+        const wallBrake = 1 - (1 - passive) * wall.wallBrakeReduction * wallBlend;
+        const limit = brakeAccel * wallBrake * mass * dt;
         drive =
           Math.max(
             -limit,
             Math.min(
               limit,
-              -this.pointVelocity.dot(this.wheelForward) * tire.brakeStop * mass,
+              -this.pointVelocity.dot(this.wheelForward) *
+                tire.brakeStop *
+                mass,
             ),
           ) * longitudinal;
       }
@@ -710,8 +774,7 @@ export class Car {
       const projected = n.dot(this.pointVelocity);
       const inverse = 1 / Math.max(denominator, s.minContactDot);
       wheel.velocity = projected * inverse;
-      wheel.springForce =
-        s.stiffness * (g.restLength - wheel.length) * inverse;
+      wheel.springForce = s.stiffness * (g.restLength - wheel.length) * inverse;
       wheel.damperForce =
         (wheel.velocity < 0 ? s.compressionDamping : s.relaxationDamping) *
         wheel.velocity;
@@ -731,8 +794,7 @@ export class Car {
         wheel.pushback =
           Math.max(
             0,
-            ((s.splitPushback ? 0 : (s.pushbackErp * depth) / dt) -
-              projected) *
+            ((s.splitPushback ? 0 : (s.pushbackErp * depth) / dt) - projected) *
               normalMass,
           ) / rayContacts;
         if (s.splitPushback)
@@ -772,8 +834,7 @@ export class Car {
 
     // ---- Sticky force (RL), weakened for one or two wheel contacts ------
     if (this.contacts) {
-      const fullStick =
-        realThrottle !== 0 || speed > tire.stopSpeed ? 1 : 0;
+      const fullStick = realThrottle !== 0 || speed > tire.stopSpeed ? 1 : 0;
       const scale =
         P.sticky.base +
         fullStick * P.sticky.driving * (1 - Math.abs(this.normal.y));
@@ -908,9 +969,7 @@ export class Car {
       const right2 = new Vector3(-forward2.z, 0, forward2.x);
       const forwardAmount = -this.jump.direction.z;
       const backward =
-        speed < 1
-          ? forwardAmount < 0
-          : forwardAmount * this.forwardSpeed < 0;
+        speed < 1 ? forwardAmount < 0 : forwardAmount * this.forwardSpeed < 0;
       this.v.addScaledVector(
         forward2,
         forwardAmount *
@@ -1052,7 +1111,9 @@ export class Car {
     this.w.addScaledVector(this.angular, dt).clampLength(0, this.angularLimit);
     b.setAngvel(this.w, true);
     this.turnCurvature =
-      speed > 1 && this.contacts ? this.w.dot(this.normal) / this.forwardSpeed : 0;
+      speed > 1 && this.contacts
+        ? this.w.dot(this.normal) / this.forwardSpeed
+        : 0;
     this.lateralSlip = Math.abs(this.v.dot(this.right));
     this.skidIntensity =
       input.slide && (this.wheelContact[2] || this.wheelContact[3])
@@ -1085,13 +1146,13 @@ export class Car {
       this.sonicGrace = 0;
     }
   }
-  /** Step hook around world.step(). The wheels own support (no velocity
-   * clamps); this only adds per-vertex chassis CCD and bounded positional
-   * correction against static geometry, which Rapier's discrete contacts miss
-   * for fast or tumbling hull corners. */
+  /** Step hook around world.step(): unilateral hull CCD and an extreme wheel
+   * bottom stop, followed by bounded outward penetration correction. Normal
+   * support remains spring-driven; neither guard adds inward adhesion or a
+   * target orientation. */
   constrainSurface(afterStep = false) {
     if (!this.body.isEnabled() || this.demolitionState !== "active") return;
-    if (!afterStep)
+    if (!afterStep) {
       this.guard.before(
         this.world,
         this.bodyId,
@@ -1099,9 +1160,42 @@ export class Car {
         this.body,
         this.physics.gravity,
       );
-    else {
+      if (
+        this.wheels.some(
+          (w) =>
+            w.contact &&
+            w.length + Math.min(0, w.velocity) * P.dt <
+              P.suspension.minWheelLength + 0.008,
+        )
+      )
+        this.bottomStop.before(
+          this.world,
+          this.bodyId,
+          this.collider,
+          this.body,
+          this.steerAngle,
+          this.physics.gravity,
+        );
+    } else {
       this.guard.after(this.world, this.bodyId, this.collider, this.body);
       this.contactCorrection.add(this.guard.correction);
+      if (
+        this.wheels.some(
+          (w) =>
+            w.contact &&
+            w.length + Math.min(0, w.velocity) * P.dt <
+              P.suspension.minWheelLength + 0.008,
+        )
+      ) {
+        this.bottomStop.after(
+          this.world,
+          this.bodyId,
+          this.collider,
+          this.body,
+          this.steerAngle,
+        );
+        this.contactCorrection.add(this.bottomStop.correction);
+      }
     }
   }
 }

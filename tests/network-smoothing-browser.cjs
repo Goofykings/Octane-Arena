@@ -1,9 +1,12 @@
-﻿const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
 const assert = require("node:assert/strict"),
   fs = require("node:fs");
 const { staticGame } = require("./static-game.cjs");
 (async () => {
   const server = await staticGame(8285);
+  const signaling = process.env.PEER_TEST_MODULE
+    ? await require("./local-peer-server.cjs").localPeer()
+    : null;
   let browser;
   const results = [],
     errors = [];
@@ -42,8 +45,21 @@ const { staticGame } = require("./static-game.cjs");
       }, name);
       const p = await context.newPage();
       p.on("pageerror", (e) => errors.push(e.message));
+      if (process.env.PEER_TRACE)
+        p.on("console", (m) => console.log(name, m.text()));
       await p.goto(server.url);
       await p.waitForFunction(() => window.__arena);
+      if (signaling)
+        await p.evaluate((port) => {
+          __arena.party.transport.options = {
+            host: "127.0.0.1",
+            port,
+            path: "/peer",
+            secure: false,
+            debug: 0,
+            config: { iceServers: [] },
+          };
+        }, signaling.port);
       return p;
     }
     const host = await open("Smooth Host"),
@@ -58,6 +74,20 @@ const { staticGame } = require("./static-game.cjs");
         }),
         { name, data },
       );
+      if (!result.ok)
+        console.log(
+          "JOIN DIAGNOSTICS",
+          await p.evaluate(() => ({
+            diagnostics: octaneArenaNetwork.diagnostics(),
+            links: [...__arena.party.transport.links].map((l) => ({
+              open: l.connection.open,
+              state: l.connection.peerConnection?.connectionState,
+              ice: l.connection.peerConnection?.iceConnectionState,
+              motion: l.motion?.readyState,
+            })),
+            errors: __arena.party.message,
+          })),
+        );
       assert.ok(result.ok, name + ": " + result.message);
     }
     await action(host, "create");
@@ -72,6 +102,10 @@ const { staticGame } = require("./static-game.cjs");
             .diagnostics()
             .peers.every((p) => p.bidirectionalVerified),
       );
+    if (process.env.PEER_JOIN_ONLY) {
+      console.log("PASS local WebRTC party join");
+      return;
+    }
     for (const [mode, format] of [
       ["soccar", "1v1"],
       ["soccar", "2v2bots"],
@@ -108,6 +142,10 @@ const { staticGame } = require("./static-game.cjs");
         }),
       );
       await host.evaluate(() => {
+        __arena.input.keys.add(__arena.input.bindings.throttle);
+        __arena.input.keys.add(__arena.input.bindings.boost);
+      });
+      await guest.evaluate(() => {
         __arena.input.keys.add(__arena.input.bindings.throttle);
         __arena.input.keys.add(__arena.input.bindings.boost);
       });
@@ -153,6 +191,11 @@ const { staticGame } = require("./static-game.cjs");
             requestAnimationFrame(step);
           }),
       );
+      if (profile.metrics?.snapshotReceiveHz <= 10) {
+        fs.writeFileSync(".tools/network-acceptance-failure.json",JSON.stringify(profile,null,2));
+        console.log("LOW RATE", JSON.stringify(profile.metrics));
+        console.log("HOST", await host.evaluate(()=>({metrics:octaneArenaNetwork.diagnostics(),status:__arena.network.status,phase:__arena.network.latest.phase,tick:__arena.network.latest.tick,contacts:__arena.network.latest.contacts})));
+      }
       assert.ok(!profile.error, profile.error);
       assert.ok(profile.samples.length > 15, "Render loop advances");
       assert.ok(
@@ -161,7 +204,27 @@ const { staticGame } = require("./static-game.cjs");
       );
       assert.ok(profile.metrics.bufferLength <= 32);
       assert.ok(profile.predicted);
-      assert.equal(profile.physicsBallEnabled, false);
+      assert.ok(
+        Number.isFinite(profile.metrics.correctionRotationRadians),
+        "Finite reconciliation rotation",
+      );
+      assert.equal(
+        profile.physicsBallEnabled,
+        true,
+        "Speculative collision ball is enabled",
+      );
+      const channels = await guest.evaluate(
+        () => octaneArenaNetwork.diagnostics().peers,
+      );
+      assert.ok(
+        channels.every(
+          (p) =>
+            p.channels.state === "open" &&
+            p.motionOrdered === false &&
+            p.motionMaxRetransmits === 0,
+        ),
+        "Motion channel is unordered with no retries",
+      );
       const movement = profile.samples.slice(1).map((s, i) => ({
         same: s.tick === profile.samples[i].tick,
         distance: Math.hypot(
@@ -212,6 +275,7 @@ const { staticGame } = require("./static-game.cjs");
       assert.ok(spectator.hasCamera && spectator.finite);
       assert.equal(spectator.match, profile.matchId);
       await host.evaluate(() => __arena.input.clear());
+      await guest.evaluate(() => __arena.input.clear());
       await guest.evaluate(() => __arena.network.testNetwork.configure({}));
       results.push({
         mode,
@@ -252,6 +316,7 @@ const { staticGame } = require("./static-game.cjs");
   } finally {
     await browser?.close();
     await server.close();
+    await signaling?.close();
   }
 })().catch((e) => {
   console.error(e);

@@ -22,7 +22,7 @@ for (const fps of [30, 60, 144])
     ["near overhead", [0, 0.34, 0], [0.1, 7, 0.1], 0, false],
     ["ceiling overhead", [0, 0.34, 0], [0.1, 19.4, 0.1], 0, false],
     ["wall ahead", [40.6, 10, 0], [39, 10, -14], Math.PI / 2, true],
-    // Field centre from a side wall sits ~77° above the wall plane.
+    // Field centre is below the car in world-up space, even on a side wall.
     ["vertical wall", [40.6, 10, 0], [0, 1, 0], Math.PI / 2, false],
     ["wall high ball", [40.6, 10, 0], [39, 19.4, 0], Math.PI / 2, false],
     ["ceiling", [35, 20.1, 0], [30, 16, 0], Math.PI, true],
@@ -58,7 +58,7 @@ for (const fps of [30, 60, 144])
         Math.abs(projected.x) + margin / camera.aspect < 1,
         `${name} horizontal clip`,
       );
-    } else
+    } else if (target[1] > position[1])
       assert.ok(
         control.lookDirection.dot(control.referenceUp) > 0,
         `${name} pitches up toward the high ball`,

@@ -3,6 +3,8 @@ import { predictionStateSchema } from "./prediction";
 import { dropshotSchema } from "./dropshot";
 import { mutatorsSchema } from "./mutators";
 import { z } from "zod";
+import { contactEventSchema } from "./network-events";
+import { NETWORK } from "./network-tuning";
 import { rumbleSnapshotSchema } from "./rumble";
 import type { MatchSnapshot } from "./network";
 import { arenaIds } from "./arenas";
@@ -52,6 +54,7 @@ const car = z
   .object({
     id: z.string().min(1).max(80),
     inputSequence: z.number().int().nonnegative().optional(),
+    inputTick: z.number().int().nonnegative().optional(),
     prediction: predictionStateSchema.optional(),
     position: vec,
     rotation,
@@ -92,6 +95,7 @@ const car = z
   .passthrough();
 const snapshot = z
   .object({
+    contacts: z.array(contactEventSchema).max(12).optional(),
     type: z.literal("snapshot"),
     matchId: z.string().uuid(),
     arenaId: z.enum(arenaIds),
@@ -184,6 +188,13 @@ export function peerSnapshot(
     result.data.cars.length !== playerIds.length ||
     new Set(result.data.cars.map((c) => c.id)).size !== playerIds.length ||
     result.data.cars.some((c) => !playerIds.includes(c.id)) ||
+    result.data.contacts?.some(
+      (e) =>
+        e.tick > result.data.tick ||
+        Math.abs(e.time - e.tick / NETWORK.physicsHz) > 1e-5 ||
+        new Set(e.cars.map((c) => c.id)).size !== e.cars.length ||
+        e.cars.some((c) => !playerIds.includes(c.id)),
+    ) ||
     result.data.stats?.some((p) => !playerIds.includes(p.playerId)) ||
     result.data.statEvents?.some((p) => !playerIds.includes(p.playerId)) ||
     result.data.chat?.some((p) => !sessionIds.includes(p.playerId)) ||
