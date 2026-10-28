@@ -3,27 +3,27 @@
     "name": "wall entry speed 0 boost false",
     "pass": true,
     "data": {
-      "supported": 127,
+      "supported": 144,
       "lost": 0,
-      "maxHeight": 15.040474891662598
+      "maxHeight": 15.01931095123291
     }
   },
   {
     "name": "wall entry speed 0 boost true",
     "pass": true,
     "data": {
-      "supported": 73,
+      "supported": 75,
       "lost": 0,
-      "maxHeight": 15.151822090148926
+      "maxHeight": 15.138039588928223
     }
   },
   {
     "name": "wall entry speed 14 boost false",
     "pass": true,
     "data": {
-      "supported": 115,
+      "supported": 125,
       "lost": 0,
-      "maxHeight": 15.020797729492188
+      "maxHeight": 15.0119047164917
     }
   },
   {
@@ -32,16 +32,16 @@
     "data": {
       "supported": 64,
       "lost": 0,
-      "maxHeight": 15.176104545593262
+      "maxHeight": 15.03803539276123
     }
   },
   {
     "name": "wall entry speed 23 boost false",
     "pass": true,
     "data": {
-      "supported": 75,
+      "supported": 73,
       "lost": 0,
-      "maxHeight": 15.114712715148926
+      "maxHeight": 15.067480087280273
     }
   },
   {
@@ -50,7 +50,7 @@
     "data": {
       "supported": 58,
       "lost": 0,
-      "maxHeight": 15.177288055419922
+      "maxHeight": 15.174800872802734
     }
   },
   {
@@ -81,19 +81,19 @@
       "samples": [
         {
           "time": 0.1,
-          "angle": 0.6610376436158261
+          "angle": 0.6610506883239796
         },
         {
           "time": 0.2,
-          "angle": 1.3610305527943092
+          "angle": 1.3610069298506655
         },
         {
           "time": 0.4,
-          "angle": 2.7609492176117323
+          "angle": 2.7609103124914123
         },
         {
           "time": 0.65,
-          "angle": 4.4982808630732904
+          "angle": 4.498295355946123
         }
       ]
     }

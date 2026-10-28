@@ -3,7 +3,7 @@
     "name": "A normal drive",
     "fps": 30,
     "aspect": 1.7777777777777777,
-    "peakTurn": 0.03297855984021133,
+    "peakTurn": 0.03297855981597253,
     "peakExtent": 0.062137546801345936,
     "minimumBoom": 2.879236009777594,
     "peakFovStep": 0
@@ -13,7 +13,7 @@
     "fps": 30,
     "aspect": 1.7777777777777777,
     "peakTurn": 2.0968518945320365,
-    "peakExtent": 0.08368603478393995,
+    "peakExtent": 0.08368603478393997,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
   },
@@ -21,27 +21,27 @@
     "name": "C low-speed curve",
     "fps": 30,
     "aspect": 1.7777777777777777,
-    "peakTurn": 0.003547671328767868,
-    "peakExtent": 0.5061030365920408,
-    "minimumBoom": 2.872980212295497,
+    "peakTurn": 0.00924457418838159,
+    "peakExtent": 0.028660450456901295,
+    "minimumBoom": 2.872651740612969,
     "peakFovStep": 0
   },
   {
     "name": "D full-speed curve",
     "fps": 30,
     "aspect": 1.7777777777777777,
-    "peakTurn": 8.940696716308594e-7,
-    "peakExtent": 0.5698109626099067,
-    "minimumBoom": 2.7227854614733116,
+    "peakTurn": 0.16947595938443918,
+    "peakExtent": 0.047388772243415006,
+    "minimumBoom": 2.7255544684934567,
     "peakFovStep": 0
   },
   {
     "name": "E vertical wall",
     "fps": 30,
     "aspect": 1.7777777777777777,
-    "peakTurn": 0.8032632453134599,
-    "peakExtent": 0,
-    "minimumBoom": 2.8315323457277306,
+    "peakTurn": 0.07104677006455179,
+    "peakExtent": 0.03473028547481863,
+    "minimumBoom": 2.8602864162350468,
     "peakFovStep": 0
   },
   {
@@ -111,18 +111,18 @@
     "name": "L wall to aerial",
     "fps": 30,
     "aspect": 1.7777777777777777,
-    "peakTurn": 5.636207126616447,
-    "peakExtent": 0.4691463130458775,
-    "minimumBoom": 2.8702258443335036,
+    "peakTurn": 0.08826872203949457,
+    "peakExtent": 0.06122617466779417,
+    "minimumBoom": 2.8792360097775904,
     "peakFovStep": 0
   },
   {
     "name": "M wall to floor",
     "fps": 30,
     "aspect": 1.7777777777777777,
-    "peakTurn": 5.12530503061182,
-    "peakExtent": 0.4863994275606372,
-    "minimumBoom": 2.8692173670626726,
+    "peakTurn": 0.014484980037146562,
+    "peakExtent": 0.02902096464280611,
+    "minimumBoom": 2.879236009777596,
     "peakFovStep": 0
   },
   {
@@ -139,7 +139,7 @@
     "fps": 30,
     "aspect": 1.7777777777777777,
     "peakTurn": 0.20045553122843335,
-    "peakExtent": 0.04603918497582814,
+    "peakExtent": 0.04603918497582785,
     "minimumBoom": 2.8730141583905544,
     "peakFovStep": 0
   },
@@ -147,7 +147,7 @@
     "name": "P rapid toggles",
     "fps": 30,
     "aspect": 1.7777777777777777,
-    "peakTurn": 3.6279148955444103,
+    "peakTurn": 3.6279148955443,
     "peakExtent": 0.07516844175180888,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
@@ -156,7 +156,7 @@
     "name": "A normal drive",
     "fps": 30,
     "aspect": 1.3333333333333333,
-    "peakTurn": 0.03297855984021133,
+    "peakTurn": 0.03297855981597253,
     "peakExtent": 0.04660316010100943,
     "minimumBoom": 2.879236009777594,
     "peakFovStep": 0
@@ -174,27 +174,27 @@
     "name": "C low-speed curve",
     "fps": 30,
     "aspect": 1.3333333333333333,
-    "peakTurn": 0.003547671328767868,
-    "peakExtent": 0.26103792001524734,
-    "minimumBoom": 2.872980212295497,
+    "peakTurn": 0.00924457418838159,
+    "peakExtent": 0.02149533784267596,
+    "minimumBoom": 2.872651740612969,
     "peakFovStep": 0
   },
   {
     "name": "D full-speed curve",
     "fps": 30,
     "aspect": 1.3333333333333333,
-    "peakTurn": 0.000001264405455326821,
-    "peakExtent": 0.3471311925726845,
-    "minimumBoom": 2.7227854614733116,
+    "peakTurn": 0.16947595938443918,
+    "peakExtent": 0.03554157918256124,
+    "minimumBoom": 2.7255544684934567,
     "peakFovStep": 0
   },
   {
     "name": "E vertical wall",
     "fps": 30,
     "aspect": 1.3333333333333333,
-    "peakTurn": 0.8032632453134599,
-    "peakExtent": 0,
-    "minimumBoom": 2.8315323457277306,
+    "peakTurn": 0.07104677006455179,
+    "peakExtent": 0.02604771410611396,
+    "minimumBoom": 2.8602864162350468,
     "peakFovStep": 0
   },
   {
@@ -264,18 +264,18 @@
     "name": "L wall to aerial",
     "fps": 30,
     "aspect": 1.3333333333333333,
-    "peakTurn": 5.757438087774698,
-    "peakExtent": 0.23524682580300063,
-    "minimumBoom": 2.8702258443335036,
+    "peakTurn": 0.08826872203949457,
+    "peakExtent": 0.045919631000845604,
+    "minimumBoom": 2.8792360097775904,
     "peakFovStep": 0
   },
   {
     "name": "M wall to floor",
     "fps": 30,
     "aspect": 1.3333333333333333,
-    "peakTurn": 5.05149228316733,
-    "peakExtent": 0.2473098867833273,
-    "minimumBoom": 2.8692173670626726,
+    "peakTurn": 0.014484980037146562,
+    "peakExtent": 0.021765723482104576,
+    "minimumBoom": 2.879236009777596,
     "peakFovStep": 0
   },
   {
@@ -292,7 +292,7 @@
     "fps": 30,
     "aspect": 1.3333333333333333,
     "peakTurn": 0.20045553122843335,
-    "peakExtent": 0.034529388731871086,
+    "peakExtent": 0.03452938873187088,
     "minimumBoom": 2.8730141583905544,
     "peakFovStep": 0
   },
@@ -300,8 +300,8 @@
     "name": "P rapid toggles",
     "fps": 30,
     "aspect": 1.3333333333333333,
-    "peakTurn": 3.6279148955444103,
-    "peakExtent": 0.07516844175180885,
+    "peakTurn": 3.6279148955443,
+    "peakExtent": 0.07516844175180887,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
   },
@@ -309,7 +309,7 @@
     "name": "A normal drive",
     "fps": 30,
     "aspect": 0.5625,
-    "peakTurn": 0.03297855984021133,
+    "peakTurn": 0.03297855981597253,
     "peakExtent": 0.0825776411040039,
     "minimumBoom": 2.879236009777594,
     "peakFovStep": 0
@@ -327,27 +327,27 @@
     "name": "C low-speed curve",
     "fps": 30,
     "aspect": 0.5625,
-    "peakTurn": 0.003547671328767868,
-    "peakExtent": 0.26103792001524734,
-    "minimumBoom": 2.872980212295497,
+    "peakTurn": 0.00924457418838159,
+    "peakExtent": 0.038213933942535236,
+    "minimumBoom": 2.872651740612969,
     "peakFovStep": 0
   },
   {
     "name": "D full-speed curve",
     "fps": 30,
     "aspect": 0.5625,
-    "peakTurn": 0.000001264405455326821,
-    "peakExtent": 0.3471311925726845,
-    "minimumBoom": 2.7227854614733116,
+    "peakTurn": 0.16947595938443918,
+    "peakExtent": 0.038213933942535236,
+    "minimumBoom": 2.7255544684934567,
     "peakFovStep": 0
   },
   {
     "name": "E vertical wall",
     "fps": 30,
     "aspect": 0.5625,
-    "peakTurn": 0.8032632453134599,
-    "peakExtent": 0,
-    "minimumBoom": 2.8315323457277306,
+    "peakTurn": 0.07104677006455179,
+    "peakExtent": 0.036859331945038355,
+    "minimumBoom": 2.8602864162350468,
     "peakFovStep": 0
   },
   {
@@ -390,7 +390,7 @@
     "name": "H1 fast close ball crossing behind",
     "fps": 30,
     "aspect": 0.5625,
-    "peakTurn": 7.2290710247351475,
+    "peakTurn": 7.2290710247350365,
     "peakExtent": 3.837922860126875,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
@@ -417,18 +417,18 @@
     "name": "L wall to aerial",
     "fps": 30,
     "aspect": 0.5625,
-    "peakTurn": 4.516936132358928,
-    "peakExtent": 0.23331025850991735,
-    "minimumBoom": 2.8702258443335036,
+    "peakTurn": 0.08826872203949457,
+    "peakExtent": 0.07992328331594961,
+    "minimumBoom": 2.8792360097775904,
     "peakFovStep": 0
   },
   {
     "name": "M wall to floor",
     "fps": 30,
     "aspect": 0.5625,
-    "peakTurn": 4.823067356078458,
-    "peakExtent": 0.24730988678332644,
-    "minimumBoom": 2.8692173670626726,
+    "peakTurn": 0.014484980037146562,
+    "peakExtent": 0.03821393394253615,
+    "minimumBoom": 2.879236009777596,
     "peakFovStep": 0
   },
   {
@@ -445,7 +445,7 @@
     "fps": 30,
     "aspect": 0.5625,
     "peakTurn": 0.20045553122843335,
-    "peakExtent": 0.049334789501380164,
+    "peakExtent": 0.04933478950138021,
     "minimumBoom": 2.8730141583905544,
     "peakFovStep": 0
   },
@@ -453,7 +453,7 @@
     "name": "P rapid toggles",
     "fps": 30,
     "aspect": 0.5625,
-    "peakTurn": 3.6279148955444103,
+    "peakTurn": 3.6279148955443,
     "peakExtent": 0.17817704711539878,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
@@ -462,7 +462,7 @@
     "name": "A normal drive",
     "fps": 30,
     "aspect": 2.3333333333333335,
-    "peakTurn": 0.03297855984021133,
+    "peakTurn": 0.03297855981597253,
     "peakExtent": 0.062137546801345936,
     "minimumBoom": 2.879236009777594,
     "peakFovStep": 0
@@ -472,7 +472,7 @@
     "fps": 30,
     "aspect": 2.3333333333333335,
     "peakTurn": 2.0968518945320365,
-    "peakExtent": 0.08368603478393995,
+    "peakExtent": 0.08368603478393997,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
   },
@@ -480,27 +480,27 @@
     "name": "C low-speed curve",
     "fps": 30,
     "aspect": 2.3333333333333335,
-    "peakTurn": 0.003547671328767868,
-    "peakExtent": 0.5061030365920408,
-    "minimumBoom": 2.872980212295497,
+    "peakTurn": 0.00924457418838159,
+    "peakExtent": 0.028660450456901295,
+    "minimumBoom": 2.872651740612969,
     "peakFovStep": 0
   },
   {
     "name": "D full-speed curve",
     "fps": 30,
     "aspect": 2.3333333333333335,
-    "peakTurn": 8.940696716308594e-7,
-    "peakExtent": 0.5698109626099067,
-    "minimumBoom": 2.7227854614733116,
+    "peakTurn": 0.16947595938443918,
+    "peakExtent": 0.047388772243415006,
+    "minimumBoom": 2.7255544684934567,
     "peakFovStep": 0
   },
   {
     "name": "E vertical wall",
     "fps": 30,
     "aspect": 2.3333333333333335,
-    "peakTurn": 0.8032632453134599,
-    "peakExtent": 0,
-    "minimumBoom": 2.8315323457277306,
+    "peakTurn": 0.07104677006455179,
+    "peakExtent": 0.03473028547481863,
+    "minimumBoom": 2.8602864162350468,
     "peakFovStep": 0
   },
   {
@@ -543,7 +543,7 @@
     "name": "H1 fast close ball crossing behind",
     "fps": 30,
     "aspect": 2.3333333333333335,
-    "peakTurn": 8.017033578517957,
+    "peakTurn": 8.017033578517907,
     "peakExtent": 0.8475296236426966,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
@@ -570,18 +570,18 @@
     "name": "L wall to aerial",
     "fps": 30,
     "aspect": 2.3333333333333335,
-    "peakTurn": 5.636207126616447,
-    "peakExtent": 0.4691463130458775,
-    "minimumBoom": 2.8702258443335036,
+    "peakTurn": 0.08826872203949457,
+    "peakExtent": 0.06122617466779417,
+    "minimumBoom": 2.8792360097775904,
     "peakFovStep": 0
   },
   {
     "name": "M wall to floor",
     "fps": 30,
     "aspect": 2.3333333333333335,
-    "peakTurn": 5.12530503061182,
-    "peakExtent": 0.4863994275606372,
-    "minimumBoom": 2.8692173670626726,
+    "peakTurn": 0.014484980037146562,
+    "peakExtent": 0.02902096464280611,
+    "minimumBoom": 2.879236009777596,
     "peakFovStep": 0
   },
   {
@@ -598,7 +598,7 @@
     "fps": 30,
     "aspect": 2.3333333333333335,
     "peakTurn": 0.20045553122843335,
-    "peakExtent": 0.04603918497582814,
+    "peakExtent": 0.04603918497582785,
     "minimumBoom": 2.8730141583905544,
     "peakFovStep": 0
   },
@@ -606,7 +606,7 @@
     "name": "P rapid toggles",
     "fps": 30,
     "aspect": 2.3333333333333335,
-    "peakTurn": 3.6279148955444103,
+    "peakTurn": 3.6279148955443,
     "peakExtent": 0.06890104119849179,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
@@ -615,7 +615,7 @@
     "name": "A normal drive",
     "fps": 60,
     "aspect": 1.7777777777777777,
-    "peakTurn": 0.03319237345138977,
+    "peakTurn": 0.0331923735477204,
     "peakExtent": 0.062265244771159,
     "minimumBoom": 2.879236009777594,
     "peakFovStep": 0
@@ -633,27 +633,27 @@
     "name": "C low-speed curve",
     "fps": 60,
     "aspect": 1.7777777777777777,
-    "peakTurn": 0.007848225812649084,
-    "peakExtent": 0.5064505537806503,
-    "minimumBoom": 2.870655586634726,
+    "peakTurn": 0.009246126023604511,
+    "peakExtent": 0.028660450456901295,
+    "minimumBoom": 2.8702059793347066,
     "peakFovStep": 0
   },
   {
     "name": "D full-speed curve",
     "fps": 60,
     "aspect": 1.7777777777777777,
-    "peakTurn": 0.000002528810910653642,
-    "peakExtent": 0.5442557395867033,
-    "minimumBoom": 2.6646961775834033,
+    "peakTurn": 0.16691008635192733,
+    "peakExtent": 0.04869318151768753,
+    "minimumBoom": 2.6688142790599723,
     "peakFovStep": 0
   },
   {
     "name": "E vertical wall",
     "fps": 60,
     "aspect": 1.7777777777777777,
-    "peakTurn": 0.8025203359593692,
-    "peakExtent": 0,
-    "minimumBoom": 2.8138210104077923,
+    "peakTurn": 0.07104669703661683,
+    "peakExtent": 0.03536998828265987,
+    "minimumBoom": 2.8534588766773945,
     "peakFovStep": 0
   },
   {
@@ -697,7 +697,7 @@
     "fps": 60,
     "aspect": 1.7777777777777777,
     "peakTurn": 8.017578367493053,
-    "peakExtent": 1.2286793366629054,
+    "peakExtent": 1.228679336662905,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
   },
@@ -705,8 +705,8 @@
     "name": "J continuous aerial air-roll",
     "fps": 60,
     "aspect": 1.7777777777777777,
-    "peakTurn": 0.11160880270602615,
-    "peakExtent": 0.09382245918806575,
+    "peakTurn": 0.1116088026773775,
+    "peakExtent": 0.09382245918806573,
     "minimumBoom": 2.8792360097775935,
     "peakFovStep": 0
   },
@@ -714,7 +714,7 @@
     "name": "K aerial overhead crossing",
     "fps": 60,
     "aspect": 1.7777777777777777,
-    "peakTurn": 8.034089311012812,
+    "peakTurn": 8.034089311013009,
     "peakExtent": 0.4103178459641313,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
@@ -723,18 +723,18 @@
     "name": "L wall to aerial",
     "fps": 60,
     "aspect": 1.7777777777777777,
-    "peakTurn": 5.754234767907956,
-    "peakExtent": 0.46088332945122396,
-    "minimumBoom": 2.86794156723549,
+    "peakTurn": 0.08887816867835766,
+    "peakExtent": 0.061521183056047035,
+    "minimumBoom": 2.8792360097775904,
     "peakFovStep": 0
   },
   {
     "name": "M wall to floor",
     "fps": 60,
     "aspect": 1.7777777777777777,
-    "peakTurn": 5.068273490275153,
-    "peakExtent": 0.4964635464411595,
-    "minimumBoom": 2.8654936468670797,
+    "peakTurn": 0.014484654633518357,
+    "peakExtent": 0.029158792538251595,
+    "minimumBoom": 2.879236009777596,
     "peakFovStep": 0
   },
   {
@@ -742,7 +742,7 @@
     "fps": 60,
     "aspect": 1.7777777777777777,
     "peakTurn": 0.07289828562297093,
-    "peakExtent": 0.07079899534595102,
+    "peakExtent": 0.07079899534595105,
     "minimumBoom": 2.872431096308785,
     "peakFovStep": 0
   },
@@ -751,7 +751,7 @@
     "fps": 60,
     "aspect": 1.7777777777777777,
     "peakTurn": 0.20063535693082588,
-    "peakExtent": 0.04721620484046249,
+    "peakExtent": 0.047216204840462205,
     "minimumBoom": 2.8707297866575145,
     "peakFovStep": 0
   },
@@ -768,7 +768,7 @@
     "name": "A normal drive",
     "fps": 60,
     "aspect": 1.3333333333333333,
-    "peakTurn": 0.03319237345138977,
+    "peakTurn": 0.0331923735477204,
     "peakExtent": 0.04669893357836923,
     "minimumBoom": 2.879236009777594,
     "peakFovStep": 0
@@ -786,27 +786,27 @@
     "name": "C low-speed curve",
     "fps": 60,
     "aspect": 1.3333333333333333,
-    "peakTurn": 0.007848225812649084,
-    "peakExtent": 0.26127958473067425,
-    "minimumBoom": 2.870655586634726,
+    "peakTurn": 0.009246126023604511,
+    "peakExtent": 0.02149533784267596,
+    "minimumBoom": 2.8702059793347066,
     "peakFovStep": 0
   },
   {
     "name": "D full-speed curve",
     "fps": 60,
     "aspect": 1.3333333333333333,
-    "peakTurn": 0.000002528810910653642,
-    "peakExtent": 0.33492887501755647,
-    "minimumBoom": 2.6646961775834033,
+    "peakTurn": 0.16691008635192733,
+    "peakExtent": 0.036519886138265636,
+    "minimumBoom": 2.6688142790599723,
     "peakFovStep": 0
   },
   {
     "name": "E vertical wall",
     "fps": 60,
     "aspect": 1.3333333333333333,
-    "peakTurn": 0.8025203359613614,
-    "peakExtent": 0,
-    "minimumBoom": 2.8138210104077923,
+    "peakTurn": 0.07104669703661683,
+    "peakExtent": 0.026527491211994894,
+    "minimumBoom": 2.8534588766773945,
     "peakFovStep": 0
   },
   {
@@ -850,7 +850,7 @@
     "fps": 60,
     "aspect": 1.3333333333333333,
     "peakTurn": 8.017578367493053,
-    "peakExtent": 1.228679336662905,
+    "peakExtent": 1.2286793366629045,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
   },
@@ -867,8 +867,8 @@
     "name": "K aerial overhead crossing",
     "fps": 60,
     "aspect": 1.3333333333333333,
-    "peakTurn": 8.034089311013009,
-    "peakExtent": 0.1951094946351138,
+    "peakTurn": 8.034089311012812,
+    "peakExtent": 0.1951094946351143,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
   },
@@ -876,18 +876,18 @@
     "name": "L wall to aerial",
     "fps": 60,
     "aspect": 1.3333333333333333,
-    "peakTurn": 5.9958743503978615,
-    "peakExtent": 0.22945829282533603,
-    "minimumBoom": 2.86794156723549,
+    "peakTurn": 0.08887816867835766,
+    "peakExtent": 0.046140887292035256,
+    "minimumBoom": 2.8792360097775904,
     "peakFovStep": 0
   },
   {
     "name": "M wall to floor",
     "fps": 60,
     "aspect": 1.3333333333333333,
-    "peakTurn": 5.041965683076076,
-    "peakExtent": 0.2543290512978443,
-    "minimumBoom": 2.8654936468670797,
+    "peakTurn": 0.014484654633518357,
+    "peakExtent": 0.02186909440368869,
+    "minimumBoom": 2.879236009777596,
     "peakFovStep": 0
   },
   {
@@ -895,7 +895,7 @@
     "fps": 60,
     "aspect": 1.3333333333333333,
     "peakTurn": 0.07289828562297093,
-    "peakExtent": 0.053099246509463245,
+    "peakExtent": 0.05309924650946326,
     "minimumBoom": 2.872431096308785,
     "peakFovStep": 0
   },
@@ -904,7 +904,7 @@
     "fps": 60,
     "aspect": 1.3333333333333333,
     "peakTurn": 0.20063535693082588,
-    "peakExtent": 0.03541215363034685,
+    "peakExtent": 0.035412153630346645,
     "minimumBoom": 2.8707297866575145,
     "peakFovStep": 0
   },
@@ -921,7 +921,7 @@
     "name": "A normal drive",
     "fps": 60,
     "aspect": 0.5625,
-    "peakTurn": 0.03319237345138977,
+    "peakTurn": 0.0331923735477204,
     "peakExtent": 0.08272777775949072,
     "minimumBoom": 2.879236009777594,
     "peakFovStep": 0
@@ -939,27 +939,27 @@
     "name": "C low-speed curve",
     "fps": 60,
     "aspect": 0.5625,
-    "peakTurn": 0.007848225812649084,
-    "peakExtent": 0.26127958473067425,
-    "minimumBoom": 2.870655586634726,
+    "peakTurn": 0.009246126023604511,
+    "peakExtent": 0.038213933942535236,
+    "minimumBoom": 2.8702059793347066,
     "peakFovStep": 0
   },
   {
     "name": "D full-speed curve",
     "fps": 60,
     "aspect": 0.5625,
-    "peakTurn": 0.000002528810910653642,
-    "peakExtent": 0.33492887501755647,
-    "minimumBoom": 2.6646961775834033,
+    "peakTurn": 0.16691008635192733,
+    "peakExtent": 0.038213933942535236,
+    "minimumBoom": 2.6688142790599723,
     "peakFovStep": 0
   },
   {
     "name": "E vertical wall",
     "fps": 60,
     "aspect": 0.5625,
-    "peakTurn": 0.8025203359613614,
-    "peakExtent": 0,
-    "minimumBoom": 2.8138210104077923,
+    "peakTurn": 0.07104669703661683,
+    "peakExtent": 0.03696413610046939,
+    "minimumBoom": 2.8534588766773945,
     "peakFovStep": 0
   },
   {
@@ -1021,7 +1021,7 @@
     "fps": 60,
     "aspect": 0.5625,
     "peakTurn": 7.141990896722785,
-    "peakExtent": 0.1951094946351138,
+    "peakExtent": 0.1951094946351143,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
   },
@@ -1029,18 +1029,18 @@
     "name": "L wall to aerial",
     "fps": 60,
     "aspect": 0.5625,
-    "peakTurn": 4.539939960721531,
-    "peakExtent": 0.2266892229288431,
-    "minimumBoom": 2.86794156723549,
+    "peakTurn": 0.08887816867835766,
+    "peakExtent": 0.08007807775241456,
+    "minimumBoom": 2.8792360097775904,
     "peakFovStep": 0
   },
   {
     "name": "M wall to floor",
     "fps": 60,
     "aspect": 0.5625,
-    "peakTurn": 4.749147159189544,
-    "peakExtent": 0.2543290512978427,
-    "minimumBoom": 2.8654936468670797,
+    "peakTurn": 0.014484654633518357,
+    "peakExtent": 0.03821393394253616,
+    "minimumBoom": 2.879236009777596,
     "peakFovStep": 0
   },
   {
@@ -1057,7 +1057,7 @@
     "fps": 60,
     "aspect": 0.5625,
     "peakTurn": 0.20063535693082588,
-    "peakExtent": 0.049949688311165905,
+    "peakExtent": 0.04994968831116595,
     "minimumBoom": 2.8707297866575145,
     "peakFovStep": 0
   },
@@ -1074,7 +1074,7 @@
     "name": "A normal drive",
     "fps": 60,
     "aspect": 2.3333333333333335,
-    "peakTurn": 0.03319237345138977,
+    "peakTurn": 0.0331923735477204,
     "peakExtent": 0.062265244771159,
     "minimumBoom": 2.879236009777594,
     "peakFovStep": 0
@@ -1084,7 +1084,7 @@
     "fps": 60,
     "aspect": 2.3333333333333335,
     "peakTurn": 2.1087074337683647,
-    "peakExtent": 0.08372256351356619,
+    "peakExtent": 0.08372256351356616,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
   },
@@ -1092,27 +1092,27 @@
     "name": "C low-speed curve",
     "fps": 60,
     "aspect": 2.3333333333333335,
-    "peakTurn": 0.007848225812649084,
-    "peakExtent": 0.5064505537806503,
-    "minimumBoom": 2.870655586634726,
+    "peakTurn": 0.009246126023604511,
+    "peakExtent": 0.028660450456901295,
+    "minimumBoom": 2.8702059793347066,
     "peakFovStep": 0
   },
   {
     "name": "D full-speed curve",
     "fps": 60,
     "aspect": 2.3333333333333335,
-    "peakTurn": 0.000002528810910653642,
-    "peakExtent": 0.5442557395867033,
-    "minimumBoom": 2.6646961775834033,
+    "peakTurn": 0.16691008635192733,
+    "peakExtent": 0.04869318151768753,
+    "minimumBoom": 2.6688142790599723,
     "peakFovStep": 0
   },
   {
     "name": "E vertical wall",
     "fps": 60,
     "aspect": 2.3333333333333335,
-    "peakTurn": 0.8025203359593692,
-    "peakExtent": 0,
-    "minimumBoom": 2.8138210104077923,
+    "peakTurn": 0.07104669703661683,
+    "peakExtent": 0.03536998828265987,
+    "minimumBoom": 2.8534588766773945,
     "peakFovStep": 0
   },
   {
@@ -1164,8 +1164,8 @@
     "name": "J continuous aerial air-roll",
     "fps": 60,
     "aspect": 2.3333333333333335,
-    "peakTurn": 0.11160880270602615,
-    "peakExtent": 0.09382245918806575,
+    "peakTurn": 0.1116088026773775,
+    "peakExtent": 0.09382245918806573,
     "minimumBoom": 2.8792360097775935,
     "peakFovStep": 0
   },
@@ -1173,7 +1173,7 @@
     "name": "K aerial overhead crossing",
     "fps": 60,
     "aspect": 2.3333333333333335,
-    "peakTurn": 8.034089311012812,
+    "peakTurn": 8.034089311013009,
     "peakExtent": 0.4103178459641313,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
@@ -1182,18 +1182,18 @@
     "name": "L wall to aerial",
     "fps": 60,
     "aspect": 2.3333333333333335,
-    "peakTurn": 5.754272788985621,
-    "peakExtent": 0.4609083001848567,
-    "minimumBoom": 2.86794156723549,
+    "peakTurn": 0.08887816867835766,
+    "peakExtent": 0.061521183056047035,
+    "minimumBoom": 2.8792360097775904,
     "peakFovStep": 0
   },
   {
     "name": "M wall to floor",
     "fps": 60,
     "aspect": 2.3333333333333335,
-    "peakTurn": 5.068273490275153,
-    "peakExtent": 0.4964635464411595,
-    "minimumBoom": 2.8654936468670797,
+    "peakTurn": 0.014484654633518357,
+    "peakExtent": 0.029158792538251595,
+    "minimumBoom": 2.879236009777596,
     "peakFovStep": 0
   },
   {
@@ -1201,7 +1201,7 @@
     "fps": 60,
     "aspect": 2.3333333333333335,
     "peakTurn": 0.07289828562297093,
-    "peakExtent": 0.07079899534595102,
+    "peakExtent": 0.07079899534595105,
     "minimumBoom": 2.872431096308785,
     "peakFovStep": 0
   },
@@ -1210,7 +1210,7 @@
     "fps": 60,
     "aspect": 2.3333333333333335,
     "peakTurn": 0.20063535693082588,
-    "peakExtent": 0.04721620484046249,
+    "peakExtent": 0.047216204840462205,
     "minimumBoom": 2.8707297866575145,
     "peakFovStep": 0
   },
@@ -1237,7 +1237,7 @@
     "fps": 144,
     "aspect": 1.7777777777777777,
     "peakTurn": 2.115784120806625,
-    "peakExtent": 0.08568752949206303,
+    "peakExtent": 0.08568752949206304,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
   },
@@ -1245,27 +1245,27 @@
     "name": "C low-speed curve",
     "fps": 144,
     "aspect": 1.7777777777777777,
-    "peakTurn": 0.010071894245119221,
-    "peakExtent": 0.5074169472755302,
-    "minimumBoom": 2.8690389821495206,
+    "peakTurn": 0.009246897432006088,
+    "peakExtent": 0.028660450456901295,
+    "minimumBoom": 2.8685044557005392,
     "peakFovStep": 0
   },
   {
     "name": "D full-speed curve",
     "fps": 144,
     "aspect": 1.7777777777777777,
-    "peakTurn": 0.5219916985771507,
-    "peakExtent": 0.6085769630307025,
-    "minimumBoom": 2.6272050694263847,
+    "peakTurn": 0.16541226884519983,
+    "peakExtent": 0.04946533427385228,
+    "minimumBoom": 2.6289213815691137,
     "peakFovStep": 0
   },
   {
     "name": "E vertical wall",
     "fps": 144,
     "aspect": 1.7777777777777777,
-    "peakTurn": 0.8021396202278611,
-    "peakExtent": 0,
-    "minimumBoom": 2.801508251601523,
+    "peakTurn": 0.07104625107843525,
+    "peakExtent": 0.03575922990499084,
+    "minimumBoom": 2.848776346279114,
     "peakFovStep": 0
   },
   {
@@ -1291,7 +1291,7 @@
     "fps": 144,
     "aspect": 1.7777777777777777,
     "peakTurn": 0.5379698028275308,
-    "peakExtent": 0.0804584941514925,
+    "peakExtent": 0.08045849415149249,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
   },
@@ -1309,7 +1309,7 @@
     "fps": 144,
     "aspect": 1.7777777777777777,
     "peakTurn": 8.017931000861562,
-    "peakExtent": 1.31397708795404,
+    "peakExtent": 1.3139770879540422,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
   },
@@ -1318,7 +1318,7 @@
     "fps": 144,
     "aspect": 1.7777777777777777,
     "peakTurn": 0.11161006393261096,
-    "peakExtent": 0.09366318587749518,
+    "peakExtent": 0.09366318587749523,
     "minimumBoom": 2.8792360097775935,
     "peakFovStep": 0
   },
@@ -1335,18 +1335,18 @@
     "name": "L wall to aerial",
     "fps": 144,
     "aspect": 1.7777777777777777,
-    "peakTurn": 5.885814111909747,
-    "peakExtent": 0.4582717040322536,
-    "minimumBoom": 2.866504775442038,
+    "peakTurn": 0.08921333094816065,
+    "peakExtent": 0.06169017243454302,
+    "minimumBoom": 2.8792360097775904,
     "peakFovStep": 0
   },
   {
     "name": "M wall to floor",
     "fps": 144,
     "aspect": 1.7777777777777777,
-    "peakTurn": 5.10143028960562,
-    "peakExtent": 0.5040133779331216,
-    "minimumBoom": 2.862899333918044,
+    "peakTurn": 0.01448457271568291,
+    "peakExtent": 0.029242823362165028,
+    "minimumBoom": 2.879236009777596,
     "peakFovStep": 0
   },
   {
@@ -1355,7 +1355,7 @@
     "aspect": 1.7777777777777777,
     "peakTurn": 0.07314772411447666,
     "peakExtent": 0.0707990745862324,
-    "minimumBoom": 2.8711591272178523,
+    "minimumBoom": 2.871159127217852,
     "peakFovStep": 0
   },
   {
@@ -1372,7 +1372,7 @@
     "fps": 144,
     "aspect": 1.7777777777777777,
     "peakTurn": 3.7985970765016552,
-    "peakExtent": 0.08332843064291394,
+    "peakExtent": 0.08332843064291406,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
   },
@@ -1390,7 +1390,7 @@
     "fps": 144,
     "aspect": 1.3333333333333333,
     "peakTurn": 2.115784120806625,
-    "peakExtent": 0.08568752949206299,
+    "peakExtent": 0.085687529492063,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
   },
@@ -1398,27 +1398,27 @@
     "name": "C low-speed curve",
     "fps": 144,
     "aspect": 1.3333333333333333,
-    "peakTurn": 0.010168167657313364,
-    "peakExtent": 0.2619517032157956,
-    "minimumBoom": 2.8690389821495206,
+    "peakTurn": 0.009246897432006088,
+    "peakExtent": 0.02149533784267596,
+    "minimumBoom": 2.8685044557005392,
     "peakFovStep": 0
   },
   {
     "name": "D full-speed curve",
     "fps": 144,
     "aspect": 1.3333333333333333,
-    "peakTurn": 0.5219916985771507,
-    "peakExtent": 0.40798456964089974,
-    "minimumBoom": 2.6272050694263847,
+    "peakTurn": 0.16541226884519983,
+    "peakExtent": 0.0370990007053892,
+    "minimumBoom": 2.6289213815691137,
     "peakFovStep": 0
   },
   {
     "name": "E vertical wall",
     "fps": 144,
     "aspect": 1.3333333333333333,
-    "peakTurn": 0.8021396202278611,
-    "peakExtent": 0,
-    "minimumBoom": 2.801508251601523,
+    "peakTurn": 0.07104625107843525,
+    "peakExtent": 0.02681942242874312,
+    "minimumBoom": 2.848776346279114,
     "peakFovStep": 0
   },
   {
@@ -1444,7 +1444,7 @@
     "fps": 144,
     "aspect": 1.3333333333333333,
     "peakTurn": 0.5379698028275308,
-    "peakExtent": 0.06034387061361935,
+    "peakExtent": 0.06034387061361934,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
   },
@@ -1462,7 +1462,7 @@
     "fps": 144,
     "aspect": 1.3333333333333333,
     "peakTurn": 8.017931000861562,
-    "peakExtent": 1.3139770879540393,
+    "peakExtent": 1.3139770879540416,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
   },
@@ -1471,7 +1471,7 @@
     "fps": 144,
     "aspect": 1.3333333333333333,
     "peakTurn": 0.11161124245926157,
-    "peakExtent": 0.06424996389303386,
+    "peakExtent": 0.06424996389303396,
     "minimumBoom": 2.8792360097775935,
     "peakFovStep": 0
   },
@@ -1488,18 +1488,18 @@
     "name": "L wall to aerial",
     "fps": 144,
     "aspect": 1.3333333333333333,
-    "peakTurn": 6.065624828081181,
-    "peakExtent": 0.22762742211534423,
-    "minimumBoom": 2.866504775442038,
+    "peakTurn": 0.08921333094816065,
+    "peakExtent": 0.04626762932590724,
+    "minimumBoom": 2.8792360097775904,
     "peakFovStep": 0
   },
   {
     "name": "M wall to floor",
     "fps": 144,
     "aspect": 1.3333333333333333,
-    "peakTurn": 5.109117717552604,
-    "peakExtent": 0.2595864362843298,
-    "minimumBoom": 2.862899333918044,
+    "peakTurn": 0.01448457271568291,
+    "peakExtent": 0.021932117521623763,
+    "minimumBoom": 2.879236009777596,
     "peakFovStep": 0
   },
   {
@@ -1508,7 +1508,7 @@
     "aspect": 1.3333333333333333,
     "peakTurn": 0.07314772411447666,
     "peakExtent": 0.05309930593967427,
-    "minimumBoom": 2.8711591272178523,
+    "minimumBoom": 2.871159127217852,
     "peakFovStep": 0
   },
   {
@@ -1525,7 +1525,7 @@
     "fps": 144,
     "aspect": 1.3333333333333333,
     "peakTurn": 3.7985970765016552,
-    "peakExtent": 0.08332843064291391,
+    "peakExtent": 0.08332843064291404,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
   },
@@ -1543,7 +1543,7 @@
     "fps": 144,
     "aspect": 0.5625,
     "peakTurn": 2.115784120806625,
-    "peakExtent": 0.20311118101822337,
+    "peakExtent": 0.20311118101822342,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
   },
@@ -1551,27 +1551,27 @@
     "name": "C low-speed curve",
     "fps": 144,
     "aspect": 0.5625,
-    "peakTurn": 0.010168167657313364,
-    "peakExtent": 0.2619517032157956,
-    "minimumBoom": 2.8690389821495206,
+    "peakTurn": 0.009246897432006088,
+    "peakExtent": 0.038213933942535236,
+    "minimumBoom": 2.8685044557005392,
     "peakFovStep": 0
   },
   {
     "name": "D full-speed curve",
     "fps": 144,
     "aspect": 0.5625,
-    "peakTurn": 0.5219916985771507,
-    "peakExtent": 0.40798456964089974,
-    "minimumBoom": 2.6272050694263847,
+    "peakTurn": 0.16541226884519983,
+    "peakExtent": 0.038213933942535236,
+    "minimumBoom": 2.6289213815691137,
     "peakFovStep": 0
   },
   {
     "name": "E vertical wall",
     "fps": 144,
     "aspect": 0.5625,
-    "peakTurn": 0.8021396202278611,
-    "peakExtent": 0,
-    "minimumBoom": 2.801508251601523,
+    "peakTurn": 0.07104625107843525,
+    "peakExtent": 0.03702325210827359,
+    "minimumBoom": 2.848776346279114,
     "peakFovStep": 0
   },
   {
@@ -1615,7 +1615,7 @@
     "fps": 144,
     "aspect": 0.5625,
     "peakTurn": 7.625525162035294,
-    "peakExtent": 4.517650317852946,
+    "peakExtent": 4.517650317852952,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
   },
@@ -1624,7 +1624,7 @@
     "fps": 144,
     "aspect": 0.5625,
     "peakTurn": 0.11161124245926157,
-    "peakExtent": 0.10256725734889678,
+    "peakExtent": 0.1025672573488967,
     "minimumBoom": 2.8792360097775935,
     "peakFovStep": 0
   },
@@ -1641,18 +1641,18 @@
     "name": "L wall to aerial",
     "fps": 144,
     "aspect": 0.5625,
-    "peakTurn": 4.5999118724781916,
-    "peakExtent": 0.22432209359584335,
-    "minimumBoom": 2.866504775442038,
+    "peakTurn": 0.08921333094816065,
+    "peakExtent": 0.08016009677707359,
+    "minimumBoom": 2.8792360097775904,
     "peakFovStep": 0
   },
   {
     "name": "M wall to floor",
     "fps": 144,
     "aspect": 0.5625,
-    "peakTurn": 4.7587339056975395,
-    "peakExtent": 0.2595864362843277,
-    "minimumBoom": 2.862899333918044,
+    "peakTurn": 0.01448457271568291,
+    "peakExtent": 0.03821393394253725,
+    "minimumBoom": 2.879236009777596,
     "peakFovStep": 0
   },
   {
@@ -1660,8 +1660,8 @@
     "fps": 144,
     "aspect": 0.5625,
     "peakTurn": 0.07314772411447666,
-    "peakExtent": 0.0960391138302689,
-    "minimumBoom": 2.8711591272178523,
+    "peakExtent": 0.09603911383026892,
+    "minimumBoom": 2.871159127217852,
     "peakFovStep": 0
   },
   {
@@ -1669,7 +1669,7 @@
     "fps": 144,
     "aspect": 0.5625,
     "peakTurn": 0.2007438454716814,
-    "peakExtent": 0.050285074470991,
+    "peakExtent": 0.05028507447099099,
     "minimumBoom": 2.869147796833395,
     "peakFovStep": 0
   },
@@ -1678,7 +1678,7 @@
     "fps": 144,
     "aspect": 0.5625,
     "peakTurn": 3.7985970765016552,
-    "peakExtent": 0.19751924300542556,
+    "peakExtent": 0.19751924300542584,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
   },
@@ -1696,7 +1696,7 @@
     "fps": 144,
     "aspect": 2.3333333333333335,
     "peakTurn": 2.115784120806625,
-    "peakExtent": 0.08374102907687421,
+    "peakExtent": 0.08374102907687424,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
   },
@@ -1704,27 +1704,27 @@
     "name": "C low-speed curve",
     "fps": 144,
     "aspect": 2.3333333333333335,
-    "peakTurn": 0.010071894245119221,
-    "peakExtent": 0.5074169472755302,
-    "minimumBoom": 2.8690389821495206,
+    "peakTurn": 0.009246897432006088,
+    "peakExtent": 0.028660450456901295,
+    "minimumBoom": 2.8685044557005392,
     "peakFovStep": 0
   },
   {
     "name": "D full-speed curve",
     "fps": 144,
     "aspect": 2.3333333333333335,
-    "peakTurn": 0.5219916985771507,
-    "peakExtent": 0.6085769630307025,
-    "minimumBoom": 2.6272050694263847,
+    "peakTurn": 0.16541226884519983,
+    "peakExtent": 0.04946533427385228,
+    "minimumBoom": 2.6289213815691137,
     "peakFovStep": 0
   },
   {
     "name": "E vertical wall",
     "fps": 144,
     "aspect": 2.3333333333333335,
-    "peakTurn": 0.8021396202278611,
-    "peakExtent": 0,
-    "minimumBoom": 2.801508251601523,
+    "peakTurn": 0.07104625107843525,
+    "peakExtent": 0.03575922990499084,
+    "minimumBoom": 2.848776346279114,
     "peakFovStep": 0
   },
   {
@@ -1750,7 +1750,7 @@
     "fps": 144,
     "aspect": 2.3333333333333335,
     "peakTurn": 0.5379698028275308,
-    "peakExtent": 0.0804584941514925,
+    "peakExtent": 0.08045849415149249,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
   },
@@ -1767,7 +1767,7 @@
     "name": "H1 fast close ball crossing behind",
     "fps": 144,
     "aspect": 2.3333333333333335,
-    "peakTurn": 8.017929729290689,
+    "peakTurn": 8.01792972928954,
     "peakExtent": 1.0011241568225233,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
@@ -1777,7 +1777,7 @@
     "fps": 144,
     "aspect": 2.3333333333333335,
     "peakTurn": 0.11161006393261096,
-    "peakExtent": 0.09366318587749518,
+    "peakExtent": 0.09366318587749523,
     "minimumBoom": 2.8792360097775935,
     "peakFovStep": 0
   },
@@ -1786,7 +1786,7 @@
     "fps": 144,
     "aspect": 2.3333333333333335,
     "peakTurn": 8.093944983392097,
-    "peakExtent": 0.41113083791254723,
+    "peakExtent": 0.4111308379125472,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
   },
@@ -1794,18 +1794,18 @@
     "name": "L wall to aerial",
     "fps": 144,
     "aspect": 2.3333333333333335,
-    "peakTurn": 5.885500540691188,
-    "peakExtent": 0.4583674395453368,
-    "minimumBoom": 2.866504775442038,
+    "peakTurn": 0.08921333094816065,
+    "peakExtent": 0.06169017243454302,
+    "minimumBoom": 2.8792360097775904,
     "peakFovStep": 0
   },
   {
     "name": "M wall to floor",
     "fps": 144,
     "aspect": 2.3333333333333335,
-    "peakTurn": 5.10143028960562,
-    "peakExtent": 0.5040133779331216,
-    "minimumBoom": 2.862899333918044,
+    "peakTurn": 0.01448457271568291,
+    "peakExtent": 0.029242823362165028,
+    "minimumBoom": 2.879236009777596,
     "peakFovStep": 0
   },
   {
@@ -1814,7 +1814,7 @@
     "aspect": 2.3333333333333335,
     "peakTurn": 0.07314772411447666,
     "peakExtent": 0.0707990745862324,
-    "minimumBoom": 2.8711591272178523,
+    "minimumBoom": 2.871159127217852,
     "peakFovStep": 0
   },
   {
@@ -1831,7 +1831,7 @@
     "fps": 144,
     "aspect": 2.3333333333333335,
     "peakTurn": 3.7985970765016552,
-    "peakExtent": 0.06899407786885217,
+    "peakExtent": 0.06899407786885216,
     "minimumBoom": 2.879236009777593,
     "peakFovStep": 0
   }

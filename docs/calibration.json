@@ -1,17 +1,17 @@
 [
   {
     "name": "throttle top speed",
-    "value": 14.100016480854823,
+    "value": 14.100016480814126,
     "pass": true
   },
   {
     "name": "boost top speed",
-    "value": 22.999991228787515,
+    "value": 22.999991228779834,
     "pass": true
   },
   {
     "name": "coasting",
-    "value": 12.687526952398288,
+    "value": 12.687526952401695,
     "pass": true
   },
   {
@@ -22,24 +22,24 @@
   {
     "name": "turning radius at 5 m/s",
     "value": {
-      "radius": 2.4839259769062876,
-      "target": 2.381419362242097
+      "radius": 2.4839259772581257,
+      "target": 2.381419362459053
     },
     "pass": true
   },
   {
     "name": "turning radius at 10 m/s",
     "value": {
-      "radius": 4.106291547406884,
-      "target": 3.8600939107111043
+      "radius": 4.106291547754582,
+      "target": 3.8600939110920525
     },
     "pass": true
   },
   {
     "name": "turning radius at 20 m/s",
     "value": {
-      "radius": 9.994321571010094,
-      "target": 9.617672015395703
+      "radius": 9.994321571337494,
+      "target": 9.61767201562607
     },
     "pass": true
   },
@@ -50,7 +50,7 @@
   },
   {
     "name": "hold jump apex",
-    "value": 2.504477024078369,
+    "value": 2.50447678565979,
     "pass": true
   },
   {
@@ -62,7 +62,7 @@
     "name": "jump heights increase",
     "value": [
       1.056627869606018,
-      2.504477024078369,
+      2.50447678565979,
       4.802806377410889
     ],
     "pass": true
@@ -84,39 +84,39 @@
   },
   {
     "name": "front strike 2 m/s",
-    "value": 1.9530369043386693,
+    "value": 1.9528648893475178,
     "pass": true
   },
   {
     "name": "glancing strike 2 m/s",
-    "value": 1.7720199919367825,
+    "value": 1.771707021418019,
     "pass": true
   },
   {
     "name": "front strike 10 m/s",
-    "value": 13.253502072468425,
+    "value": 13.253533512180992,
     "pass": true
   },
   {
     "name": "glancing strike 10 m/s",
-    "value": 11.719401770396308,
+    "value": 11.719179177613805,
     "pass": true
   },
   {
     "name": "front strike 20 m/s",
-    "value": 25.936656711270935,
+    "value": 25.93668304632419,
     "pass": true
   },
   {
     "name": "glancing strike 20 m/s",
-    "value": 22.737863614120418,
+    "value": 22.737621052112953,
     "pass": true
   },
   {
     "name": "floor to vertical wall driving",
     "value": {
-      "maxY": 20.23029136657715,
-      "wallContacts": 144
+      "maxY": 20.12999725341797,
+      "wallContacts": 154
     },
     "pass": true
   },
@@ -124,19 +124,19 @@
     "name": "frame rate independent transforms 30/60/144",
     "value": [
       [
-        0,
+        7.80152120682942e-8,
         0.4562930762767792,
         -12.38643741607666,
         240
       ],
       [
-        0,
+        7.80152120682942e-8,
         0.4562930762767792,
         -12.38643741607666,
         240
       ],
       [
-        0,
+        7.80152120682942e-8,
         0.4562930762767792,
         -12.38643741607666,
         240
@@ -146,13 +146,13 @@
   },
   {
     "name": "reverse throttle cap",
-    "value": 14.100016480848561,
+    "value": 14.100016480845431,
     "pass": true
   },
   {
     "name": "dodge direction 0,1",
     "value": {
-      "x": 0,
+      "x": 4.8642498029494163e-8,
       "z": -5.005555629730225,
       "angular": 1.8666666746139526
     },
@@ -161,7 +161,7 @@
   {
     "name": "dodge direction 0,-1",
     "value": {
-      "x": 0,
+      "x": 4.869617598046716e-8,
       "z": 5.336111068725586,
       "angular": 1.8666666746139526
     },
@@ -171,8 +171,8 @@
     "name": "dodge direction 1,0",
     "value": {
       "x": 5,
-      "z": 2.5898897249021502e-8,
-      "angular": 2.1666667461395264
+      "z": -5.7375959983119174e-8,
+      "angular": 2.166666746139527
     },
     "pass": true
   },
@@ -180,8 +180,8 @@
     "name": "dodge direction -1,0",
     "value": {
       "x": -5,
-      "z": 2.5898897249021502e-8,
-      "angular": 2.1666667461395264
+      "z": -5.73240548362719e-8,
+      "angular": 2.166666746139527
     },
     "pass": true
   },
@@ -197,14 +197,14 @@
   {
     "name": "third jump rejected",
     "value": {
-      "before": 6.4211297035217285,
-      "after": 6.366964817047119
+      "before": 6.42112922668457,
+      "after": 6.366964340209961
     },
     "pass": true
   },
   {
     "name": "landing restores jump",
-    "value": 2.9683194160461426,
+    "value": 2.9683172702789307,
     "pass": true
   },
   {
@@ -279,7 +279,7 @@
   },
   {
     "name": "cars move during celebration",
-    "value": 9.038178170202043,
+    "value": 9.031988063776367,
     "pass": true
   },
   {
@@ -308,7 +308,7 @@
   {
     "name": "powerslide preserves lateral slip",
     "value": [
-      0.07101348042488098,
+      0.07101353257894516,
       3.701942205429077
     ],
     "pass": true
@@ -324,7 +324,7 @@
   {
     "name": "complete default-length live simulation",
     "value": {
-      "seconds": 651.5083333333333,
+      "seconds": 648.25,
       "score": [
         0,
         31
@@ -338,8 +338,8 @@
     "name": "head-on opponent collision",
     "value": {
       "collision": true,
-      "opponentZ": -5.156667709350586,
-      "playerZ": -2.4777605533599854
+      "opponentZ": -5.188661575317383,
+      "playerZ": -2.4325034618377686
     },
     "pass": true
   },
@@ -347,8 +347,8 @@
     "name": "glancing opponent collision",
     "value": {
       "collision": true,
-      "opponentZ": -4.7852864265441895,
-      "playerZ": -2.798718214035034
+      "opponentZ": -4.819324970245361,
+      "playerZ": -2.797753095626831
     },
     "pass": true
   }
