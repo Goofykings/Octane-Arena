@@ -2,6 +2,7 @@ import { CustomTrainingSession } from "./extra/training/custom-session";
 import { RocketPassPanel } from "./ui/rocket-pass-panel";
 import { TrainingEditorPanel } from "./ui/training-editor-panel";
 import { ARENA_CARS, loadArenaCars } from "./render/arena-car-model";
+import { loadToppers } from "./render/toppers";
 // Bots cycle through the polished GLB lineup.
 const BOT_BODIES = Object.keys(ARENA_CARS) as (keyof typeof ARENA_CARS)[];
 import { FirebaseTrainingPacks } from "./network/firebase-training";
@@ -106,7 +107,7 @@ import { controllerName } from "../shared/controller";
 
 async function boot() {
   // The car GLB loads alongside physics init; on failure cars use the procedural body.
-  await Promise.all([RAPIER.init(), loadArenaCars()]);
+  await Promise.all([RAPIER.init(), loadArenaCars(), loadToppers()]);
   const settings = new Settings(),
     garage = new Garage(),
     ui = new UI(),
@@ -2156,6 +2157,7 @@ async function boot() {
       settings.value.showHitboxes && match.phase !== "home",
     );
     if (match.phase === "home" && ui.screen === "garage" && !partySetup) {
+      preview.setPreset(garagePanel.previewPreset, garagePanel.team);
       preview.update(
         innerWidth,
         innerHeight,

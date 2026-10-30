@@ -92,7 +92,7 @@ assert.equal(legacy.current.topper, "crown");
 assert.equal(legacy.owns("body", "wedge"), true);
 assert.equal(legacy.owns("topper", "crown"), true);
 assert.equal(legacy.owns("explosion", "crystal"), true);
-assert.equal(legacy.owns("topper", "violet-ufo"), false);
+assert.equal(legacy.owns("topper", "ufo"), false);
 assert.equal(legacy.owns("topper", "beanie"), false);
 assert.equal(legacy.owns("explosion", "confetti"), false);
 const tab2 = new Garage();
@@ -104,22 +104,22 @@ assert.equal(
   await tab2.claimRocketPass(25, progressionAt(xpAtLevel(25))),
   false,
 );
-assert.equal(new Garage().owns("topper", "violet-ufo"), true);
+assert.equal(new Garage().owns("boost", "dust"), true);
 // Upgrade the previous blanket grant, including already-migrated defaults.
 const oldCatalog = {
   body: inventory.body.map((i) => i.id),
-  topper: inventory.topper
-    .filter(
-      (i) =>
-        ![
-          "none",
-          "emerald-hat",
-          "solar-halo",
-          "frost-crown",
-          "violet-ufo",
-        ].includes(i.id),
-    )
-    .map((i) => i.id),
+  topper: [
+    "top-hat",
+    "cat-ears",
+    "birthday",
+    "pickle",
+    "crown",
+    "cone",
+    "beanie",
+    "halo",
+    "ufo",
+    "pirate",
+  ],
   explosion: inventory.explosion.map((i) => i.id),
 };
 storage.set(
@@ -140,7 +140,7 @@ assert.deepEqual(migratedDefault.owned, {
 });
 assert.equal(
   JSON.parse(storage.get("octane-arena-garage")!).inventoryVersion,
-  3,
+  4,
 );
 assert.deepEqual(
   new Garage().owned,
@@ -162,7 +162,7 @@ storage.set(
 );
 const customized = new Garage();
 assert.ok(
-  customized.owns("topper", "crown") && customized.owns("topper", "pirate"),
+  customized.owns("topper", "crown") && customized.owns("topper", "shark-fin"),
 );
 assert.ok(
   customized.owns("explosion", "crystal") && customized.owns("body", "wedge"),
@@ -215,7 +215,12 @@ assert.equal(
 );
 assert.ok(new Garage().owns("boost", "standard"));
 assert.equal(
-  new Set(S.rewards.flatMap((r) => r.bonus ?? []).map((r) => r.itemId)).size,
+  new Set(
+    S.rewards
+      .flatMap((r) => [r, ...(r.bonus ?? [])])
+      .filter((r) => r.type === "BOOST")
+      .map((r) => r.itemId),
+  ).size,
   9,
 );
 // Non-blanket ownership can represent another explicit source of unlocks.

@@ -2432,6 +2432,23 @@ output {
 .item-card[data-owned="false"] {
   opacity: 0.42;
 }
+.item-card.topper-card {
+  height: 150px;
+  gap: 4px;
+  padding: 6px;
+  font-size: 13px;
+  line-height: 1.2;
+}
+.topper-card img {
+  width: 84px;
+  height: 84px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+.topper-card small { font-size: 10px; letter-spacing: .12em; color: #a7d5e4; }
+.item-card.topper-card[data-owned="false"] { opacity: 1; }
+.topper-card[data-owned="false"] img { filter: saturate(.65); opacity: .8; }
+.topper-card[data-owned="true"] small { color: #95efbf; }
 @media (max-width: 650px) {
   .rocket-pass-heading {
     align-items: flex-start;

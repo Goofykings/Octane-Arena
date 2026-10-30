@@ -6,6 +6,7 @@ export const NETWORK = {
   metadataSeconds: 0.2,
   interpolationSeconds: 0.1,
   extrapolationSeconds: 0.12,
+  remoteExtrapolationSeconds: 0.1,
   bufferSize: 32,
   predictionHistory: 120,
   stalePredictionSeconds: 0.25,

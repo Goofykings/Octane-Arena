@@ -1,4 +1,3 @@
-import RAPIER from "@dimforge/rapier3d-compat";
 import { Quaternion, Vector3 } from "three";
 import { Simulation } from "../physics/simulation";
 import { refreshStaticQueries } from "../physics/queries";
@@ -12,6 +11,7 @@ import type {
   NetPlayer,
 } from "../../shared/network";
 import type { PlayerInput } from "../../shared/player";
+import { RemoteCollisionProxies } from "./remote-collision-proxies";
 
 /** A speculative collision world only. No AI, scoring, damage, demolition,
  * power-up activation or final ball authority runs on a client. */
@@ -29,6 +29,11 @@ export class LocalCarPrediction {
   private tick = -1;
   private now = 0;
   private latest: MatchSnapshot;
+  private readonly remoteProxies: RemoteCollisionProxies;
+  private remoteTimeline?: (id: string, behind: number) => CarSnapshot;
+  setRemoteTimeline(sample: (id: string, behind: number) => CarSnapshot) {
+    this.remoteTimeline = sample;
+  }
   private dropshotView = new DropshotView();
   private dropshotRevision = "";
   private position = new Vector3();
@@ -66,9 +71,10 @@ export class LocalCarPrediction {
     this.car = this.simulation.cars.find((c) => c.id === player.id)!;
     this.simulation.cars.forEach((c) => {
       c.setBody(initial.players.find((p) => p.id === c.id)!.preset.body);
-      if (c !== this.car)
-        c.body.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
     });
+    this.remoteProxies = new RemoteCollisionProxies(
+      this.simulation.cars.filter((c) => c !== this.car),
+    );
     this.simulation.ball.setEnabled(initial.ball.enabled);
     refreshStaticQueries(this.simulation);
   }
@@ -107,6 +113,7 @@ export class LocalCarPrediction {
       Object.assign(s.heatseeker.state, snapshot.heatseeker);
     for (const remote of s.cars) {
       if (remote === this.car) continue;
+      if (this.remoteTimeline) continue; // The fixed-step driver owns these bodies.
       const state = snapshot.cars.find((c) => c.id === remote.id)!;
       remote.body.setEnabled(state.enabled);
       remote.body.setTranslation(state.position, true);
@@ -128,7 +135,7 @@ export class LocalCarPrediction {
       }
     }
   }
-  private step(input: PlayerInput) {
+  private step(input: PlayerInput, behind = 0) {
     const c = this.car,
       s = this.simulation;
     if (!c.body.isEnabled()) return;
@@ -138,8 +145,17 @@ export class LocalCarPrediction {
     // Meaningful remote colliders at every 120-Hz tick. setNextKinematic*
     // supplies swept motion and velocity, rather than packet-sized teleports.
     for (const remote of s.cars) {
-      if (remote === c || !remote.body.isEnabled()) continue;
+      if (remote === c) continue;
       remote.pose.before();
+      if (this.remoteTimeline) {
+        this.remoteProxies.move(
+          remote,
+          this.remoteTimeline(remote.id, behind),
+          this.latest.reset,
+        );
+        continue;
+      }
+      if (!remote.body.isEnabled()) continue;
       const state = this.latest.cars.find((p) => p.id === remote.id)!;
       const lead = Math.max(
         0,
@@ -292,7 +308,7 @@ export class LocalCarPrediction {
           return;
         const sampled = { ...input, usePowerup: false };
         const command = record ? record(input) : sequence;
-        this.step(sampled);
+        this.step(sampled, Math.max(0, this.loop.accumulator - P.dt));
         this.pending.push({ sequence: command, input: sampled });
         if (this.pending.length > N.predictionHistory) this.pending.shift();
       });

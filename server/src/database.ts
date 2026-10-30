@@ -2,7 +2,12 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
-import { inventory, starter, type Preset } from "../../shared/catalog.js";
+import {
+  inventory,
+  starter,
+  retiredToppers,
+  type Preset,
+} from "../../shared/catalog.js";
 import { defaults } from "../../shared/settings.js";
 import {
   titles,
@@ -39,6 +44,20 @@ export class Store {
     )
       this.db.exec("ALTER TABLE presets DROP COLUMN decal");
     this.db.exec("DELETE FROM owned_items WHERE kind='decal'");
+    // Idempotent: keep archived ownership rows, copy canonical entitlements and
+    // migrate just the selected topper field without touching account revisions.
+    this.transaction(() => {
+      for (const [oldId, newId] of Object.entries(retiredToppers)) {
+        this.db
+          .prepare(
+            "INSERT OR IGNORE INTO owned_items SELECT account_id,kind,?,unlocked_at FROM owned_items WHERE kind='topper' AND item_id=?",
+          )
+          .run(newId, oldId);
+        this.db
+          .prepare("UPDATE presets SET topper=? WHERE topper=?")
+          .run(newId, oldId);
+      }
+    });
     if (
       this.db.prepare("SELECT version FROM schema_version").get()!.version !== 1
     )

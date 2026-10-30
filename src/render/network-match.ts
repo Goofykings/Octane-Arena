@@ -1,8 +1,9 @@
 import { LocalCarPrediction } from "../network/local-prediction";
-import {
-  interpolateCar,
-  interpolateTransform,
-} from "../network/snapshot-buffer";
+import { RemoteCarSmoother } from "../network/remote-car-smoother";
+import { RemoteCollisionProxies } from "../network/remote-collision-proxies";
+import { AuthoritativeBallCorrection } from "../network/authoritative-ball-correction";
+import { FixedLoop } from "../physics/loop";
+import RAPIER from "@dimforge/rapier3d-compat";
 import { refreshStaticQueries } from "../physics/queries";
 import { DropshotView } from "../../shared/dropshot";
 import { dropshotBall } from "./dropshot";
@@ -36,10 +37,17 @@ import { BallHeightIndicator } from "../effects/ball-height";
 import type { CameraSettings } from "../game/settings";
 import { ReplayScenePlayback } from "../replay/scene-playback";
 
-/** Snapshot-only visual world. This never advances client-side match physics. */
+/** Snapshot-driven presentation. Only kinematic/query bodies advance here;
+ * gameplay outcomes remain in the host's independent simulation. */
 import { RumbleEffects } from "../effects/rumble";
 import type { RumbleItem } from "../../shared/rumble";
 export class NetworkMatchView {
+  private readonly remoteCars = new RemoteCarSmoother();
+  private readonly collisionProxies: RemoteCollisionProxies;
+  private readonly proxyLoop = new FixedLoop();
+  private proxyAt = performance.now();
+  private readonly ballCorrection = new AuthoritativeBallCorrection();
+  proxySteps = 0;
   spectator: SpectatorCamera | null = null;
   readonly rumbleEffects: RumbleEffects;
   readonly matchId: string;
@@ -117,6 +125,22 @@ export class NetworkMatchView {
       this.group.add(model);
       return model;
     });
+    // This display/query world has no dynamic gameplay authority. Stepping its
+    // kinematic proxies refreshes Rapier sweeps/queries, never scores or impulses.
+    this.collisionProxies = new RemoteCollisionProxies(this.simulation.cars);
+    this.simulation.cars.forEach((car) =>
+      this.collisionProxies.move(
+        car,
+        initial.cars.find((c) => c.id === car.id)!,
+        initial.reset,
+      ),
+    );
+    this.simulation.ball.setBodyType(
+      RAPIER.RigidBodyType.KinematicPositionBased,
+      true,
+    );
+    this.simulation.ball.setTranslation(initial.ball.position, true);
+    this.simulation.ball.setRotation(initial.ball.rotation, true);
     this.effects = this.cars.map(
       (car, i) =>
         new VehicleEffects(
@@ -177,11 +201,23 @@ export class NetworkMatchView {
     input?: Input,
   ) {
     this.ballTrails.quality = quality;
+    const proxyNow = performance.now(),
+      proxyDelta = (proxyNow - this.proxyAt) / 1000;
+    this.proxyAt = proxyNow;
     client.metrics.frame();
     const sample = client.sample();
     if (!sample || !client.latest) return;
-    const { older, newer, alpha } = sample,
+    const remoteSample = client.sampleRemote() ?? sample;
+    const { older, newer } = sample,
       latest = client.latest;
+    const remoteState = (id: string, behind = 0) =>
+      this.remoteCars.sample(
+        id,
+        latest,
+        client.remoteBuffer.sampleAt(remoteSample.time - behind) ??
+          remoteSample,
+      );
+    this.prediction?.setRemoteTimeline(remoteState);
     const predicted = this.prediction?.update(
       latest,
       client.playerInput,
@@ -215,10 +251,12 @@ export class NetworkMatchView {
           d.interpolationDelayMs +
           " ms    BUFFER  " +
           d.bufferLength,
+        "MAX EXTRAPOLATION  " + d.extrapolationLimitMs + " ms",
         "DROPPED  " +
           (d.droppedPackets + d.artificialDrops) +
           "    OUT OF ORDER  " +
           d.outOfOrderPackets,
+        "DUPLICATES  " + d.duplicatePackets,
         "CORRECTION  " +
           number(d.correctionDistance) +
           " m / " +
@@ -249,6 +287,8 @@ export class NetworkMatchView {
     }
     this.match.kickoffFormationId = latest.kickoffFormationId;
     if (this.reset !== latest.reset) {
+      this.collisionProxies.clear();
+      this.proxyLoop.accumulator = 0;
       this.camera.reset();
       this.spectator?.rig.reset();
       this.explosion.reset();
@@ -294,6 +334,8 @@ export class NetworkMatchView {
     }
     if (this.replayView.active) {
       this.replayView.stop();
+      this.collisionProxies.clear();
+      this.proxyLoop.accumulator = 0;
       this.camera.reset();
       this.spectator?.resume();
     }
@@ -309,41 +351,51 @@ export class NetworkMatchView {
           "pulse",
       );
     this.phase = latest.phase;
+    const states = this.simulation.cars.map((car) =>
+      predicted && car.id === this.localId ? predicted : remoteState(car.id),
+    );
+    const ballSample = client.buffer.sampleAt(remoteSample.time) ?? sample;
+    const ballPose = this.ballCorrection.sample(latest, ballSample);
+    if (this.prediction && latest.ball.enabled)
+      this.ballCorrection.blendSmallPrediction(
+        ballPose,
+        this.prediction.ballFrame,
+        this.prediction.interactionBlend,
+      );
+    this.simulation.ball.setEnabled(latest.ball.enabled);
+    this.proxyLoop.advance(proxyDelta, () => {
+      const behind = Math.max(0, this.proxyLoop.accumulator - P.dt);
+      this.simulation.cars.forEach((car) => {
+        const state =
+          predicted && car.id === this.localId
+            ? predicted
+            : remoteState(car.id, behind);
+        this.collisionProxies.move(car, state, latest.reset);
+      });
+      const fixedBall = this.ballCorrection.sample(
+        latest,
+        client.buffer.sampleAt(remoteSample.time - behind) ?? ballSample,
+      );
+      if (this.prediction && latest.ball.enabled)
+        this.ballCorrection.blendSmallPrediction(
+          fixedBall,
+          this.prediction.ballFrame,
+          this.prediction.interactionBlend,
+        );
+      this.simulation.ball.setNextKinematicTranslation(fixedBall.position);
+      this.simulation.ball.setNextKinematicRotation(fixedBall.rotation);
+      this.simulation.world.step();
+      this.proxySteps++;
+    });
     this.simulation.cars.forEach((car, i) => {
-      let b = newer.cars.find((c) => c.id === car.id)!;
-      const a = older.cars.find((c) => c.id === car.id) ?? b,
-        model = this.cars[i];
-      const authoritative = latest.cars.find((c) => c.id === car.id)!;
-      b =
-        predicted && car.id === this.localId
-          ? predicted
-          : authoritative.teleportSequence !== b.teleportSequence ||
-              authoritative.enabled !== b.enabled
-            ? authoritative
-            : interpolateCar(a, b, sample);
+      const model = this.cars[i];
+      const b = states[i];
       if (model.visible && !b.enabled)
         this.demos[i].trigger(new T.Vector3().copy(b.position));
       if (!model.visible && b.enabled && i === 0) this.camera.reset();
       model.position.copy(b.position);
       model.quaternion.copy(b.rotation).normalize();
       model.visible = b.enabled;
-      const proxy = this.prediction?.proxyPose(car.id);
-      const blend = this.prediction?.interactionBlend ?? 0;
-      if (
-        proxy &&
-        blend > 0 &&
-        new T.Vector3()
-          .copy(proxy.position)
-          .distanceTo(this.prediction!.ballFrame.position) < 9
-      ) {
-        model.position.lerp(proxy.position, blend);
-        model.quaternion.slerp(new T.Quaternion().copy(proxy.rotation), blend);
-      }
-      car.body.setTranslation(model.position, true);
-      car.body.setRotation(model.quaternion, true);
-      car.body.setLinvel(b.velocity, true);
-      car.body.setAngvel(b.angularVelocity ?? { x: 0, y: 0, z: 0 }, true);
-      car.body.setEnabled(b.enabled);
       car.boost = b.boost;
       car.boosting = b.boosting;
       car.supersonic = b.supersonic;
@@ -398,33 +450,12 @@ export class NetworkMatchView {
       this.jumps[i].update(car, dt, b.enabled, this.camera.camera.position);
       this.demos[i].update(dt);
     });
-    const ballPose = interpolateTransform(
-      older.ball,
-      newer.ball,
-      alpha,
-      sample.extrapolation,
-    );
     this.ball.position.copy(ballPose.position);
     this.ball.quaternion.copy(ballPose.rotation).normalize();
-    if (
-      this.prediction &&
-      this.prediction.interactionBlend > 0 &&
-      latest.ball.enabled
-    ) {
-      this.ball.position.lerp(
-        this.prediction.ballFrame.position,
-        this.prediction.interactionBlend,
-      );
-      this.ball.quaternion.slerp(
-        this.prediction.ballFrame.rotation,
-        this.prediction.interactionBlend,
-      );
-    }
     this.ball.visible = latest.ball.enabled;
     this.simulation.ball.setEnabled(latest.ball.enabled);
     this.simulation.ball.setLinvel(ballPose.velocity, true);
     this.simulation.ball.setAngvel(ballPose.angularVelocity, true);
-    this.simulation.ball.setTranslation(this.ball.position, true);
     animateBall(this.ball, time);
     heatseekerBall(this.ball, latest.heatseeker, dt);
     dropshotBall(this.ball, latest.dropshot, time);

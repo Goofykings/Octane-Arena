@@ -1,0 +1,163 @@
+[
+  {
+    "id": "birthday",
+    "slug": "birthday-hat",
+    "root": "BirthdayHat",
+    "triangles": 2132,
+    "materials": [
+      "Ice blue tinsel",
+      "Pearl party paper",
+      "Polished warm gold",
+      "Sapphire blue"
+    ],
+    "glb": "models/toppers/birthday-hat.glb",
+    "thumbnail": "images/toppers/birthday-hat.png"
+  },
+  {
+    "id": "cat-ears",
+    "slug": "cat-ears",
+    "root": "CatEars",
+    "triangles": 1248,
+    "materials": [
+      "Polished warm gold",
+      "Recessed amber gold"
+    ],
+    "glb": "models/toppers/cat-ears.glb",
+    "thumbnail": "images/toppers/cat-ears.png"
+  },
+  {
+    "id": "cone",
+    "slug": "traffic-cone",
+    "root": "TrafficCone",
+    "triangles": 908,
+    "materials": [
+      "Reflective ivory",
+      "Safety orange"
+    ],
+    "glb": "models/toppers/traffic-cone.glb",
+    "thumbnail": "images/toppers/traffic-cone.png"
+  },
+  {
+    "id": "halo",
+    "slug": "halo",
+    "root": "Halo",
+    "triangles": 1168,
+    "materials": [
+      "Halo luminous core",
+      "Halo warm gold"
+    ],
+    "glb": "models/toppers/halo.glb",
+    "thumbnail": "images/toppers/halo.png"
+  },
+  {
+    "id": "beanie",
+    "slug": "propeller-hat",
+    "root": "PropellerHat",
+    "triangles": 1696,
+    "materials": [
+      "Arcade crimson",
+      "Cap green",
+      "Polished warm gold",
+      "Sapphire blue",
+      "Sunshine yellow"
+    ],
+    "glb": "models/toppers/propeller-hat.glb",
+    "thumbnail": "images/toppers/propeller-hat.png"
+  },
+  {
+    "id": "ufo",
+    "slug": "ufo",
+    "root": "UFO",
+    "triangles": 3696,
+    "materials": [
+      "Brushed titanium",
+      "Ion cyan",
+      "Midnight saucer alloy",
+      "Opaque blue dome",
+      "UFO beam"
+    ],
+    "glb": "models/toppers/ufo.glb",
+    "thumbnail": "images/toppers/ufo.png"
+  },
+  {
+    "id": "top-hat",
+    "slug": "top-hat",
+    "root": "TopHat",
+    "triangles": 2024,
+    "materials": [
+      "Black satin band",
+      "Charcoal felt"
+    ],
+    "glb": "models/toppers/top-hat.glb",
+    "thumbnail": "images/toppers/top-hat.png"
+  },
+  {
+    "id": "banana",
+    "slug": "banana",
+    "root": "Banana",
+    "triangles": 808,
+    "materials": [
+      "Banana cream",
+      "Banana stem",
+      "Peel inner cream",
+      "Pixel black",
+      "Sunshine yellow"
+    ],
+    "glb": "models/toppers/banana.glb",
+    "thumbnail": "images/toppers/banana.png"
+  },
+  {
+    "id": "shark-fin",
+    "slug": "shark-fin",
+    "root": "SharkFin",
+    "triangles": 800,
+    "materials": [
+      "Ocean blue slate"
+    ],
+    "glb": "models/toppers/shark-fin.glb",
+    "thumbnail": "images/toppers/shark-fin.png"
+  },
+  {
+    "id": "pixel-sunglasses",
+    "slug": "pixel-sunglasses",
+    "root": "PixelSunglasses",
+    "triangles": 240,
+    "materials": [
+      "Pixel black",
+      "Reflective ivory",
+      "Smoky dark lenses"
+    ],
+    "glb": "models/toppers/pixel-sunglasses.glb",
+    "thumbnail": "images/toppers/pixel-sunglasses.png"
+  },
+  {
+    "id": "octane-fries",
+    "slug": "octane-fries",
+    "root": "OctaneFries",
+    "triangles": 1766,
+    "materials": [
+      "Arcade crimson",
+      "Octane Fries baked white lettering",
+      "Sunshine yellow",
+      "Toasted fry edges"
+    ],
+    "glb": "models/toppers/octane-fries.glb",
+    "thumbnail": "images/toppers/octane-fries.png"
+  },
+  {
+    "id": "crown",
+    "slug": "royal-crown",
+    "root": "RoyalCrown",
+    "triangles": 5448,
+    "materials": [
+      "Emerald",
+      "Pale ice jewel",
+      "Polished warm gold",
+      "Royal crimson velvet",
+      "Ruby",
+      "Sapphire"
+    ],
+    "glb": "models/toppers/royal-crown.glb",
+    "thumbnail": "images/toppers/royal-crown.png"
+  }
+]

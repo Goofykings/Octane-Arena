@@ -4,6 +4,8 @@ import {
   starter,
   type Preset,
   type CosmeticSlot,
+  migratePreset,
+  selectableTopper,
 } from "../../shared/catalog";
 import {
   starterOwnership,
@@ -53,7 +55,8 @@ export class Garage {
         const ids = new Set<string>();
         this.presets = data.presets
           .slice(0, 24)
-          .map((raw: Record<string, unknown>, i: number) => {
+          .map((saved: Record<string, unknown>, i: number) => {
+            const raw = migratePreset(saved) as Record<string, unknown>;
             const p = starter();
             p.id =
               typeof raw.id === "string" &&
@@ -93,17 +96,21 @@ export class Garage {
   private mergeOwnership(data: any) {
     const slots = ["body", "topper", "explosion", "boost"] as const;
     const version = Number(data.inventoryVersion) || 0;
-    const newToppers = new Set([
-      "emerald-hat",
-      "solar-halo",
-      "frost-crown",
-      "violet-ufo",
-    ]);
+    // Freeze the historical catalog: new items must not change v1 grant detection.
+    const oldTopperIds = [
+      "top-hat",
+      "cat-ears",
+      "birthday",
+      "pickle",
+      "crown",
+      "cone",
+      "beanie",
+      "halo",
+      "ufo",
+      "pirate",
+    ];
     const legacyItems = (slot: (typeof slots)[number]) =>
-      inventory[slot].filter(
-        (item) =>
-          item.id !== "none" && !(slot === "topper" && newToppers.has(item.id)),
-      );
+      slot === "topper" ? oldTopperIds.map((id) => ({ id })) : inventory[slot];
     // Version 1's migration automatically granted the complete old catalog.
     // Remove that blanket starting grant, preserving claims below and anything
     // actually customized in a saved preset. Partial explicit ownership stays valid.
@@ -126,17 +133,36 @@ export class Garage {
             )
           : saved;
       const customized =
-        version < (slot === "boost" ? 3 : 2) && Array.isArray(data.presets)
+        version < (slot === "topper" ? 4 : slot === "boost" ? 3 : 2) &&
+        Array.isArray(data.presets)
           ? data.presets.map((preset: any) => preset?.[slot])
           : [];
-      const valid = [...kept, ...customized].filter(
-        (id: unknown) =>
-          inventory[slot].some((item) => item.id === id) && id !== "none",
-      );
+      const valid = [...kept, ...customized]
+        .map((id) => (slot === "topper" ? selectableTopper(id) : id))
+        .filter(
+          (id: unknown) =>
+            inventory[slot].some((item) => item.id === id) && id !== "none",
+        );
       this.owned[slot] = [...new Set([...this.owned[slot], ...valid])];
     }
     const claims = data.claimedRocketPass?.["season-1"];
     if (Array.isArray(claims)) {
+      // Old high-level receipts represented colour variants of these same shapes.
+      // Preserve those entitlements as well as the replacement season rewards.
+      if (version < 4) {
+        const oldRewards: Record<number, string> = {
+          22: "top-hat",
+          23: "halo",
+          24: "crown",
+          25: "ufo",
+        };
+        for (const level of [22, 23, 24, 25])
+          if (
+            claims.includes(level) &&
+            !this.owned.topper.includes(oldRewards[level])
+          )
+            this.owned.topper.push(oldRewards[level]);
+      }
       this.claimedRocketPass["season-1"] = [
         ...new Set([
           ...this.claimedRocketPass["season-1"],
@@ -251,7 +277,7 @@ export class Garage {
         "octane-arena-garage",
         JSON.stringify({
           version: 1,
-          inventoryVersion: 3,
+          inventoryVersion: 4,
           owned: this.owned,
           claimedRocketPass: this.claimedRocketPass,
           presets: this.presets,

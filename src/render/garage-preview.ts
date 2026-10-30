@@ -1,6 +1,7 @@
 import * as T from "three";
 import { carModel, ballModel, disposeModel, material } from "./models";
 import { isArenaCarBody } from "./arena-car-model";
+import { animateTopper } from "./toppers";
 import type { Preset, Team } from "../game/inventory";
 import { VehicleEffects } from "../effects/vehicle-effects";
 import { GoalExplosion } from "../effects/goal-explosion";
@@ -171,6 +172,12 @@ export class GaragePreview {
     const reduced = this.motionPreference.matches;
     this.car.scale.setScalar(reduced ? 1 : 0.97 + 0.03 * ease);
     const topper = this.car.userData.topper as T.Object3D | undefined;
+    // A short cosmetic airborne/landing demonstration; never moves the actual car.
+    animateTopper(
+      topper,
+      dt,
+      reduced || category !== "topper" || this.time % 5 > 2.5,
+    );
     if (topper)
       topper.position.y =
         this.topperY +
@@ -203,6 +210,10 @@ export class GaragePreview {
       this.goalExplosion.update(dt);
       this.camera.position.set(7, 4, 8);
       this.camera.lookAt(0, 0.6, -2);
+    } else if (category === "topper") {
+      // Closer roof inspection keeps small details and the carton decal readable.
+      this.camera.position.set(1.35, 1.3, 1.95);
+      this.camera.lookAt(0, 0.6, 0);
     } else {
       this.camera.position.set(2.15, 1.5, 3.15);
       this.camera.lookAt(0, 0.25, 0);
@@ -210,6 +221,7 @@ export class GaragePreview {
     this.camera.aspect = width / height;
     this.camera.setViewOffset(width, height, -width * 0.2, 0, width, height);
     this.camera.updateProjectionMatrix();
+    this.mouseFocus.y = category === "topper" ? 0.6 : 0.25;
     if (category !== "explosion")
       this.mouseOrbit.apply(
         this.camera,

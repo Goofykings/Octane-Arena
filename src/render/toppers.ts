@@ -1,176 +1,270 @@
-import * as T from "three";
-/** Small original primitive sculptures. All bases use local Y=0 so the same
- * roof attachment works on every body. No textures, loaders or extra lights. */
-export function createTopper(id: string): T.Group {
-  const variants: Record<string, [string, number]> = {
-    "emerald-hat": ["top-hat", 0x50efb0],
-    "solar-halo": ["halo", 0xffcf56],
-    "frost-crown": ["crown", 0xa2eaff],
-    "violet-ufo": ["ufo", 0xbb8bff],
-  };
-  if (variants[id]) {
-    const [base, color] = variants[id];
-    const variant = createTopper(base);
-    variant.name = "topper-" + id;
-    variant.traverse((o) => {
-      if (o instanceof T.Mesh)
-        (o.material as T.MeshStandardMaterial).color.setHex(color);
-    });
-    return variant;
-  }
+﻿import * as T from "three";
+import type { GLTF } from "three/addons/loaders/GLTFLoader.js";
+import { selectableTopper } from "../../shared/catalog";
+import { reflections } from "./vector-model";
+import { polishMaterial } from "./material-polish";
+/** Blender-native metres, roof origin Y=0, forward -Z. */
+export const TOPPER_ASSETS = {
+  birthday: { slug: "birthday-hat", root: "BirthdayHat" },
+  "cat-ears": { slug: "cat-ears", root: "CatEars" },
+  cone: { slug: "traffic-cone", root: "TrafficCone" },
+  halo: { slug: "halo", root: "Halo" },
+  beanie: { slug: "propeller-hat", root: "PropellerHat" },
+  ufo: { slug: "ufo", root: "UFO" },
+  "top-hat": { slug: "top-hat", root: "TopHat" },
+  banana: { slug: "banana", root: "Banana" },
+  "shark-fin": { slug: "shark-fin", root: "SharkFin" },
+  "pixel-sunglasses": { slug: "pixel-sunglasses", root: "PixelSunglasses" },
+  "octane-fries": { slug: "octane-fries", root: "OctaneFries" },
+  crown: { slug: "royal-crown", root: "RoyalCrown" },
+} as const;
+export type TopperId = keyof typeof TOPPER_ASSETS;
+const assets = new Map<TopperId, T.Object3D>();
+let loading: Promise<void> | undefined;
+export function topperThumbnail(id: string, base = import.meta.env.BASE_URL) {
+  const entry = TOPPER_ASSETS[id as TopperId];
+  return entry ? `${base}images/toppers/${entry.slug}.png` : null;
+}
+export function prepareTopper(gltf: GLTF, id: TopperId) {
+  const object = gltf.scene.getObjectByName(TOPPER_ASSETS[id].root);
+  if (!object) throw Error(`Missing topper root: ${id}`);
+  const bounds = new T.Box3().setFromObject(object);
+  if (
+    bounds.isEmpty() ||
+    bounds.getSize(new T.Vector3()).length() > 0.85 ||
+    bounds.min.y < -0.025
+  )
+    throw Error(
+      `Invalid topper dimensions: ${id} (${bounds.min.toArray()} .. ${bounds.max.toArray()})`,
+    );
+  if (id === "beanie" && !object.getObjectByName("Propeller"))
+    throw Error("Missing Propeller node");
+  if (
+    id === "ufo" &&
+    (!object.getObjectByName("Body") || !object.getObjectByName("Beam"))
+  )
+    throw Error("Missing UFO Body/Beam nodes");
+  object.traverse((o) => {
+    if (o instanceof T.Mesh) {
+      o.geometry.userData.shared = true;
+      o.castShadow = o.name !== "Beam";
+      o.receiveShadow = false;
+    }
+  });
+  return object;
+}
+export function setTopperAsset(id: TopperId, object: T.Object3D | null) {
+  if (object) assets.set(id, object);
+  else assets.delete(id);
+}
+export async function loadToppers(base = import.meta.env.BASE_URL) {
+  return (loading ??= (async () => {
+    const { GLTFLoader } = await import("three/addons/loaders/GLTFLoader.js");
+    const loader = new GLTFLoader();
+    await Promise.all(
+      Object.entries(TOPPER_ASSETS).map(async ([key, entry]) => {
+        const id = key as TopperId;
+        try {
+          setTopperAsset(
+            id,
+            prepareTopper(
+              await loader.loadAsync(`${base}models/toppers/${entry.slug}.glb`),
+              id,
+            ),
+          );
+        } catch (error) {
+          console.warn(
+            `Topper ${id} unavailable; using lightweight fallback`,
+            error,
+          );
+        }
+      }),
+    );
+  })());
+}
+/** Buffers and textures are shared, materials and transforms belong to each instance. */
+export function createTopper(raw: string): T.Group {
+  const id = selectableTopper(raw) as string;
   const root = new T.Group();
   root.name = "topper-" + id;
+  root.userData.topperId = id;
+  if (id === "none") return root;
+  const template = assets.get(id as TopperId);
+  if (template) {
+    const object = template.clone(true),
+      materials = new Map<T.Material, T.Material>();
+    object.traverse((o) => {
+      if (!(o instanceof T.Mesh)) return;
+      const clone = (source: T.Material) => {
+        let mat = materials.get(source);
+        if (!mat) {
+          mat = source.clone();
+          mat.userData.shared = false;
+          if (mat instanceof T.MeshStandardMaterial) {
+            mat.envMap = reflections();
+            mat.envMapIntensity = 0.75;
+            if (mat.name !== "UFO beam") polishMaterial(mat, "car");
+          }
+          materials.set(source, mat);
+        }
+        return mat;
+      };
+      o.material = Array.isArray(o.material)
+        ? o.material.map(clone)
+        : clone(o.material);
+    });
+    root.add(object);
+    root.userData.assetLoaded = true;
+    const beam = object.getObjectByName("Beam") as T.Mesh | undefined;
+    if (beam) {
+      const mat = beam.material as T.MeshStandardMaterial;
+      mat.transparent = true;
+      mat.opacity = 0.14;
+      mat.depthWrite = false;
+      mat.depthTest = true;
+      mat.side = T.FrontSide;
+      mat.blending = T.AdditiveBlending;
+      beam.renderOrder = 2;
+      beam.castShadow = false;
+    }
+  } else {
+    addFallback(root, id);
+    root.userData.assetLoaded = false;
+  }
+  const propeller = root.getObjectByName("Propeller");
+  root.traverse((o) => {
+    if (o instanceof T.Mesh)
+      for (const mat of Array.isArray(o.material) ? o.material : [o.material]) {
+        mat.userData.baseOpacity = mat.opacity;
+        mat.userData.baseTransparent = mat.transparent;
+      }
+  });
+  if (propeller) root.userData.rotor = { node: propeller, speed: 0 };
+  return root;
+}
+/** Existing grounded flags drive local, remote and replay animation. No network data. */
+export function animateTopper(
+  topper: T.Object3D | undefined,
+  dt: number,
+  grounded: boolean,
+) {
+  const rotor = topper?.userData.rotor as
+    | { node: T.Object3D; speed: number }
+    | undefined;
+  if (!rotor || !Number.isFinite(dt) || dt <= 0) return;
+  const elapsed = Math.min(dt, 0.1),
+    target = grounded ? 0 : 15,
+    rate = grounded ? 2.6 : 5;
+  const decay = Math.exp(-rate * elapsed);
+  rotor.node.rotation.y =
+    (rotor.node.rotation.y +
+      target * elapsed +
+      ((rotor.speed - target) * (1 - decay)) / rate) %
+    (2 * Math.PI);
+  rotor.speed = target + (rotor.speed - target) * decay;
+}
+/** Emergency silhouettes, used only when a GLB fails to load. */
+function addFallback(root: T.Group, id: string) {
   const mats = new Map<number, T.MeshStandardMaterial>();
   const add = (
     geo: T.BufferGeometry,
-    color: number,
     x: number,
     y: number,
     z = 0,
+    color = 0xe6b949,
   ) => {
     let mat = mats.get(color);
     if (!mat) {
-      mat = new T.MeshStandardMaterial({
-        color,
-        roughness: 0.48,
-        metalness: 0.15,
-      });
+      mat = new T.MeshStandardMaterial({ color, roughness: 0.5 });
       mats.set(color, mat);
     }
     const mesh = new T.Mesh(geo, mat);
     mesh.position.set(x, y, z);
-    mesh.castShadow = true;
     root.add(mesh);
     return mesh;
   };
-  const box = (
-    w: number,
-    h: number,
-    d: number,
-    c: number,
-    x: number,
-    y: number,
-    z = 0,
-  ) => add(new T.BoxGeometry(w, h, d), c, x, y, z);
-  const cyl = (r: number, h: number, c: number, x: number, y: number, z = 0) =>
-    add(new T.CylinderGeometry(r, r, h, 12), c, x, y, z);
-  const ball = (r: number, c: number, x: number, y: number, z = 0) =>
-    add(new T.SphereGeometry(r, 10, 8), c, x, y, z);
-  const cone = (r: number, h: number, c: number, x: number, y: number, z = 0) =>
-    add(new T.ConeGeometry(r, h, 12), c, x, y, z);
+  const disk = (r: number, h: number, y: number, color?: number) =>
+    add(new T.CylinderGeometry(r, r, h, 24), 0, y, 0, color);
   switch (id) {
-    case "top-hat":
-      cyl(0.17, 0.025, 0x171b2b, 0, 0.0125);
-      cyl(0.115, 0.22, 0x171b2b, 0, 0.13);
-      cyl(0.118, 0.04, 0xe25462, 0, 0.055);
-      break;
-    case "cat-ears":
-      for (const x of [-0.15, 0.15]) {
-        const ear = add(new T.ConeGeometry(0.12, 0.2, 3), 0x283443, x, 0.1);
-        ear.scale.z = 0.45;
-        const inner = add(
-          new T.ConeGeometry(0.07, 0.12, 3),
-          0xffa5bc,
-          x,
-          0.105,
-          -0.04,
-        );
-        inner.scale.z = 0.2;
-      }
-      break;
-    case "birthday":
-      cone(0.13, 0.32, 0x9b72e9, 0, 0.16);
-      ball(0.045, 0xffdc72, 0, 0.34);
-      for (let i = 0; i < 6; i++) {
-        const a = (i * Math.PI) / 3;
-        ball(
-          0.022,
-          i % 2 ? 0x75e4db : 0xffda72,
-          Math.cos(a) * 0.087,
-          0.1,
-          Math.sin(a) * 0.087,
-        );
-      }
-      break;
-    case "pickle": {
-      const p = ball(0.09, 0x4f963d, 0, 0.165);
-      p.scale.set(0.9, 1.8, 0.9);
-      for (let i = 0; i < 8; i++) {
-        const a = i * 2.4;
-        ball(
-          0.015,
-          0x87bc50,
-          Math.cos(a) * 0.076,
-          0.07 + (i % 4) * 0.055,
-          Math.sin(a) * 0.076,
-        );
-      }
+    case "halo": {
+      const m = add(new T.TorusGeometry(0.16, 0.017, 8, 32), 0, 0.15);
+      m.rotation.x = Math.PI / 2;
+      m.material.emissive.setHex(0xffbc30);
       break;
     }
-    case "crown":
-      cyl(0.15, 0.08, 0xe6b946, 0, 0.04);
-      for (let i = 0; i < 5; i++) {
-        const a = (i * Math.PI * 2) / 5;
-        cone(
-          0.045,
-          0.12,
-          0xf9d77d,
-          Math.cos(a) * 0.12,
-          0.13,
-          Math.sin(a) * 0.12,
-        );
-        ball(0.022, 0x61d4ed, Math.cos(a) * 0.125, 0.07, Math.sin(a) * 0.125);
+    case "cat-ears":
+      for (const x of [-0.11, 0.11]) {
+        const m = add(new T.ConeGeometry(0.09, 0.19, 3), x, 0.095);
+        m.scale.z = 0.65;
       }
       break;
     case "cone":
-      box(0.29, 0.025, 0.29, 0x333b45, 0, 0.0125);
-      cone(0.105, 0.29, 0xff8836, 0, 0.17);
-      cyl(0.069, 0.035, 0xf6efe1, 0, 0.15);
+      disk(0.145, 0.025, 0.0125, 0xff791f);
+      add(new T.ConeGeometry(0.1, 0.29, 24), 0, 0.17, 0, 0xff791f);
+      break;
+    case "birthday":
+      add(new T.ConeGeometry(0.12, 0.31, 24), 0, 0.155, 0, 0x9bd5ff);
+      break;
+    case "top-hat":
+      disk(0.17, 0.024, 0.012, 0x18202b);
+      disk(0.115, 0.23, 0.13, 0x18202b);
       break;
     case "beanie": {
       add(
-        new T.SphereGeometry(0.15, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
-        0x53bdba,
+        new T.SphereGeometry(0.14, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2),
         0,
         0,
+        0,
+        0x328ddd,
       );
-      cyl(0.017, 0.11, 0xc9d9e4, 0, 0.19);
-      box(0.39, 0.015, 0.065, 0xf8ca62, 0, 0.25);
-      ball(0.028, 0xf37770, 0, 0.26);
-      break;
-    }
-    case "halo": {
-      cyl(0.008, 0.16, 0x809aad, 0, 0.08, 0.07);
-      const ring = add(
-        new T.TorusGeometry(0.17, 0.022, 6, 20),
-        0xffe89b,
-        0,
-        0.18,
-      );
-      ring.rotation.x = Math.PI / 2;
+      const pivot = new T.Group();
+      pivot.name = "Propeller";
+      pivot.position.y = 0.21;
+      const blade = add(new T.BoxGeometry(0.34, 0.01, 0.034), 0, 0);
+      pivot.add(blade);
+      root.add(pivot);
       break;
     }
     case "ufo": {
-      const saucer = ball(0.19, 0xabbac9, 0, 0.08);
-      saucer.scale.y = 0.3;
-      const dome = ball(0.09, 0x75e5cf, 0, 0.12);
-      dome.scale.y = 0.7;
-      for (let i = 0; i < 6; i++) {
-        const a = (i * Math.PI) / 3;
-        ball(0.02, 0xffd77a, Math.cos(a) * 0.16, 0.08, Math.sin(a) * 0.16);
-      }
+      const m = add(new T.SphereGeometry(0.18, 24, 12), 0, 0.2, 0, 0x34475f);
+      m.scale.y = 0.3;
       break;
     }
-    case "pirate": {
-      const brim = ball(0.2, 0x262533, 0, 0.05);
-      brim.scale.set(1, 0.22, 0.75);
-      const cap = add(new T.ConeGeometry(0.18, 0.2, 3), 0x262533, 0, 0.11);
-      cap.rotation.y = Math.PI;
-      cap.scale.z = 0.6;
-      ball(0.034, 0xeee9d7, 0, 0.1, -0.095);
-      box(0.08, 0.012, 0.012, 0xeee9d7, 0, 0.065, -0.1);
+    case "banana": {
+      const m = add(new T.CapsuleGeometry(0.035, 0.23, 6, 12), 0, 0.155);
+      m.rotation.z = -0.15;
       break;
     }
+    case "shark-fin": {
+      const shape = new T.Shape();
+      shape.moveTo(-0.1, 0);
+      shape.quadraticCurveTo(-0.04, 0.19, 0.12, 0.27);
+      shape.quadraticCurveTo(0.04, 0.1, 0.12, 0);
+      const m = add(
+        new T.ExtrudeGeometry(shape, {
+          depth: 0.025,
+          bevelEnabled: false,
+          curveSegments: 12,
+        }),
+        0,
+        0,
+        0,
+        0x34516b,
+      );
+      m.rotation.y = Math.PI / 2;
+      break;
+    }
+    case "pixel-sunglasses":
+      add(new T.BoxGeometry(0.32, 0.08, 0.03), 0, 0.06, 0, 0x16202c);
+      break;
+    case "octane-fries":
+      add(new T.BoxGeometry(0.22, 0.15, 0.11), 0, 0.075, 0, 0xc92c3e);
+      for (let i = 0; i < 5; i++)
+        add(new T.BoxGeometry(0.025, 0.2, 0.025), (i - 2) * 0.04, 0.18);
+      break;
+    case "crown":
+      disk(0.145, 0.08, 0.04);
+      add(new T.SphereGeometry(0.13, 20, 12), 0, 0.13, 0, 0xa31c3c);
+      break;
   }
-  return root;
 }

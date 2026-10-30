@@ -82,18 +82,16 @@ export const inventory = {
     { id: "none", name: "None" },
     { id: "top-hat", name: "Top Hat" },
     { id: "cat-ears", name: "Cat Ears" },
-    { id: "birthday", name: "Birthday Hat" },
-    { id: "pickle", name: "Pickle" },
-    { id: "crown", name: "Crown" },
+    { id: "birthday", name: "Birthday Party Hat" },
+    { id: "banana", name: "Banana" },
+    { id: "crown", name: "Royal Crown" },
     { id: "cone", name: "Traffic Cone" },
-    { id: "beanie", name: "Propeller Beanie" },
-    { id: "halo", name: "Halo Ring" },
-    { id: "ufo", name: "Tiny UFO" },
-    { id: "pirate", name: "Pirate Hat" },
-    { id: "emerald-hat", name: "Emerald Top Hat" },
-    { id: "solar-halo", name: "Solar Halo" },
-    { id: "frost-crown", name: "Frost Crown" },
-    { id: "violet-ufo", name: "Violet UFO" },
+    { id: "beanie", name: "Propeller Hat" },
+    { id: "halo", name: "Halo" },
+    { id: "ufo", name: "UFO" },
+    { id: "shark-fin", name: "Shark Fin" },
+    { id: "pixel-sunglasses", name: "Pixel Sunglasses" },
+    { id: "octane-fries", name: "French Fries" },
   ],
   explosion: [
     { id: "pulse", name: "Pulse" },
@@ -185,6 +183,19 @@ export const goalExplosionId = (value: unknown): string =>
 /** Ion and the retired Cargo/Slicer/Wraith shells migrate to the default Vector.
  * Any other unknown body is left alone so validation still rejects it. */
 const retiredBodies = ["ion", "cargo", "slicer", "wraith"];
+/** Retired IDs remain readable in saves, accounts and older peer profiles. */
+export const retiredToppers: Readonly<Record<string, string>> = {
+  pickle: "banana",
+  pirate: "shark-fin",
+  "emerald-hat": "top-hat",
+  "solar-halo": "halo",
+  "frost-crown": "crown",
+  "violet-ufo": "ufo",
+};
+export const selectableTopper = (value: unknown): unknown =>
+  typeof value === "string" && Object.hasOwn(retiredToppers, value)
+    ? retiredToppers[value]
+    : value;
 export const selectableBody = (value: unknown): unknown =>
   retiredBodies.includes(value as string) ? "vector" : value;
 /** Narrow legacy migration only. The rest of preset validation remains strict. */
@@ -194,6 +205,7 @@ export function migratePreset(raw: unknown): unknown {
   return {
     ...preset,
     body: selectableBody(preset.body),
+    topper: selectableTopper(preset.topper),
     explosion: goalExplosionId(preset.explosion),
   };
 }

@@ -9,6 +9,7 @@ import {
   type CosmeticSlot,
 } from "../game/inventory";
 import { icon } from "./icons";
+import { topperThumbnail } from "../render/toppers";
 const escapeText = (value: string) =>
   value.replace(
     /[&<>"']/g,
@@ -22,6 +23,14 @@ export class GaragePanel {
   team: Team = "blue";
   category: CosmeticSlot | "paint" = "body";
   customizing = false;
+  private previewTopper: string | null = null;
+  get previewPreset() {
+    return this.customizing &&
+      this.category === "topper" &&
+      this.previewTopper !== null
+      ? { ...this.data.current, topper: this.previewTopper }
+      : this.data.current;
+  }
   host = document.querySelector<HTMLElement>("#garage-screen")!;
   constructor(
     public data: Garage,
@@ -46,13 +55,12 @@ export class GaragePanel {
                   )
                   .join("")
               : inventory[this.category]
-                  .filter((item) =>
-                    this.data.owns(this.category as CosmeticSlot, item.id),
-                  )
-                  .map(
+                  .filter(
                     (item) =>
-                      `<button class="item-card" data-item="${item.id}" aria-pressed="${p[this.category as CosmeticSlot] === item.id}" data-owned="${this.data.owns(this.category as CosmeticSlot, item.id)}">${icon(this.category)}<span>${item.name}</span></button>`,
+                      this.category === "topper" ||
+                      this.data.owns(this.category as CosmeticSlot, item.id),
                   )
+                  .map((item) => this.itemCard(item))
                   .join("")
           }</div>`
         : `<label class="preset-select" for="preset">PRESET<select id="preset">${this.data.presets.map((preset, i) => `<option value="${i}" ${preset.id === p.id ? "selected" : ""}>${escapeText(preset.name)}</option>`).join("")}</select></label><button id="customize-car" class="nav-button">CUSTOMIZE CAR</button><button id="new-preset" class="nav-button" ${this.data.presets.length >= 24 ? "disabled" : ""}>CREATE NEW PRESET</button>`
@@ -61,6 +69,7 @@ export class GaragePanel {
     this.host.querySelector("#garage-back")!.addEventListener("click", () => {
       if (this.customizing) {
         this.customizing = false;
+        this.previewTopper = null;
         this.render();
       } else this.back();
     });
@@ -74,14 +83,27 @@ export class GaragePanel {
         (b) =>
           (b.onclick = () => {
             this.category = b.dataset.category as typeof this.category;
+            this.previewTopper = null;
             this.render();
             if (this.category === "explosion")
               this.host.dispatchEvent(new Event("preview-explosion"));
           }),
       );
-      this.host.querySelectorAll<HTMLButtonElement>("[data-item]").forEach(
-        (b) =>
-          (b.onclick = () => {
+      this.host
+        .querySelectorAll<HTMLButtonElement>("[data-item]")
+        .forEach((b) => {
+          const preview = () => {
+            if (this.category !== "topper") return;
+            this.previewTopper = b.dataset.item!;
+            this.host
+              .querySelectorAll<HTMLButtonElement>("[data-item]")
+              .forEach((card) =>
+                card.setAttribute("aria-pressed", String(card === b)),
+              );
+          };
+          b.onfocus = preview;
+          b.onclick = () => {
+            preview();
             if (
               !this.data.equip(this.category as CosmeticSlot, b.dataset.item!)
             )
@@ -94,8 +116,8 @@ export class GaragePanel {
             this.change();
             if (this.category === "explosion")
               this.host.dispatchEvent(new Event("preview-explosion"));
-          }),
-      );
+          };
+        });
       this.host.querySelectorAll<HTMLButtonElement>("[data-color]").forEach(
         (b) =>
           (b.onclick = () => {
@@ -131,6 +153,15 @@ export class GaragePanel {
         this.change();
       };
     }
+  }
+  private itemCard(item: { id: string; name: string }) {
+    const owned = this.data.owns(this.category as CosmeticSlot, item.id);
+    const topper = this.category === "topper";
+    const thumbnail = topper ? topperThumbnail(item.id) : null;
+    const selected = topper
+      ? this.previewPreset.topper === item.id
+      : this.data.current[this.category as CosmeticSlot] === item.id;
+    return `<button class="item-card${topper ? " topper-card" : ""}" data-item="${item.id}" aria-pressed="${selected}" data-owned="${owned}" aria-label="${item.name}${topper ? (owned ? ", owned" : ", locked, preview only") : ""}">${thumbnail ? `<img src="${thumbnail}" alt="" width="96" height="96" decoding="async">` : icon(this.category)}<span>${item.name}</span>${topper ? `<small>${owned ? "OWNED" : "LOCKED"}</small>` : ""}</button>`;
   }
   private presetList() {
     const list = document.createElement("div");

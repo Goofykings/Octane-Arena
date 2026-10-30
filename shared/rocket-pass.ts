@@ -21,7 +21,7 @@ const items: [RocketPassRewardType, string][] = [
   ["GOAL_EXPLOSION", "bubbles"],
   ["TOPPER", "birthday"],
   ["GOAL_EXPLOSION", "inferno"],
-  ["TOPPER", "pickle"],
+  ["TOPPER", "banana"],
   ["CAR_BODY", "boxy"],
   ["GOAL_EXPLOSION", "crystal"],
   ["TOPPER", "crown"],
@@ -33,13 +33,14 @@ const items: [RocketPassRewardType, string][] = [
   ["TOPPER", "ufo"],
   ["GOAL_EXPLOSION", "violet-wash"],
   ["CAR_BODY", "wedge"],
-  ["TOPPER", "pirate"],
-  ["TOPPER", "emerald-hat"],
-  ["TOPPER", "solar-halo"],
-  ["TOPPER", "frost-crown"],
-  ["TOPPER", "violet-ufo"],
+  ["TOPPER", "shark-fin"],
+  ["TOPPER", "pixel-sunglasses"],
+  ["TOPPER", "octane-fries"],
+  ["BOOST", "datastream"],
+  ["BOOST", "dust"],
 ];
-// Add boosts as bonuses so previously claimed primary rewards never change.
+// The two retired duplicate colour variants become their existing boost rewards.
+// Pre-v4 receipts additionally retain the canonical old topper (see Garage).
 const boostBonuses: Record<number, string> = {
   3: "ember",
   6: "standard",
@@ -48,8 +49,6 @@ const boostBonuses: Record<number, string> = {
   15: "thermal",
   18: "sparkles",
   21: "sacred",
-  24: "datastream",
-  25: "dust",
 };
 export const rewardSlot = (type: RocketPassRewardType) =>
   type === "CAR_BODY"

@@ -14,6 +14,16 @@ export interface SnapshotSample {
   time: number;
 }
 export class SnapshotBuffer {
+  constructor(
+    private readonly options: {
+      contactCheckpoints?: boolean;
+      extrapolationSeconds?: number;
+      clockLeadSeconds?: () => number;
+    } = {},
+  ) {}
+  private get extrapolationLimit() {
+    return this.options.extrapolationSeconds ?? N.extrapolationSeconds;
+  }
   readonly snapshots: MatchSnapshot[] = [];
   duplicates = 0;
   outOfOrder = 0;
@@ -30,7 +40,9 @@ export class SnapshotBuffer {
     if (!accepted) return false;
     // True 120-Hz collision checkpoints preserve trajectory corners between
     // 30-Hz snapshots, instead of drawing a chord through a car or wall.
-    for (const event of s.contacts ?? []) {
+    for (const event of this.options.contactCheckpoints === false
+      ? []
+      : (s.contacts ?? [])) {
       if (
         event.tick >= s.tick ||
         event.time < s.time - N.contactHistorySeconds ||
@@ -78,13 +90,16 @@ export class SnapshotBuffer {
     if (i < 0) i = list.length;
     list.splice(i, 0, s);
     if (!synthetic && i === list.length - 1) {
-      const measured = s.time - now / 1000;
+      // A peer RTT estimate removes the one-way transit bias from the remote
+      // clock; without it we conservatively use the original arrival-time clock.
+      const lead = this.options.clockLeadSeconds?.() ?? 0;
+      const measured = s.time - now / 1000 + lead;
       if (
         !Number.isFinite(this.offset) ||
         Math.abs(measured - this.offset) > 0.5
       ) {
         this.offset = measured;
-        this.rendered = s.time - N.interpolationSeconds;
+        this.rendered = s.time + lead - N.interpolationSeconds;
         this.lastNow = now;
       } else
         this.offset += Math.max(
@@ -94,7 +109,6 @@ export class SnapshotBuffer {
     }
     while (list.length > N.bufferSize) {
       list.shift();
-      this.dropped++;
     }
     if (!Number.isFinite(this.rendered)) {
       this.rendered = s.time - N.interpolationSeconds;
@@ -114,8 +128,22 @@ export class SnapshotBuffer {
     } else
       this.rendered +=
         dt * Math.max(0.9, Math.min(1.1, 1 + (desired - this.rendered) * 2));
-    this.rendered = Math.min(this.rendered, last.time + N.extrapolationSeconds);
+    this.rendered = Math.min(
+      this.rendered,
+      last.time + this.extrapolationLimit,
+    );
     const time = this.rendered;
+    const result = this.sampleAt(time)!;
+    const index = list.indexOf(result.newer);
+    if (index > 1) list.splice(0, index - 1);
+    return result;
+  }
+  /** Read a fixed-step pose without advancing the render clock or pruning history. */
+  sampleAt(requested: number): SnapshotSample | null {
+    const list = this.snapshots,
+      last = list.at(-1);
+    if (!last) return null;
+    const time = Math.min(requested, last.time + this.extrapolationLimit);
     let index = list.findIndex((s) => s.time >= time);
     if (index < 0) index = list.length - 1;
     const newer = list[index],
@@ -128,8 +156,9 @@ export class SnapshotBuffer {
             Math.min(1, (time - older.time) / (newer.time - older.time)),
           );
     const extrapolation =
-      time > last.time ? Math.min(N.extrapolationSeconds, time - last.time) : 0;
-    if (index > 1) list.splice(0, index - 1);
+      time > last.time
+        ? Math.min(this.extrapolationLimit, time - last.time)
+        : 0;
     return { older, newer, alpha, extrapolation, time };
   }
   get delay() {

@@ -6,7 +6,7 @@ import type { Car } from "../car/car";
 import { animateSuspension } from "./vehicle-suspension";
 import { bodyStyles } from "./body-styles";
 import { addWheelDesign } from "./wheel-model";
-import { createTopper } from "./toppers";
+import { createTopper, animateTopper } from "./toppers";
 import { polishMaterial } from "./material-polish";
 import { createVectorBody, vectorArt } from "./vector-model";
 import { arenaCarAsset, arenaCarShell, arenaCarWheel } from "./arena-car-model";
@@ -257,6 +257,7 @@ export function animateWheels(
   pose?: T.Object3D,
   recorded?: { angle: number; steer: number },
 ) {
+  animateTopper(model.userData.topper, dt, car?.grounded ?? true);
   if (recorded) {
     for (const wheel of model.userData.wheels as T.Group[])
       wheel.rotation.x = recorded.angle;

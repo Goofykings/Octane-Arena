@@ -23,7 +23,7 @@ assert.deepEqual(
   inventory.body.map((b) => b.id),
   ["vector", "lowflat", "boxy", "wedge"],
 );
-assert.equal(inventory.topper.length, 15); // Ten sculptures, four inexpensive color variants, and None.
+assert.equal(inventory.topper.length, 13); // Exactly twelve reference sculptures and None.
 assert.equal(inventory.boost.length, 10);
 assert.equal(starter().body, "vector");
 const garage = new Garage();
@@ -184,5 +184,5 @@ for (const body of ["lowflat", "boxy", "wedge"] as const) {
   }
 }
 console.log(
-  "PASS four selectable bodies, 60 roof/topper combinations, rigid wheel alignment/bounds, ten fixed-buffer boost styles on all bodies, continuous preview, schema/preset persistence, legacy saves and unchanged shared-chassis driving",
+  "PASS four selectable bodies, 52 roof/topper fallback combinations, rigid wheel alignment/bounds, ten fixed-buffer boost styles on all bodies, continuous preview, schema/preset persistence, legacy saves and unchanged shared-chassis driving",
 );

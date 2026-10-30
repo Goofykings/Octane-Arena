@@ -87,6 +87,14 @@ export class NetworkClient {
   }
   private sessionMembers: MatchParticipant[] = [];
   readonly buffer = new SnapshotBuffer();
+  // Cars use only real authoritative packets. Ball collision checkpoints and
+  // prediction state retain their existing path and timing.
+  readonly remoteBuffer = new SnapshotBuffer({
+    contactCheckpoints: false,
+    extrapolationSeconds: NETWORK.remoteExtrapolationSeconds,
+    clockLeadSeconds: () =>
+      Math.min(NETWORK.interpolationSeconds, (this.roundTripMs ?? 0) / 2000),
+  });
   readonly testNetwork = new PacketImpairment();
   readonly metrics = new NetworkMetrics();
   get snapshots() {
@@ -112,11 +120,11 @@ export class NetworkClient {
       roundTripMs: this.roundTripMs,
       artificialDrops: this.testNetwork.dropped,
       interpolationDelayMs: NETWORK.interpolationSeconds * 1000,
-      extrapolationLimitMs: NETWORK.extrapolationSeconds * 1000,
-      bufferLength: this.snapshots.length,
-      droppedPackets: this.buffer.dropped,
-      duplicatePackets: this.buffer.duplicates,
-      outOfOrderPackets: this.buffer.outOfOrder,
+      extrapolationLimitMs: NETWORK.remoteExtrapolationSeconds * 1000,
+      bufferLength: this.remoteBuffer.snapshots.length,
+      droppedPackets: this.remoteBuffer.dropped,
+      duplicatePackets: this.remoteBuffer.duplicates,
+      outOfOrderPackets: this.remoteBuffer.outOfOrder,
     };
   }
   latest: MatchSnapshot | null = null;
@@ -300,6 +308,8 @@ export class NetworkClient {
       message.matchId === this.desired
     ) {
       const now = performance.now();
+      if (this.remoteBuffer.push(message, now))
+        this.metrics.record("receive", raw, message.tick, now);
       if (
         raw.type === "snapshot" &&
         (!this.metadata || raw.tick >= this.metadata.tick)
@@ -325,7 +335,6 @@ export class NetworkClient {
         }
       }
       if (!this.buffer.push(message, now)) return;
-      this.metrics.record("receive", raw, message.tick, now);
       if (this.latest && message.tick < this.latest.tick) return;
       if (this.latest && this.latest.reset !== message.reset)
         this.commands = [];
@@ -520,8 +529,10 @@ export class NetworkClient {
                 const packet = publisher.packet(message, guest.id);
                 if (packet.type === "snapshot") {
                   const motion = motionFrame(message, guest.id);
-                  if (this.rtc.send(guest.id, motion, true))
+                  if (this.rtc.send(guest.id, motion, true)) {
+                    this.metrics.record("send", motion, message.tick);
                     this.metrics.recordWire("send", motion);
+                  }
                 }
                 if (this.rtc.send(guest.id, packet, packet.type === "frame")) {
                   this.metrics.record("send", packet, message.tick);
@@ -600,6 +611,7 @@ export class NetworkClient {
     this.replayClip = null;
     this.skipSent = "";
     this.buffer.clear();
+    this.remoteBuffer.clear();
     this.metrics.reset();
     this.publishers.clear();
     this.sequence = 0;
@@ -607,5 +619,8 @@ export class NetworkClient {
   }
   sample() {
     return this.buffer.sample();
+  }
+  sampleRemote() {
+    return this.remoteBuffer.sample();
   }
 }
